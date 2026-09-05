@@ -1,0 +1,69 @@
+"""Bir collector'i tek seferlik elle calistirmak icin CLI.
+
+Kullanim:
+    python -m scripts.run_once instruments
+    python -m scripts.run_once prices --tickers THYAO,ASELS,GARAN --days 30
+    python -m scripts.run_once prices                    # tum aktif hisseler, 3 yil backfill
+
+Idempotency dogrulamasi (plan Bolum 7):
+    python -m scripts.run_once instruments   # 1. calistirma
+    python -m scripts.run_once instruments   # 2. calistirma -> ayni sonuc, kopya satir yok
+"""
+
+from __future__ import annotations
+
+import argparse
+import asyncio
+from datetime import date, timedelta
+
+import structlog
+
+from app.core.db import session_factory
+from app.core.logging import configure_logging
+
+configure_logging()
+logger = structlog.get_logger(__name__)
+
+
+async def run_instruments() -> dict:
+    from app.collectors.instruments import InstrumentCollector
+
+    async with session_factory() as session:
+        async with InstrumentCollector(session) as collector:
+            return await collector.run_tracked()
+
+
+async def run_prices(tickers: list[str] | None, days: int | None) -> dict:
+    from app.collectors.prices import PriceCollector
+
+    start_date = date.today() - timedelta(days=days) if days else None
+
+    async with session_factory() as session:
+        async with PriceCollector(session, tickers=tickers, start_date=start_date) as collector:
+            return await collector.run_tracked()
+
+
+COLLECTORS = {
+    "instruments": lambda args: run_instruments(),
+    "prices": lambda args: run_prices(
+        tickers=args.tickers.split(",") if args.tickers else None,
+        days=args.days,
+    ),
+}
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("collector", choices=sorted(COLLECTORS.keys()))
+    parser.add_argument("--tickers", help="Virgulle ayrilmis ticker listesi (orn. THYAO,ASELS). Verilmezse tum aktif hisseler.")
+    parser.add_argument("--days", type=int, help="Kac gun geriye gidilecek (prices icin). Verilmezse 3 yil.")
+    args = parser.parse_args()
+
+    result = asyncio.run(COLLECTORS[args.collector](args))
+    print(f"\n=== {args.collector} sonucu ===")
+    for key, value in result.items():
+        print(f"  {key}: {value}")
+
+
+if __name__ == "__main__":
+    main()

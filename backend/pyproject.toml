@@ -18,6 +18,7 @@ dependencies = [
     "feedparser>=6.0",
     "structlog>=24.4",
     "isyatirimhisse>=1.0",
+    "pandas>=2.2",
 ]
 
 [project.optional-dependencies]
@@ -26,6 +27,12 @@ dev = [
     "pytest-asyncio>=0.24",
     "ruff>=0.7",
 ]
+
+[tool.setuptools.packages.find]
+# alembic/ ve scripts/ pip paketi degil — sadece `app` kurulur.
+# scripts/ zaten backend/ workdir'inden `python -m scripts.xxx` ile calisiyor,
+# ayrica pip paketi olmasina gerek yok.
+include = ["app*"]
 
 [tool.ruff]
 line-length = 100
