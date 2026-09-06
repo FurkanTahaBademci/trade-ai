@@ -164,7 +164,33 @@ Durumlar: ⬜ başlanmadı · 🔶 devam ediyor · ✅ tamamlandı ve doğruland
       örnek dosya `%PDF-1.4` byte imzasıyla doğrulandı.
 
 ## Faz 3 — Haber Toplayıcı
-⬜ Başlanmadı
+✅ Kod ve gerçek PostgreSQL/Docker idempotency akışı doğrulandı
+
+- [x] `NewsArticle` modeli + Alembic migration (`d3f6a81c2e90`): kaynak,
+      canonical URL/SHA-256 doğal anahtar, başlık/özet/yazar/görsel, UTC yayın
+      zamanı, ticker kodları ve ham RSS satırı saklanıyor; ticker JSONB alanında
+      GIN indeks var.
+- [x] Bloomberg HT ve Investing.com.tr RSS kaynakları ortak `NewsCollector`
+      içinde toplanıyor. Kaynaklardan biri geçici olarak bozulursa diğeri devam
+      ediyor; tüm kaynaklar bozulursa koşu başarısız sayılıyor.
+- [x] URL canonicalization takip parametrelerini/fragment'i atıyor, host ve
+      query sırasını normalize ediyor. Aynı makale `url_hash` üzerinden upsert
+      edildiği için tekrar satır oluşmuyor.
+- [x] Yayın zamanları timezone-aware UTC saklanıyor. Bloomberg HT offset'i
+      doğrudan kullanılıyor; Investing'in offset'siz RSS saati resmi makale
+      sayfasındaki TRT gösterimiyle karşılaştırılarak UTC olduğu doğrulandı.
+- [x] Ticker eşlemesi yalnızca aktif `instrument` evrenindeki, başlık/özette
+      büyük harfle açıkça yazılmış veya URL token'ı olarak geçen kodlarla
+      yapılıyor; şirket isminden bulanık tahmin yapılmıyor.
+- [x] API: `GET /api/news`, `GET /api/news/{id}`; source/ticker/cursor/limit
+      filtreleri ve yayın zamanına göre deterministik sıralama.
+- [x] ARQ `collect_news` işi 5 dakikada bir, KAP'tan 30 saniye gecikmeli;
+      manuel CLI: `python -m scripts.run_once news`.
+- [x] Gerçek Docker/PostgreSQL koşusu x2: ilk koşu 30 yeni haber, ikinci koşu
+      `new=0`; DB'de 30 satır/30 benzersiz URL hash (Bloomberg HT 20,
+      Investing 10). API liste/kaynak filtresi ve 404 davranışı doğrulandı.
+- [x] Fixture tabanlı URL/tarih/ticker/RSS testleri dahil Docker içinde
+      **34/34 test geçti**; Ruff ve PostgreSQL migration DDL kontrolü temiz.
 
 ## Faz 4 — LLM Değerlendirme Katmanı
 ⬜ Başlanmadı

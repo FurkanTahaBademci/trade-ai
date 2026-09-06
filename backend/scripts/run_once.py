@@ -4,6 +4,7 @@ Kullanim:
     python -m scripts.run_once instruments
     python -m scripts.run_once kap --days 3
     python -m scripts.run_once kap --days 30 --no-attachments
+    python -m scripts.run_once news
     python -m scripts.run_once prices --tickers THYAO,ASELS,GARAN --days 30
     python -m scripts.run_once prices                    # tum aktif hisseler, 3 yil backfill
 
@@ -63,9 +64,17 @@ async def run_kap(days: int | None, download_attachments: bool) -> dict:
         return await collector.run_tracked()
 
 
+async def run_news() -> dict:
+    from app.collectors.news import NewsCollector
+
+    async with session_factory() as session, NewsCollector(session) as collector:
+        return await collector.run_tracked()
+
+
 COLLECTORS = {
     "instruments": lambda args: run_instruments(),
     "kap": lambda args: run_kap(args.days, not args.no_attachments),
+    "news": lambda args: run_news(),
     "prices": lambda args: run_prices(
         tickers=args.tickers.split(",") if args.tickers else None,
         days=args.days,

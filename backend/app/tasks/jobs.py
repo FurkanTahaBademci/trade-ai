@@ -46,3 +46,10 @@ async def collect_kap(ctx: dict) -> dict:
     # telafi eder. disclosure_index upsert'i nedeniyle tekrarlar zararsizdir.
     async with session_factory() as session, KapCollector(session, lookback_days=3) as collector:
         return await collector.run_tracked()
+
+
+async def collect_news(ctx: dict) -> dict:
+    from app.collectors.news import NewsCollector
+
+    async with session_factory() as session, NewsCollector(session) as collector:
+        return await collector.run_tracked()

@@ -6,6 +6,54 @@ Bu dosya, Codex'in yaptığı değişiklikleri Claude ve diğer ajanların hızl
 inceleyebilmesi için tutulur. Kanonik faz durumu `PROGRESS.md`, değişmemesi
 gereken ürün kararları `CLAUDE.md` içindedir.
 
+## 2026-09-07 — Faz 3 haber toplayıcı
+
+### Tamamlananlar
+
+- `news_article` şeması ve `d3f6a81c2e90` migration'ı eklendi. Kimlik,
+  canonical URL'nin SHA-256 özeti; URL ayrıca okunabilir biçimde korunuyor.
+- Bloomberg HT ve Investing.com.tr RSS akışları `NewsCollector` altında
+  toplandı. Tek kaynak hatası diğer kaynağı durdurmuyor; kaynak/satır hataları
+  sonuç özetinde görünür kalıyor.
+- Takip query parametrelerini ve fragment'i atan deterministik URL
+  canonicalization eklendi. İkinci koşu aynı URL hash'lerini upsert ediyor.
+- Tüm yayın zamanları UTC'ye çevriliyor. Investing RSS tarihinin timezone
+  yazmayan değeri, aynı haberin resmi sayfasındaki TRT gösteriminden üç saat
+  geride olduğu görülerek UTC kabul edildi.
+- Ticker eşlemesi aktif instrument kodlarıyla sınırlı. Metinde açık büyük harfli
+  kod veya URL token'ı yoksa şirket adına bakılarak çıkarım yapılmıyor.
+- `/api/news` liste/kaynak/ticker/cursor filtreleri ve `/api/news/{id}` detayı,
+  ARQ 5 dakikalık cron'u ve `scripts.run_once news` CLI komutu bağlandı.
+
+### Doğrulama
+
+- Değiştirilen Python dosyalarında Ruff temiz; Alembic offline PostgreSQL DDL
+  üretimi başarılı.
+- Docker API/worker imajları yeniden oluşturuldu, API açılışında migration
+  uygulandı; gerçek PostgreSQL head `d3f6a81c2e90`.
+- Canlı RSS x2: ilk koşu `listed=30, new=30`, ikinci koşu `listed=30, new=0`;
+  her ikisinde iki kaynak başarılı ve satır hatası yok. DB 30 satır/30 benzersiz
+  hash: Bloomberg HT 20, Investing 10.
+- Docker test konteynerinde fixture klasörü salt okunur mount edilerek
+  `pytest -q` çalıştırıldı: **34 passed**.
+- API'de iki öğelik liste, `source=investing_tr` filtresi ve bulunamayan detay
+  için 404 yanıtı gerçek çalışan container üzerinden doğrulandı.
+
+### İncelemede özellikle bakılacak kararlar
+
+1. Investing'in offset'siz saati UTC kabul ediliyor; kaynak formatı değişirse
+   fixture ve resmi sayfa karşılaştırmasıyla yeniden doğrulanmalı.
+2. Ticker eşlemesi bilinçli olarak muhafazakâr. Düşük false-positive uğruna
+   şirket adı geçen fakat kodu yazmayan haberler şimdilik eşleşmeyebilir.
+3. Tüm ham RSS satırı `raw_entry` içinde korunuyor; şema değişimlerini geriye
+   dönük incelemek mümkün.
+
+### Sıradaki iş
+
+Faz 4 — LLM değerlendirme katmanı. Haber/KAP girdilerinin ortak değerlendirme
+şeması, model çağrı bütçesi ve deterministik yeniden-işleme anahtarı şemadan
+önce netleştirilmeli.
+
 ## 2026-09-06 — Faz 2 KAP toplayıcı
 
 ### Tamamlananlar
@@ -87,8 +135,7 @@ gereken ürün kararları `CLAUDE.md` içindedir.
   Next.js/dependency yükseltmesi yapılmalı; bu Docker doğrulama turunda sürüm
   değişikliği yapılmadı.
 
-### Sıradaki iş
+### Bu devir notunun devamı
 
-Faz 3 — Haber toplayıcı. Mevcut gerçek RSS fixture'ları kullanılmalı;
-canonical URL/hash ile idempotency, yayın saati timezone normalizasyonu ve
-ticker eşleme stratejisi şema yazılmadan önce netleştirilmeli.
+Buradaki Faz 3 planı uygulanıp doğrulandı; güncel sonuç ve sıradaki iş dosyanın
+başındaki 2026-09-07 bölümündedir.

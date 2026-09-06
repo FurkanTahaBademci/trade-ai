@@ -2,9 +2,9 @@
 
 Calistirma: arq app.tasks.schedule.WorkerSettings
 
-Faz 2+'da collector job'lari (kap_poll, news_poll, ...) buraya `cron_jobs`
-listesine eklenecek. Faz 0'da sadece worker'in ayakta oldugunu ve Redis'e
-baglandigini dogrulayan bir ping job'u var.
+Collector job'lari bu dosyadaki `cron_jobs` listesinde merkezi olarak
+zamanlanir. Haber ve KAP isleri ayni dakikada baslasa da haber 30 saniye
+gecikmeli calisarak ani istek yukunu dagitir.
 """
 
 from typing import ClassVar
@@ -14,7 +14,7 @@ from arq import cron
 from arq.connections import RedisSettings
 
 from app.core.config import get_settings
-from app.tasks.jobs import collect_instruments, collect_kap, collect_prices
+from app.tasks.jobs import collect_instruments, collect_kap, collect_news, collect_prices
 
 logger = structlog.get_logger(__name__)
 
@@ -37,10 +37,11 @@ def _redis_settings() -> RedisSettings:
 
 
 class WorkerSettings:
-    functions: ClassVar[list] = [collect_instruments, collect_prices, collect_kap]
+    functions: ClassVar[list] = [collect_instruments, collect_prices, collect_kap, collect_news]
     cron_jobs: ClassVar[list] = [
         cron(heartbeat, minute=set(range(0, 60, 5))),  # her 5 dakikada bir
         cron(collect_kap, minute=set(range(0, 60, 5))),
+        cron(collect_news, minute=set(range(0, 60, 5)), second=30),
         # Hisse evreni gunde bir kere yeterli (KAP uyelik degisimi nadir).
         cron(collect_instruments, hour={6}, minute={0}),
         # Fiyat: BIST kapanisi (18:00-18:10 TRT) sonrasi guncel veri icin 18:30.
