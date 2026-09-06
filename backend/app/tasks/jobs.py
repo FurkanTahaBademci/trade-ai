@@ -6,6 +6,9 @@ cagriliyor. Boylece collector'lar hem CLI'dan (`scripts/run_once.py`) hem
 worker'dan ayni kod yolunu kullanir.
 """
 
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+
 import structlog
 
 from app.core.db import session_factory
@@ -16,19 +19,30 @@ logger = structlog.get_logger(__name__)
 async def collect_instruments(ctx: dict) -> dict:
     from app.collectors.instruments import InstrumentCollector
 
-    async with session_factory() as session:
-        async with InstrumentCollector(session) as collector:
-            return await collector.run_tracked()
+    async with session_factory() as session, InstrumentCollector(session) as collector:
+        return await collector.run_tracked()
 
 
 async def collect_prices(ctx: dict) -> dict:
     from app.collectors.prices import PriceCollector
 
-    async with session_factory() as session:
-        # Cron her calistiginda tum tarihceyi degil, son birkac gunu
-        # guncelliyoruz (duzeltilmis kapanislar/tatil telafisi icin 5 gun
-        # payi birakildi). Ilk backfill icin scripts/run_once.py kullanilir.
-        from datetime import date, timedelta
+    # Cron her calistiginda tum tarihceyi degil, son birkac gunu
+    # guncelliyoruz (duzeltilmis kapanislar/tatil telafisi icin 5 gun
+    # payi birakildi). Ilk backfill icin scripts/run_once.py kullanilir.
+    async with (
+        session_factory() as session,
+        PriceCollector(
+            session,
+            start_date=datetime.now(ZoneInfo("Europe/Istanbul")).date() - timedelta(days=5),
+        ) as collector,
+    ):
+        return await collector.run_tracked()
 
-        async with PriceCollector(session, start_date=date.today() - timedelta(days=5)) as collector:
-            return await collector.run_tracked()
+
+async def collect_kap(ctx: dict) -> dict:
+    from app.collectors.kap import KapCollector
+
+    # Uc gunluk kayan pencere hafta sonu/tatil ve gecici KAP kesintilerini
+    # telafi eder. disclosure_index upsert'i nedeniyle tekrarlar zararsizdir.
+    async with session_factory() as session, KapCollector(session, lookback_days=3) as collector:
+        return await collector.run_tracked()

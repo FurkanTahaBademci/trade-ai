@@ -32,7 +32,8 @@ class Instrument(Base):
 
     city: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
-    kap_member_oid: Mapped[str] = mapped_column(String(64), unique=True)
+    # Bir KAP uyesinin birden cok pay sinifi/ticker'i olabilir (orn. KRDMA/B/D).
+    kap_member_oid: Mapped[str] = mapped_column(String(64), index=True)
     mkk_member_oid: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)

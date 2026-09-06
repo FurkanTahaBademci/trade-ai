@@ -12,6 +12,8 @@ kopya satir uretmez.
 
 from __future__ import annotations
 
+import re
+
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,25 +24,34 @@ KAP_COMPANY_ITEMS_URL = "https://www.kap.org.tr/tr/api/company/items/IGS/A"
 KAP_REFERER = "https://www.kap.org.tr/tr/bist-sirketler"
 
 
-def map_kap_item_to_instrument_fields(item: dict) -> dict | None:
-    """Bir KAP `company/items/IGS/A` satirini `instrument` alanlarina cevirir.
+def map_kap_item_to_instrument_fields(item: dict) -> list[dict]:
+    """Bir KAP sirket satirini bir veya daha cok `instrument` satirina cevirir.
 
     Hisse kodu olmayan uyeler (bagimsiz denetim sirketleri, "-" stockCode)
-    icin None doner — cagiran taraf bunu atlamali. Saf fonksiyon oldugu icin
+    icin bos liste doner. KAP ayni sirketin farkli pay siniflarini
+    `KRDMA, KRDMB, KRDMD` gibi tek alanda verebildiginden her kod ayri satira
+    donusturulur. Saf fonksiyon oldugu icin
     DB/ag olmadan test edilebilir (bkz. tests/test_instrument_mapping.py).
     """
-    ticker = (item.get("stockCode") or "").strip().upper()
-    if not ticker or ticker == "-":
-        return None
+    raw_tickers = str(item.get("stockCode") or "").strip().upper()
+    tickers = list(
+        dict.fromkeys(
+            ticker
+            for ticker in re.split(r"[,;/\s]+", raw_tickers)
+            if ticker and ticker != "-"
+        )
+    )
+    if not tickers:
+        return []
 
-    return {
-        "ticker": ticker,
+    common_fields = {
         "name": (item.get("kapMemberTitle") or "").strip(),
         "city": item.get("cityName"),
         "kap_member_oid": item["kapMemberOid"],
         "mkk_member_oid": item.get("mkkMemberOid"),
         "is_active": item.get("kapMemberState") == "A",
     }
+    return [{"ticker": ticker, **common_fields} for ticker in tickers]
 
 
 class InstrumentCollector(BaseCollector):
@@ -62,24 +73,25 @@ class InstrumentCollector(BaseCollector):
         skipped_no_ticker = 0
 
         for item in raw_items:
-            fields = map_kap_item_to_instrument_fields(item)
-            if fields is None:
+            instrument_rows = map_kap_item_to_instrument_fields(item)
+            if not instrument_rows:
                 skipped_no_ticker += 1
                 continue
 
-            stmt = pg_insert(Instrument).values(**fields)
-            stmt = stmt.on_conflict_do_update(
-                index_elements=[Instrument.ticker],
-                set_={
-                    "name": stmt.excluded.name,
-                    "city": stmt.excluded.city,
-                    "kap_member_oid": stmt.excluded.kap_member_oid,
-                    "mkk_member_oid": stmt.excluded.mkk_member_oid,
-                    "is_active": stmt.excluded.is_active,
-                },
-            )
-            await self._session.execute(stmt)
-            created_or_updated += 1
+            for fields in instrument_rows:
+                stmt = pg_insert(Instrument).values(**fields)
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=[Instrument.ticker],
+                    set_={
+                        "name": stmt.excluded.name,
+                        "city": stmt.excluded.city,
+                        "kap_member_oid": stmt.excluded.kap_member_oid,
+                        "mkk_member_oid": stmt.excluded.mkk_member_oid,
+                        "is_active": stmt.excluded.is_active,
+                    },
+                )
+                await self._session.execute(stmt)
+                created_or_updated += 1
 
         await self._session.commit()
 

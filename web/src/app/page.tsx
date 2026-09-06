@@ -4,7 +4,12 @@
  * (skor siralamasi, gunun en cok degisenleri) donusecek.
  */
 async function getHealth() {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+  // Server Component container icinden Compose servis adini kullanir;
+  // NEXT_PUBLIC_API_URL ileride tarayici tarafindaki istekler icindir.
+  const apiUrl =
+    process.env.API_INTERNAL_URL ??
+    process.env.NEXT_PUBLIC_API_URL ??
+    "http://localhost:8000";
   try {
     const res = await fetch(`${apiUrl}/health/detailed`, { cache: "no-store" });
     if (!res.ok) {

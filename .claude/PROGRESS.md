@@ -20,8 +20,20 @@ Durumlar: ⬜ başlanmadı · 🔶 devam ediyor · ✅ tamamlandı ve doğruland
 - [x] `Makefile`, `README.md`
 - [x] `backend/tests/fixtures/` — KAP liste/detay, TEFAS dağılım, 2 RSS feed'in
       gerçek yanıtları kaydedildi (Faz 2+ ağsız regresyon testleri için)
-- [ ] `docker compose up -d --build` ile uçtan uca yerel doğrulama (Docker
-      Desktop bu oturumda başlatıldı, daemon açılışı bekleniyor)
+- [x] `docker compose config --quiet` — Compose 5.5.0 ile değişken çözümleme ve
+      servis grafiği doğrulandı.
+- [x] Docker denemesinde `web/public` yokken runner'ın dizini kopyalaması
+      hatası bulundu; builder stage dizini deterministik oluşturacak şekilde
+      düzeltildi.
+- [x] Web production build'i hem host Node hem gerçek Docker multi-stage build
+      içinde başarıyla tamamlandı.
+- [x] `docker compose up -d --build` uçtan uca doğrulandı: PostgreSQL ve Redis
+      healthy, API `/health/detailed` sonucu `db/redis/status = ok`, worker
+      ayakta, dashboard backend sağlığını doğru gösteriyor.
+- [x] Docker doğrulamasında bulunan altyapı sorunları düzeltildi: boş
+      `web/public` dizini, 405 MB `node_modules` build context'i
+      (`web/.dockerignore` sonrası 2,1 KB), container içinden yanlış
+      `localhost` API çağrısı ve host port çakışmaları için `API_PORT/WEB_PORT`.
 - [ ] Coolify'a bağlama + domain + TLS (kullanıcı tarafında yapılacak, talimat verilecek)
 
 ### Doğrulanmış kaynak bulguları (bu oturumda gerçek ağ isteğiyle test edildi)
@@ -52,8 +64,7 @@ Durumlar: ⬜ başlanmadı · 🔶 devam ediyor · ✅ tamamlandı ve doğruland
   çalıştır.
 
 ## Faz 1 — Hisse Evreni + Fiyat Verisi
-🔶 Kod tarafı tamamlandı — Docker/Postgres bloke olduğu için gerçek DB
-   entegrasyon testi bekliyor (bkz. Faz 0 "Docker Desktop bloke" notu)
+✅ Kod ve gerçek PostgreSQL/Docker entegrasyonu doğrulandı
 
 - [x] `Instrument` modeli (`app/models/instrument.py`) — KAP `company/items/IGS/A`
       endpoint'i **bu oturumda keşfedildi ve doğrulandı**: 757 üye, `stockCode`
@@ -74,7 +85,10 @@ Durumlar: ⬜ başlanmadı · 🔶 devam ediyor · ✅ tamamlandı ve doğruland
       Faz 10 sağlık takibi için hazır altyapı)
 - [x] `collectors/instruments.py` — KAP'tan hisse evrenini çekip upsert eder.
       Saf `map_kap_item_to_instrument_fields()` fonksiyonu ayrıştırıldı,
-      **5 testle DB'siz doğrulandı** (`tests/test_instrument_mapping.py`)
+      **6 testle DB'siz doğrulandı** (`tests/test_instrument_mapping.py`).
+      Canlı PostgreSQL testi KAP'ın bir şirkette birden çok kodu tek string
+      verdiğini yakaladı (`KRDMA, KRDMB, KRDMD`); her kod ayrı satıra açılıyor.
+      Aynı KAP OID'sini paylaşabilmeleri için migration `a7e2c4f98b11` eklendi.
 - [x] `collectors/prices.py` — `isyatirimhisse`'den EOD fiyat çeker, chunk'lar
       halinde işler (600 hisse × ~0.44 sn/hisse ölçüldü → tam backfill tahmini
       10-15 dk). Saf `map_price_record()` fonksiyonu **5 testle DB'siz
@@ -92,10 +106,10 @@ Durumlar: ⬜ başlanmadı · 🔶 devam ediyor · ✅ tamamlandı ve doğruland
       `COPY . .`'dan ÖNCE çalışıyordu — `app/` henüz image'da yokken paket
       keşfi patlardı. Her ikisi de **yerel venv ile gerçekten test edilerek**
       yakalandı (Docker build'i bekleyecek olsaydı bu ikisi de orada patlardı).
-- [ ] `docker compose exec worker python -m scripts.run_once instruments`
-      (gerçek Postgres'e karşı, x2 idempotency testi) — **Docker'ı bekliyor**
-- [ ] `docker compose exec worker python -m scripts.run_once prices --tickers THYAO,ASELS,GARAN --days 30`
-      (küçük örnekle önce dene, sonra tam backfill) — **Docker'ı bekliyor**
+- [x] Hisse collector'ı gerçek Postgres'e karşı iki kez çalıştı: 757 KAP üyesi
+      her koşuda 807 ticker'a upsert edildi; tabloda 807/807 benzersiz ticker.
+- [x] Fiyat collector'ı `THYAO,ASELS,GARAN --days 30` ile iki kez çalıştı:
+      her koşuda 63 satır upsert, DB'de 63/63 benzersiz `(ticker,date)`, hata yok.
 
 ### Doğrulanmış bulgular (Faz 1)
 
@@ -111,7 +125,43 @@ Durumlar: ⬜ başlanmadı · 🔶 devam ediyor · ✅ tamamlandı ve doğruland
   düzeltmesi şart.
 
 ## Faz 2 — KAP Toplayıcı
-⬜ Başlanmadı
+✅ Kod ve gerçek PostgreSQL/Docker idempotency akışı doğrulandı
+
+- [x] `KapDisclosure` + `KapAttachment` modelleri — bildirim numarası ve KAP
+      `objId` doğal anahtar; ham liste/detay JSON'u, görünür Türkçe metin,
+      dosya hash/boyut/hata bilgisi saklanıyor. Ek içeriği `deferred BYTEA`.
+- [x] Alembic migration (`9c1f0d4a2e73_...py`) — ticker JSONB alanı için GIN
+      indeks dahil; `alembic upgrade head --sql` ile PostgreSQL DDL üretimi
+      doğrulandı.
+- [x] `collectors/kap.py` — tarih penceresini **gün gün** sorgular (KAP'ın
+      istek başına 2000 sınırında geniş aralık veri kaybetmesin), listeyi
+      `disclosure_index` ile upsert eder, yalnızca yeni/eksik detayları çeker.
+- [x] KAP HTML'inden gizli İngilizce hücreleri atıp görünür Türkçe metin
+      çıkaran stdlib parser eklendi; ham HTML ayrıca korunuyor.
+- [x] KAP ekleri: `objId/fileName/fileExtension` şeması gerçek ekli bildirimle
+      doğrulandı. Java-serialized `byte[]` sarmalayıcı uzunluk kontrolüyle
+      çözülüyor; kaynak ileride ham dosyaya geçerse geriye uyumlu.
+- [x] Gerçek ek doğrulaması: KAP bildirim `1659248`, objId
+      `4028328d9f52dddd01a06d943dc11178`; 2.699.462 bayt sarmalayıcıdan
+      2.699.435 bayt `%PDF-1.4` çıktı başarıyla elde edildi (fixture'a büyük
+      binary eklenmedi).
+- [x] Idempotency: ilk çalışmada yeni detay alınır; ikinci çalışmada `new=0`
+      ve aynı detay için yeni ağ isteği yapılmaz. İndirilemeyen ekler sonraki
+      koşuda yeniden denenir.
+- [x] ARQ `collect_kap` işi (5 dakikada bir) + manuel CLI:
+      `python -m scripts.run_once kap --days 3 [--no-attachments]`.
+- [x] API: `GET /api/disclosures`, `GET /api/disclosures/{index}`,
+      `GET /api/disclosures/{index}/attachments/{obj_id}`; ticker/class
+      filtresi ve cursor/limit desteği.
+- [x] Fixture tabanlı parser + idempotency testleri dahil **26/26 test geçti**;
+      değiştirilen dosyalarda Ruff temiz; OpenAPI route kaydı doğrulandı.
+- [x] `alembic upgrade head` gerçek PostgreSQL üzerinde çalıştı; güncel head
+      `a7e2c4f98b11`.
+- [x] Üç günlük canlı KAP koşusu x2: ilk koşu 293 yeni bildirim/293 detay,
+      ikinci koşu `new=0`, `details_fetched=0`. DB'de 293 bildirim ve 124 ek
+      metadata satırında tekrar yok. 15:25 cron'u kalan 18 eki de başarıyla
+      tamamladı (`attachment_failures=0`); 124/124 içerik indirildi. API'den
+      örnek dosya `%PDF-1.4` byte imzasıyla doğrulandı.
 
 ## Faz 3 — Haber Toplayıcı
 ⬜ Başlanmadı
@@ -144,11 +194,15 @@ Durumlar: ⬜ başlanmadı · 🔶 devam ediyor · ✅ tamamlandı ve doğruland
 
 ## Bilinen riskler / açık sorular
 
-- `isyatirimhisse` kütüphanesinin güncel fonksiyon imzası doğrulanmadı —
-  `smoke_sources.py` iki farklı import yolunu deniyor (`fetch_stock_data` /
-  `StockData`), gerçek çalıştırmada hangisinin tuttuğu görülecek.
-- TEFAS smoke kontrolü `BindHistoryInfo` endpoint'ini deniyor — bu endpoint
-  daha önce doğrulanan `dagilimSiraliGetirT`'ten farklı, ikisi de teyit
-  edilmeli.
-- RSS feed URL'leri (`bloomberght.com/rss`, `tr.investing.com/rss/news.rss`)
-  tahmini — gerçek çalıştırmada 404 verirse doğru feed URL'i bulunacak.
+- Frontend build'i geçiyor; ancak `npm install` mevcut Next.js 15.0.3 için
+  güvenlik uyarısı ve toplam 2 high + 1 critical bağımlılık bulgusu verdi.
+  Production deploy öncesi ayrı bir bağımlılık güncelleme/regresyon işi şart.
+- KAP'ın ek sunucusu uzun canlı koşuda zaman zaman bağlantıyı yanıt vermeden
+  kapattı. Retry politikası ve batch toleransı çalıştı; ikinci koşuda 24 eksik
+  ekin 6'sı, sonraki 5 dakikalık cron'da kalan 18'in tamamı indirildi.
+- KAP ekleri şimdilik PostgreSQL `BYTEA` içinde saklanıyor. İlk kullanım için
+  basit ve yedeklenebilir; veri büyüdüğünde Faz 10 öncesi retention veya S3
+  uyumlu nesne depolama kararı verilmeli.
+- KAP'ın günlük 2000 kayıt sınırı dolarsa collector sessiz veri kaybetmek
+  yerine hata verir. Böyle bir gün görülürse üye/kategori bazında bölme
+  stratejisi eklenmeli.

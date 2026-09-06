@@ -21,7 +21,9 @@ Kullanim (Faz 2+ ornegi):
 from __future__ import annotations
 
 import time
+from datetime import UTC
 from types import TracebackType
+from typing import Self
 
 import httpx
 import structlog
@@ -51,7 +53,7 @@ class BaseCollector:
         self._rate_limit_per_sec = rate_limit_per_sec
         self._last_request_at: float = 0.0
 
-    async def __aenter__(self) -> "BaseCollector":
+    async def __aenter__(self) -> Self:
         self._client = httpx.AsyncClient(
             headers={"User-Agent": settings.collector_user_agent},
             timeout=30,
@@ -71,8 +73,7 @@ class BaseCollector:
     def client(self) -> httpx.AsyncClient:
         if self._client is None:
             raise RuntimeError(
-                f"{self.name} collector 'async with' disinda kullanildi — "
-                "client henuz acilmadi."
+                f"{self.name} collector 'async with' disinda kullanildi — client henuz acilmadi."
             )
         return self._client
 
@@ -110,6 +111,19 @@ class BaseCollector:
         stop=stop_after_attempt(4),
         reraise=True,
     )
+    async def get_bytes(self, url: str, **kwargs) -> bytes:
+        """Ikili dosya indir (KAP PDF eki gibi); JSON retry politikasini kullan."""
+        await self._throttle()
+        resp = await self.client.get(url, **kwargs)
+        resp.raise_for_status()
+        return resp.content
+
+    @retry(
+        retry=retry_if_exception_type((httpx.TransportError, httpx.HTTPStatusError)),
+        wait=wait_exponential(multiplier=1, min=1, max=20),
+        stop=stop_after_attempt(4),
+        reraise=True,
+    )
     async def post_json(self, url: str, json: dict, **kwargs) -> dict | list:
         await self._throttle()
         resp = await self.client.post(url, json=json, **kwargs)
@@ -128,17 +142,17 @@ class BaseCollector:
         Bu anahtarlar `/health/detailed` tarafindan okunacak (Faz 10).
         """
         redis = get_redis()
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         try:
             result = await self.run()
-            await redis.set(f"collector:{self.name}:last_success", datetime.now(timezone.utc).isoformat())
+            await redis.set(f"collector:{self.name}:last_success", datetime.now(UTC).isoformat())
             self.log.info("collector_run_ok", **(result or {}))
             return result
-        except Exception as exc:  # noqa: BLE001 - collector hatasi ust katmani dusurmemeli
+        except Exception as exc:
             await redis.set(
                 f"collector:{self.name}:last_error",
-                f"{datetime.now(timezone.utc).isoformat()} | {exc!r}",
+                f"{datetime.now(UTC).isoformat()} | {exc!r}",
             )
             self.log.error("collector_run_failed", error=str(exc))
             raise

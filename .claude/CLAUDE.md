@@ -42,7 +42,9 @@ olgunlaşmadan gerçek para riske atılmayacak).
 ## Durum takibi
 
 Faz ilerlemesi için `.claude/PROGRESS.md` dosyasına bak — her faz bitince
-orada işaretleniyor. Yeni bir oturuma başlarken önce onu oku.
+orada işaretleniyor. Codex'in son uygulama/devir ayrıntıları için ayrıca
+`.claude/CODEX_NOTES.md` dosyasını oku. Yeni bir oturuma başlarken önce bu iki
+dosyayı incele.
 
 ## Vibe coding kuralları (planın 6. bölümünden)
 

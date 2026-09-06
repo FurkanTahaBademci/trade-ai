@@ -13,14 +13,15 @@ Detaylı mimari ve faz planı: [`.claude/CLAUDE.md`](.claude/CLAUDE.md) ve
 (KAP liste+detay, TEFAS fon dağılımı, 2 RSS feed, `isyatirimhisse`) gerçek
 istekle doğrulandı.
 
-🔶 **Faz 1 — Hisse Evreni + Fiyat Verisi**: kod tarafı tamam (modeller,
-collector'lar, API endpoint'leri, ARQ cron'ları, 14 birim testi geçiyor).
+✅ **Faz 1 — Hisse Evreni + Fiyat Verisi**: kod ve gerçek PostgreSQL
+entegrasyonu doğrulandı (807 ticker; örnek fiyat akışı x2 idempotent).
 
-⚠️ **Bilinen engel:** Bu makinede Docker Desktop'ın WSL2 arka uç dağıtımı
-(`docker-desktop`) kayıtlı değil, motor asla ayağa kalkmıyor — `docker
-compose`'a bağlı uçtan uca doğrulama (gerçek Postgres'e karşı migration +
-collector idempotency testi) bu yüzden bekliyor. Düzeltme adımları ve
-şu ana kadar Docker'sız doğrulanan her şey için `.claude/PROGRESS.md`'ye bak.
+✅ **Faz 2 — KAP Toplayıcı**: bildirim/detay/ek collector'ı, Java `byte[]` PDF
+çözümü, API uçları ve cron gerçek Docker/PostgreSQL üzerinde doğrulandı.
+İkinci canlı koşu `new=0`, `details_fetched=0` verdi.
+
+Toplam **26 ağsız test** geçiyor. Docker ile yapılan canlı testlerin sayısal
+sonuçları ve geçici KAP ek indirme hataları `.claude/CODEX_NOTES.md` içinde.
 
 ## Hızlı başlangıç (yerel geliştirme)
 
@@ -33,6 +34,9 @@ make smoke                # tum veri kaynaklarini dogrula
 
 - API: http://localhost:8000/docs
 - Dashboard: http://localhost:3000
+
+Port çakışmasında `.env` içinde `API_PORT`/`WEB_PORT` ve buna uygun
+`NEXT_PUBLIC_API_URL` değiştirilebilir.
 
 ## Servisler
 

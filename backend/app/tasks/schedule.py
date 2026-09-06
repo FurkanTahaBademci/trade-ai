@@ -7,12 +7,14 @@ listesine eklenecek. Faz 0'da sadece worker'in ayakta oldugunu ve Redis'e
 baglandigini dogrulayan bir ping job'u var.
 """
 
+from typing import ClassVar
+
 import structlog
 from arq import cron
 from arq.connections import RedisSettings
 
 from app.core.config import get_settings
-from app.tasks.jobs import collect_instruments, collect_prices
+from app.tasks.jobs import collect_instruments, collect_kap, collect_prices
 
 logger = structlog.get_logger(__name__)
 
@@ -35,9 +37,10 @@ def _redis_settings() -> RedisSettings:
 
 
 class WorkerSettings:
-    functions: list = [collect_instruments, collect_prices]
-    cron_jobs = [
+    functions: ClassVar[list] = [collect_instruments, collect_prices, collect_kap]
+    cron_jobs: ClassVar[list] = [
         cron(heartbeat, minute=set(range(0, 60, 5))),  # her 5 dakikada bir
+        cron(collect_kap, minute=set(range(0, 60, 5))),
         # Hisse evreni gunde bir kere yeterli (KAP uyelik degisimi nadir).
         cron(collect_instruments, hour={6}, minute={0}),
         # Fiyat: BIST kapanisi (18:00-18:10 TRT) sonrasi guncel veri icin 18:30.
