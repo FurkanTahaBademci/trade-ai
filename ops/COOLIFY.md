@@ -36,7 +36,9 @@ Variables/Secrets alanında runtime değişkeni olarak tut.
 
 ## Dağıtım ve doğrulama
 
-1. `docker compose config --quiet` ile birleşik Compose yapılandırmasını doğrula.
+1. Production değişkenlerini girdikten sonra `make preflight` çalıştır. Bu komut
+   secret değerlerini ekrana basmadan zorunlu ayarları ve birleşik Compose
+   yapılandırmasını doğrular.
 2. API açılışta `alembic upgrade head` çalıştırır; worker API health başarılı
    olmadan başlamaz.
 3. Tüm servislerin healthy olduğunu ve migration head'ini kontrol et:

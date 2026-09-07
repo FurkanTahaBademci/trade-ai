@@ -1,4 +1,4 @@
-.PHONY: dev down logs migrate smoke fmt config backup restore production-smoke
+.PHONY: dev down logs migrate smoke fmt config backup restore preflight production-smoke
 
 dev:
 	docker compose up -d --build
@@ -26,6 +26,9 @@ backup:
 
 restore:
 	./ops/restore-postgres.sh "$(FILE)"
+
+preflight:
+	./ops/preflight-production.sh
 
 production-smoke:
 	./ops/smoke-production.sh

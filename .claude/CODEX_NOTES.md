@@ -1,12 +1,23 @@
 # Codex Çalışma / Devir Notları
 
-Son güncelleme: 2026-09-07 (Europe/Istanbul)
+Son güncelleme: 2026-09-08 (Europe/Istanbul)
 
 Bu dosya, Codex'in yaptığı değişiklikleri Claude ve diğer ajanların hızlıca
 inceleyebilmesi için tutulur. Kanonik faz durumu `PROGRESS.md`, değişmemesi
 gereken ürün kararları `CLAUDE.md` içindedir. Aşağıdaki 2026-09-07 (Claude)
 girişi Codex değil, Claude tarafından yazıldı — paylaşılan tek devir
 günlüğünü bölmemek için burada tutuluyor, başlıkta ajan belirtildi.
+
+## 2026-09-08 — Production preflight kontrolü
+
+- `ops/preflight-production.sh` ve `make preflight` eklendi. Kontrol secret
+  değerlerini yazdırmadan production modu, PostgreSQL parolası/URL'si, admin
+  tokenı, HTTPS API adresi, CORS originleri, izinli hostlar ve Compose config'i
+  doğruluyor; Gemini/N8N boşsa opsiyonel özellik uyarısı veriyor.
+- Yerel geliştirme `.env` dosyası beklenen şekilde 6 production eksiğiyle kapıyı
+  durdurdu. Güvenli sahte production değişkenleriyle pozitif senaryo tamamen geçti.
+- Çalışan ortamda migration `c4e8a2b1d730 (head)`; PostgreSQL/Redis named volume,
+  non-root/salt-okunur API-worker-web ve `unless-stopped` politikaları doğrulandı.
 
 ## 2026-09-08 — Liste ekranlarında sonsuz kaydırma
 

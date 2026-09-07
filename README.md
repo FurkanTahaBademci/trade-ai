@@ -86,6 +86,9 @@ Port çakışmasında `.env` içinde `API_PORT`/`WEB_PORT` ve buna uygun
 Eksiksiz ortam, yedek, doğrulama ve geri alma adımları:
 [Coolify üretim kontrol listesi](ops/COOLIFY.md).
 
+Production değişkenlerini girdikten sonra secret değerlerini göstermeyen yayın
+öncesi kontrolü `make preflight` ile çalıştırın.
+
 1. Bu repo'yu Coolify'da "Docker Compose" tipi bir kaynak olarak ekle.
 2. `.env.example`'daki değişkenleri Coolify'ın Environment Variables ekranına gir
    (özellikle `POSTGRES_PASSWORD`, `GEMINI_API_KEY`, `N8N_WEBHOOK_URL`).
