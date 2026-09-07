@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
 from app.api.routers import (
     evaluations,
@@ -21,9 +22,11 @@ from app.api.routers import (
     schedules,
     signals,
 )
+from app.core.config import get_settings
 from app.core.logging import configure_logging
 
 configure_logging()
+settings = get_settings()
 
 
 @asynccontextmanager
@@ -38,12 +41,15 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Faz 0'da genis CORS; dashboard domaini netlesince daraltilacak.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=[item.strip() for item in settings.cors_origins.split(",") if item.strip()],
+    allow_methods=["GET", "POST", "PATCH", "OPTIONS"],
+    allow_headers=["Content-Type", "X-Admin-Token"],
+)
+app.add_middleware(
+    TrustedHostMiddleware,
+    allowed_hosts=[item.strip() for item in settings.allowed_hosts.split(",") if item.strip()],
 )
 
 app.include_router(health.router)

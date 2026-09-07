@@ -17,7 +17,8 @@ from __future__ import annotations
 
 import asyncio
 from datetime import date as date_type
-from datetime import timedelta
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 from sqlalchemy import select
@@ -25,6 +26,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.collectors.base import BaseCollector
+from app.core.config import get_settings
 from app.models import Instrument, PriceDaily
 
 DEFAULT_BACKFILL_YEARS = 3
@@ -84,10 +86,11 @@ class PriceCollector(BaseCollector):
         chunk_size: int = DEFAULT_CHUNK_SIZE,
     ) -> None:
         super().__init__()
+        today = datetime.now(ZoneInfo(get_settings().tz)).date()
         self._session = session
         self._tickers = tickers
-        self._start_date = start_date or (date_type.today() - timedelta(days=365 * DEFAULT_BACKFILL_YEARS))
-        self._end_date = end_date or date_type.today()
+        self._start_date = start_date or (today - timedelta(days=365 * DEFAULT_BACKFILL_YEARS))
+        self._end_date = end_date or today
         self._chunk_size = chunk_size
 
     async def _active_tickers(self) -> list[str]:

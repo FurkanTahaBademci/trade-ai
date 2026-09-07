@@ -21,8 +21,8 @@ Kutuphanenin dondurdugu ham kolonlar (bkz. .claude/PROGRESS.md Faz 1 notu):
 from datetime import date as date_type
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Numeric, String, UniqueConstraint, func
 from sqlalchemy import Date as SADate
+from sqlalchemy import DateTime, ForeignKey, Numeric, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base

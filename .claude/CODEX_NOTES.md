@@ -8,6 +8,28 @@ gereken ürün kararları `CLAUDE.md` içindedir. Aşağıdaki 2026-09-07 (Claud
 girişi Codex değil, Claude tarafından yazıldı — paylaşılan tek devir
 günlüğünü bölmemek için burada tutuluyor, başlıkta ajan belirtildi.
 
+## 2026-09-07 — Faz 13 Docker/Coolify üretim hazırlığı tamamlandı
+
+- Compose servislerine health/start/grace ayarları, bellek sınırları ve dönen
+  JSON logları eklendi. PostgreSQL ile Redis dışarı port açmıyor; Redis AOF
+  `everysec` kullanıyor. API/worker `tradeai`, web `node` kullanıcısıyla ve
+  salt-okunur kök dosya sistemiyle çalışıyor; geçici yazımlar tmpfs üzerinde.
+- Backend CORS origin ve izinli Host listesi environment üzerinden yönetiliyor.
+  Web güvenlik başlıkları ile bağımsız `/health` route'u eklendi.
+- `ops/backup-postgres.sh`, `restore-postgres.sh` ve `smoke-production.sh` ile
+  `ops/COOLIFY.md` hazırlandı. Gerçek DB'den özel-format dump alındı; ayrı
+  PostgreSQL 16 container'ına şema + migration/takvim verisi geri yüklenerek
+  `c4e8a2b1d730` ve 12 takvim doğrulandı.
+- Sıfır volume'lü ayrı Compose projesi kuruldu: PostgreSQL/Redis health, migration,
+  12 takvim, API/web/worker açılışı başarılı oldu; test projesi ve volume'leri
+  sonrasında kaldırıldı. Çalışan ortamda tüm production smoke rotaları HTTP 200.
+- Next.js 15.0.3 → 16.3.4, React 18 → 19.2.8 ve PostCSS 8.5.28 güncellendi;
+  `package-lock.json` + Docker `npm ci` kullanımına geçildi. Temiz production
+  build ve `npm audit` 0 bulguyla geçti.
+- Son kalite kapısı: tüm proje Ruff temiz, backend **102/102 test**, TypeScript
+  kontrolü ve Compose config başarılı. Coolify'da kalan iş yalnız repo/domain/TLS
+  ve production secret'larını bağlamak.
+
 ## 2026-09-07 — Faz 12 gelişmiş hisse grafikleri tamamlandı
 
 - `PriceChart` etkileşimli client bileşenine dönüştürüldü. 1A/3A/6A/1Y/3Y/Tümü

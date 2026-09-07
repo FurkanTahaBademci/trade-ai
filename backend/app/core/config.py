@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     environment: str = "development"
     log_level: str = "INFO"
     tz: str = "Europe/Istanbul"
+    cors_origins: str = "http://localhost:3000"
+    allowed_hosts: str = "localhost,127.0.0.1,api,testserver"
 
     database_url: str = "postgresql+asyncpg://tradeai:tradeai@localhost:5432/tradeai"
     redis_url: str = "redis://localhost:6379/0"

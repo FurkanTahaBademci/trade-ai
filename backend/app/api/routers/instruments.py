@@ -1,11 +1,14 @@
 """Hisse evreni ve fiyat verisi endpoint'leri."""
 
-from datetime import date
+from datetime import date, datetime, timedelta
+from typing import Annotated
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.core.db import get_db
 from app.models import Instrument, PriceDaily
 from app.schemas.instrument import InstrumentOut, PriceDailyOut
@@ -15,8 +18,10 @@ router = APIRouter(prefix="/api/instruments", tags=["instruments"])
 
 @router.get("", response_model=list[InstrumentOut])
 async def list_instruments(
-    active_only: bool = Query(True, description="Sadece aktif (is_active=true) hisseleri dondur"),
-    db: AsyncSession = Depends(get_db),
+    db: Annotated[AsyncSession, Depends(get_db)],
+    active_only: Annotated[
+        bool, Query(description="Sadece aktif (is_active=true) hisseleri dondur")
+    ] = True,
 ) -> list[Instrument]:
     stmt = select(Instrument).order_by(Instrument.ticker)
     if active_only:
@@ -26,7 +31,9 @@ async def list_instruments(
 
 
 @router.get("/{ticker}", response_model=InstrumentOut)
-async def get_instrument(ticker: str, db: AsyncSession = Depends(get_db)) -> Instrument:
+async def get_instrument(
+    ticker: str, db: Annotated[AsyncSession, Depends(get_db)]
+) -> Instrument:
     instrument = await db.get(Instrument, ticker.upper())
     if instrument is None:
         raise HTTPException(status_code=404, detail=f"'{ticker}' bulunamadi")
@@ -36,9 +43,13 @@ async def get_instrument(ticker: str, db: AsyncSession = Depends(get_db)) -> Ins
 @router.get("/{ticker}/prices", response_model=list[PriceDailyOut])
 async def get_instrument_prices(
     ticker: str,
-    start: date | None = Query(None, description="Baslangic tarihi (verilmezse son 90 gun)"),
-    end: date | None = Query(None, description="Bitis tarihi (verilmezse bugun)"),
-    db: AsyncSession = Depends(get_db),
+    db: Annotated[AsyncSession, Depends(get_db)],
+    start: Annotated[
+        date | None, Query(description="Baslangic tarihi (verilmezse son 90 gun)")
+    ] = None,
+    end: Annotated[
+        date | None, Query(description="Bitis tarihi (verilmezse bugun)")
+    ] = None,
 ) -> list[PriceDaily]:
     ticker = ticker.upper()
     instrument = await db.get(Instrument, ticker)
@@ -52,9 +63,8 @@ async def get_instrument_prices(
         stmt = stmt.where(PriceDaily.date <= end)
     if start is None and end is None:
         # Varsayilan: son 90 gun (dashboard grafik icin makul varsayilan)
-        from datetime import timedelta
-
-        stmt = stmt.where(PriceDaily.date >= date.today() - timedelta(days=90))
+        today = datetime.now(ZoneInfo(get_settings().tz)).date()
+        stmt = stmt.where(PriceDaily.date >= today - timedelta(days=90))
 
     result = await db.execute(stmt)
     return list(result.scalars().all())

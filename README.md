@@ -33,7 +33,11 @@ koridoru ve senaryo bazlı piyasa aktarım kanallarıyla izleniyor.
 görüntülenebilir, duraklatılabilir, aralığı değiştirilebilir ve elle çalıştırılabilir.
 Ayarlar PostgreSQL'de kalır; Redis kilidi mükerrer worker tetiklemesini önler.
 
-Toplam **99 ağsız test** geçiyor. Docker ile yapılan canlı doğrulamaların
+✅ **Docker / Coolify Hazırlığı**: servisler health check, kaynak sınırı, log
+rotasyonu, salt-okunur dosya sistemi ve yetkisiz kullanıcılarla sertleştirildi.
+PostgreSQL/Redis kalıcılığı ile yedekleme, geri yükleme ve üretim smoke komutları hazır.
+
+Toplam **102 ağsız test** geçiyor. Docker ile yapılan canlı doğrulamaların
 sayısal sonuçları `.claude/CODEX_NOTES.md` içinde.
 
 ## Hızlı başlangıç (yerel geliştirme)
@@ -78,6 +82,9 @@ Port çakışmasında `.env` içinde `API_PORT`/`WEB_PORT` ve buna uygun
 
 ## Coolify'a deploy
 
+Eksiksiz ortam, yedek, doğrulama ve geri alma adımları:
+[Coolify üretim kontrol listesi](ops/COOLIFY.md).
+
 1. Bu repo'yu Coolify'da "Docker Compose" tipi bir kaynak olarak ekle.
 2. `.env.example`'daki değişkenleri Coolify'ın Environment Variables ekranına gir
    (özellikle `POSTGRES_PASSWORD`, `GEMINI_API_KEY`, `N8N_WEBHOOK_URL`).
@@ -93,9 +100,9 @@ Port çakışmasında `.env` içinde `API_PORT`/`WEB_PORT` ve buna uygun
 2. ✅ **Gelişmiş hisse grafikleri:** Çoklu tarih aralığı, hacim, düşük/yüksek
    bandı, AOF, tooltip, MA20/MA50 ve RSI katmanları hisse detayına eklendi.
    Güvenilir açılış verisi bulunmadan sahte mum verisi üretilmiyor.
-3. ⬜ **Coolify üretim kapısı:** Kalıcı PostgreSQL volume/yedekleme, private ağ,
-   health check, migration, restart kalıcılığı ve temiz kurulum smoke testi
-   doğrulanacak. API/web/worker stateless kalacak.
+3. ✅ **Coolify üretim kapısı (kod):** Kalıcı PostgreSQL/Redis volume, yedekleme,
+   private ağ, health check, migration, restart kalıcılığı ve temiz kurulum smoke
+   testi doğrulandı. Gerçek domain/TLS bağlantısı Coolify erişimiyle yapılacak.
 
 Ayrıntılı ve kanonik uygulama sırası `.claude/PROGRESS.md` dosyasındadır.
 
@@ -103,6 +110,6 @@ Ayrıntılı ve kanonik uygulama sırası `.claude/PROGRESS.md` dosyasındadır.
 
 ```
 backend/   FastAPI + ARQ worker (tek Python paketi, iki farklı komutla çalışır)
-web/       Next.js 15 dashboard
-ops/       Caddyfile (yalnızca Coolify dışı self-host için)
+web/       Next.js 16 dashboard
+ops/       Coolify işletim/yedek/smoke araçları ve yerel Caddyfile
 ```

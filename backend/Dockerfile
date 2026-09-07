@@ -22,6 +22,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY . .
 RUN pip install --upgrade pip && pip install -e .
 
+RUN groupadd --system tradeai && useradd --system --gid tradeai --home-dir /app tradeai \
+    && chown -R tradeai:tradeai /app
+USER tradeai
+
 EXPOSE 8000
 
 # Varsayilan komut api icindir; worker servisi compose'da command override eder.

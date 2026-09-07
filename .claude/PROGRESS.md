@@ -462,20 +462,29 @@ Durumlar: ⬜ başlanmadı · 🔶 devam ediyor · ✅ tamamlandı ve doğruland
       collector backfill'i geldikçe uzun aralıklar otomatik genişliyor.
 
 ## Faz 13 — Docker / Coolify Üretim Hazırlığı
-⬜ Planlandı — sıradaki geliştirme ve canlıya çıkış kapısı
+✅ Kod ve yerel üretim provası tamamlandı; gerçek domain/TLS bağlantısı kullanıcıda
 
-- [ ] Yeni özelliklerin tamamı PostgreSQL + Redis üzerinde çalışsın; container
+- [x] Yeni özelliklerin tamamı PostgreSQL + Redis üzerinde çalışsın; container
       içine yazılan yerel dosya veya SQLite üretim bağımlılığı oluşmasın.
-- [ ] PostgreSQL kalıcı volume, yedekleme ve geri yükleme prosedürünü; migration
+- [x] PostgreSQL kalıcı volume, yedekleme ve geri yükleme prosedürünü; migration
       sırası ve geri alma adımlarını Coolify dağıtım dokümanında doğrula.
-- [ ] `api`, `worker` ve `web` stateless kalacak şekilde Compose/Coolify health
+- [x] `api`, `worker` ve `web` stateless kalacak şekilde Compose/Coolify health
       check, restart policy, resource limit ve servis bağımlılıklarını sertleştir.
-- [ ] Yalnız web/API'yi dışarı aç; PostgreSQL ve Redis'i private network'te tut.
+- [x] Yalnız web/API'yi dışarı aç; PostgreSQL ve Redis'i private network'te tut.
       `DATABASE_URL` ile Coolify managed/external PostgreSQL kullanımını da destekle.
-- [ ] Domain, HTTPS, CORS, secret/env yönetimi, worker ölçekleme ve saat dilimi
+- [x] Domain, HTTPS, CORS, secret/env yönetimi, worker ölçekleme ve saat dilimi
       ayarları için production `.env` kontrol listesi hazırla.
-- [ ] Temiz veritabanından deploy, migration, seed/collector, restart-persistence,
+- [x] Temiz veritabanından deploy, migration, seed/collector, restart-persistence,
       `/health/detailed` ve ana ekranları kapsayan uçtan uca Coolify smoke testi yap.
+
+- [x] Temiz isimlendirilmiş Compose projesi sıfır volume ile kuruldu; migration head
+      `c4e8a2b1d730` ve 12 varsayılan takvim doğrulandı, sonra test kaynakları kaldırıldı.
+- [x] Gerçek PostgreSQL özel-format yedeği alındı; ayrı PostgreSQL 16 container'ına
+      şema ve seçili tablolar geri yüklenerek migration sürümü ve 12 takvim doğrulandı.
+- [x] API/worker `tradeai`, web `node` kullanıcısıyla çalışıyor; uygulama dosya
+      sistemleri salt-okunur, yalnız `/tmp` ve Next cache tmpfs. Redis AOF etkin.
+- [x] CORS/Host güvenlik testleri, production smoke, Next.js 16 build, `npm audit`
+      (0 bulgu), Ruff ve toplam **102/102 test** temiz.
 
 ## Faz 14 — Değerlendirme / Backtest
 ⬜ Başlanmadı
@@ -484,9 +493,8 @@ Durumlar: ⬜ başlanmadı · 🔶 devam ediyor · ✅ tamamlandı ve doğruland
 
 ## Bilinen riskler / açık sorular
 
-- Frontend build'i geçiyor; ancak `npm install` mevcut Next.js 15.0.3 için
-  güvenlik uyarısı ve toplam 2 high + 1 critical bağımlılık bulgusu verdi.
-  Production deploy öncesi ayrı bir bağımlılık güncelleme/regresyon işi şart.
+- Frontend Next.js 16.3.4 ve React 19.2.8'e yükseltildi; kilit dosyası eklendi,
+  temiz production build ve `npm audit` 0 bulguyla doğrulandı.
 - KAP'ın ek sunucusu uzun canlı koşuda zaman zaman bağlantıyı yanıt vermeden
   kapattı. Retry politikası ve batch toleransı çalıştı; ikinci koşuda 24 eksik
   ekin 6'sı, sonraki 5 dakikalık cron'da kalan 18'in tamamı indirildi.
