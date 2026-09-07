@@ -82,6 +82,21 @@ Port çakışmasında `.env` içinde `API_PORT`/`WEB_PORT` ve buna uygun
 4. İlk deploy sonrası `api` container'ında migration otomatik çalışır
    (`docker-compose.yml` → `api.command`).
 
+## Sıradaki işler
+
+1. **Tarama takvimi yönetimi:** Haberler şu anda varsayılan olarak her 5
+   dakikada bir taranıyor. `/sistem` ekranından tüm collector'ların mevcut/sonraki
+   çalışmasını görme, aralığı değiştirme, duraklatma ve elle çalıştırma eklenecek;
+   ayarlar PostgreSQL'de kalıcı tutulacak.
+2. **Gelişmiş hisse grafikleri:** Mevcut 90 günlük kapanış grafiği; çoklu tarih
+   aralıkları, hacim, düşük/yüksek/AOF, tooltip ve teknik göstergelerle geliştirilecek.
+   Güvenilir açılış verisi bulunmadan sahte mum verisi üretilmeyecek.
+3. **Coolify üretim kapısı:** Kalıcı PostgreSQL volume/yedekleme, private ağ,
+   health check, migration, restart kalıcılığı ve temiz kurulum smoke testi
+   doğrulanacak. API/web/worker stateless kalacak.
+
+Ayrıntılı ve kanonik uygulama sırası `.claude/PROGRESS.md` dosyasındadır.
+
 ## Yapı
 
 ```

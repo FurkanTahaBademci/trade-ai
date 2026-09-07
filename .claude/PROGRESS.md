@@ -415,7 +415,62 @@ Durumlar: ⬜ başlanmadı · 🔶 devam ediyor · ✅ tamamlandı ve doğruland
       toplantı. İkinci koşu `new=0`, `details_fetched=0`; canlı API ve `/makro`
       ekranı HTTP 200. Gerçek kaynak fixture testleri dahil toplam 91 test geçti.
 
-## Faz 11 — Değerlendirme / Backtest
+## Faz 11 — Tarama Takvimi Yönetimi
+⬜ Planlandı — sıradaki geliştirme
+
+- [ ] `/sistem` ekranında her veri hattının etkin çalışma aralığını, son çalışma
+      zamanını, son sonucu ve hesaplanan bir sonraki çalışma zamanını göster.
+- [ ] Haber taramasının mevcut varsayılanını (5 dakika), KAP/LLM/sinyal ve diğer
+      collector takvimleriyle birlikte tek yönetim ekranından değiştirilebilir yap.
+- [ ] Ayarları PostgreSQL'de migration ile oluşturulacak `collector_schedule`
+      tablosunda sakla; container yeniden başladığında seçimler kaybolmasın.
+- [ ] Etkinleştir/duraklat, “şimdi çalıştır” ve dakika/saat/gün bazlı aralık
+      işlemleri için doğrulamalı yönetim API'si ekle. Çok sık istekleri önlemek
+      için collector bazlı güvenli alt sınırlar tanımla.
+- [ ] Statik ARQ cron listesini, veritabanındaki etkin ayarları okuyabilen dinamik
+      tetikleyiciye taşı; birden fazla worker çalıştığında Redis kilidi ve mevcut
+      idempotency kuralları aynı işin iki kez çalışmasını engellesin.
+- [ ] Takvim değişiklikleri ve elle çalıştırmalar için kullanıcı/zaman/eski-yeni
+      değer içeren audit kaydı tut; yönetim uçlarını kimlik doğrulama ile koru.
+- [ ] Europe/Istanbul saat dilimini arayüzde açık göster; worker içinde UTC ile
+      güvenli dönüşüm yap ve yaz/kış saati varsayımlarını test et.
+- [ ] API, worker ve web testlerine ek olarak Docker yeniden başlatma sonrası
+      ayar kalıcılığı ve çoklu-worker yarış testi ekle.
+
+## Faz 12 — Gelişmiş Hisse Grafikleri
+⬜ Planlandı — Faz 11'in ardından
+
+- [ ] Mevcut 90 günlük kapanış çizgisini 1A/3A/6A/1Y/3Y/Tümü aralıkları,
+      tooltip, crosshair, yakınlaştırma ve mobil kullanımla geliştir.
+- [ ] Fiyatın altında TL işlem hacmini; grafikte günlük en düşük/en yüksek ve
+      ağırlıklı ortalama fiyatı göster. Eksik değerleri açıkça belirt.
+- [ ] MA20/MA50, RSI(14), günlük/yüzdesel getiri ve zirveden düşüş gibi temel
+      göstergeleri açılıp kapanabilir katmanlar halinde ekle.
+- [ ] Mum grafik için `open` verisi sağlayan güvenilir ve lisans açısından uygun
+      kaynak ayrıca doğrulanmadan sahte OHLC üretme; mevcut kaynak yalnız
+      kapanış/minimum/maksimum/AOF/hacim sağlıyor.
+- [ ] Grafik veri API'sine tarih aralığı ve örnekleme parametreleri ekle; uzun
+      aralıklarda gereksiz veri taşımadan PostgreSQL indekslerini kullan.
+- [ ] Boş veri, tek nokta, aşırı değer, erişilebilirlik ve responsive görünüm
+      testlerini ekle; hisse detay sayfasının yüklenme performansını ölç.
+
+## Faz 13 — Docker / Coolify Üretim Hazırlığı
+⬜ Planlandı — Faz 12'nin ardından, canlıya çıkış kapısı
+
+- [ ] Yeni özelliklerin tamamı PostgreSQL + Redis üzerinde çalışsın; container
+      içine yazılan yerel dosya veya SQLite üretim bağımlılığı oluşmasın.
+- [ ] PostgreSQL kalıcı volume, yedekleme ve geri yükleme prosedürünü; migration
+      sırası ve geri alma adımlarını Coolify dağıtım dokümanında doğrula.
+- [ ] `api`, `worker` ve `web` stateless kalacak şekilde Compose/Coolify health
+      check, restart policy, resource limit ve servis bağımlılıklarını sertleştir.
+- [ ] Yalnız web/API'yi dışarı aç; PostgreSQL ve Redis'i private network'te tut.
+      `DATABASE_URL` ile Coolify managed/external PostgreSQL kullanımını da destekle.
+- [ ] Domain, HTTPS, CORS, secret/env yönetimi, worker ölçekleme ve saat dilimi
+      ayarları için production `.env` kontrol listesi hazırla.
+- [ ] Temiz veritabanından deploy, migration, seed/collector, restart-persistence,
+      `/health/detailed` ve ana ekranları kapsayan uçtan uca Coolify smoke testi yap.
+
+## Faz 14 — Değerlendirme / Backtest
 ⬜ Başlanmadı
 
 ---

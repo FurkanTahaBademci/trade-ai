@@ -8,6 +8,22 @@ gereken ürün kararları `CLAUDE.md` içindedir. Aşağıdaki 2026-09-07 (Claud
 girişi Codex değil, Claude tarafından yazıldı — paylaşılan tek devir
 günlüğünü bölmemek için burada tutuluyor, başlıkta ajan belirtildi.
 
+## 2026-09-07 — Yeni ürün kuyruğu
+
+- Uygulama sırası kanonik plana Faz 11 tarama takvimi yönetimi, Faz 12 gelişmiş
+  hisse grafikleri ve Faz 13 Docker/Coolify üretim hazırlığı olarak eklendi;
+  mevcut backtest işi Faz 14'e taşındı.
+- Haber collector'ı bugün statik ARQ cron ile her 5 dakikada bir, KAP işinden
+  30 saniye sonra çalışıyor. Hedef; `/sistem` üzerinden takvimi görmek/değiştirmek,
+  duraklatmak ve elle çalıştırmak. Ayarlar PostgreSQL'de kalıcı, tetikleme
+  çoklu-worker durumunda Redis kilitli ve yönetim işlemleri audit kayıtlı olacak.
+- Hisse detayında mevcut temel 90 günlük kapanış grafiği korunacak; tarih aralığı,
+  hacim, min/max/AOF, tooltip ve göstergelerle geliştirilecek. Kaynak `open` alanı
+  vermediği için uygun kaynak doğrulanmadan mum verisi uydurulmayacak.
+- Yeni tablolar migration ile PostgreSQL'e eklenecek; API/web/worker stateless
+  kalacak. Coolify öncesinde volume/yedek-geri yükleme, private network, health,
+  restart kalıcılığı ve temiz deploy smoke testi zorunlu kabul edildi.
+
 ## 2026-09-07 — Birleşik hisse detayı, sakin tema ve TCMB faiz modülü
 
 - Hisse detayı artık tek ticker altında fiyat grafiği, 12 finansal metrik,
