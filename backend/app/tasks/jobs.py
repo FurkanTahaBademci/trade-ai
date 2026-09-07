@@ -60,3 +60,12 @@ async def evaluate_sources(ctx: dict) -> dict:
 
     async with session_factory() as session:
         return await run_llm_evaluations(session)
+
+
+async def collect_fundamentals(ctx: dict) -> dict:
+    from app.collectors.fundamentals import FundamentalsCollector
+
+    # Ticker verilmezse collector son 30 gunun ilgili LLM ciktilarindan en
+    # fazla 50 aktif BIST kodunu secer; tum evreni maliyetli sekilde taramaz.
+    async with session_factory() as session, FundamentalsCollector(session) as collector:
+        return await collector.run_tracked()

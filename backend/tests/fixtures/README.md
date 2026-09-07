@@ -12,6 +12,7 @@ agdaki servislere baglanmadan, gercekci veriyle calisabilsin (bkz. proje
 | `tefas/dagilim_sample.json` | `POST /api/funds/dagilimSiraliGetirT` (10 satir) | 2026-09-06 |
 | `rss/bloomberght_sample.xml` | `bloomberght.com/rss` (ham XML) | 2026-09-06 |
 | `rss/investing_tr_sample.xml` | `tr.investing.com/rss/news.rss` (ham XML) | 2026-09-06 |
+| `financials/thyao_2025_sample.json` | İş Yatırım `MaliTablo` (147 satırdan analizde kullanılan 14 gerçek kalem) | 2026-09-07 |
 
 **Not:** Kaynaklarin semasi degisirse (yeni alan, kaldirilan alan, farkli
 sarmalayici) bu dosyalar guncellenmeli — `backend/scripts/smoke_sources.py`

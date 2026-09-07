@@ -5,6 +5,7 @@ onu görsün (bkz. alembic/env.py -> target_metadata).
 """
 
 from app.core.db import Base
+from app.models.fundamental import FinancialFact, FundamentalSnapshot
 from app.models.instrument import Instrument
 from app.models.kap import KapAttachment, KapDisclosure
 from app.models.llm_evaluation import LlmEvaluation
@@ -13,6 +14,8 @@ from app.models.price import PriceDaily
 
 __all__ = [
     "Base",
+    "FinancialFact",
+    "FundamentalSnapshot",
     "Instrument",
     "KapAttachment",
     "KapDisclosure",

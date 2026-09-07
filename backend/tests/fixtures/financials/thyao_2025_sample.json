@@ -1,0 +1,36 @@
+{
+  "request": {
+    "companyCode": "THYAO",
+    "exchange": "TRY",
+    "financialGroup": "XI_29",
+    "year1": 2025,
+    "period1": 3,
+    "year2": 2025,
+    "period2": 6,
+    "year3": 2025,
+    "period3": 9,
+    "year4": 2025,
+    "period4": 12
+  },
+  "response_metadata": {
+    "ok": true,
+    "errorCode": null,
+    "errorDescription": null
+  },
+  "value": [
+    {"itemCode": "1A", "itemDescTr": "Dönen Varlıklar", "itemDescEng": "CURRENT ASSETS", "value1": "352676000000", "value2": "397076000000", "value3": "425657000000", "value4": "513912099203"},
+    {"itemCode": "1AA", "itemDescTr": "  Nakit ve Nakit Benzerleri", "itemDescEng": "Cash and Cash Equivalents", "value1": "88821000000", "value2": "98791000000", "value3": "100325000000", "value4": "101313500671"},
+    {"itemCode": "2A", "itemDescTr": "Kısa Vadeli Yükümlülükler", "itemDescEng": "SHORT TERM LIABILITIES", "value1": "393028000000", "value2": "431666000000", "value3": "433401000000", "value4": "520581939010"},
+    {"itemCode": "2AA", "itemDescTr": "  Finansal Borçlar", "itemDescEng": "Short-Term Financial Loans", "value1": "138728000000", "value2": "138324000000", "value3": "150890000000", "value4": "191282150230"},
+    {"itemCode": "2B", "itemDescTr": "Uzun Vadeli Yükümlülükler", "itemDescEng": "LONG TERM LIABILITIES", "value1": "424482000000", "value2": "468803000000", "value3": "517094000000", "value4": "757673312110"},
+    {"itemCode": "2BA", "itemDescTr": "  Finansal Borçlar", "itemDescEng": "Long-Term Financial Loans", "value1": "398942000000", "value2": "446268000000", "value3": "493725000000", "value4": "708690498442"},
+    {"itemCode": "2N", "itemDescTr": "Özkaynaklar", "itemDescEng": "SHAREHOLDERS EQUITY", "value1": "717436000000", "value2": "752120000000", "value3": "843951000000", "value4": "1073081134047"},
+    {"itemCode": "3C", "itemDescTr": "Satış Gelirleri", "itemDescEng": "Net Sales", "value1": "176712000000", "value2": "408036000000", "value3": "690825000000", "value4": "1125149219659"},
+    {"itemCode": "3D", "itemDescTr": "BRÜT KAR (ZARAR)", "itemDescEng": "GROSS PROFIT (LOSS)", "value1": "11731000000", "value2": "56146000000", "value3": "118687000000", "value4": "183185077752"},
+    {"itemCode": "3H", "itemDescTr": "Net Faaliyet Kar/Zararı", "itemDescEng": "Net Operating Profits", "value1": "-10246000000", "value2": "13285000000", "value3": "51012000000", "value4": "74817844658"},
+    {"itemCode": "3Z", "itemDescTr": "Ana Ortaklık Payları", "itemDescEng": "Parent Shares", "value1": "-1818000000", "value2": "25013000000", "value3": "81064000000", "value4": "139199933601"},
+    {"itemCode": "4B", "itemDescTr": "Amortisman Giderleri", "itemDescEng": "Depreciation & Amortization", "value1": "20413000000", "value2": "42953000000", "value3": "67762000000", "value4": "111496075673"},
+    {"itemCode": "4C", "itemDescTr": " İşletme Faaliyetlerinden Kaynaklanan Net Nakit", "itemDescEng": " Net Cash from Operations", "value1": "34510000000", "value2": "105659000000", "value3": "140149000000", "value4": "218810548035"},
+    {"itemCode": "4CB", "itemDescTr": "Serbest Nakit Akım", "itemDescEng": "Free Cash Flow", "value1": "11718000000", "value2": "61698000000", "value3": "82650000000", "value4": "48450545378"}
+  ]
+}

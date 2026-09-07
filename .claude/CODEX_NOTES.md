@@ -6,6 +6,45 @@ Bu dosya, Codex'in yaptığı değişiklikleri Claude ve diğer ajanların hızl
 inceleyebilmesi için tutulur. Kanonik faz durumu `PROGRESS.md`, değişmemesi
 gereken ürün kararları `CLAUDE.md` içindedir.
 
+## 2026-09-07 — Faz 5 temel analiz motoru
+
+### Tamamlananlar
+
+- İş Yatırım'ın `MaliTablo` yanıtındaki kaynak kalemleri kayıpsız saklayan
+  `financial_fact`, bunlardan deterministik türetilen oran ve skorları tutan
+  `fundamental_snapshot` tabloları eklendi. Migration head `a91e5c7d3f42`.
+- Kaynak finansal grup şirketten şirkete değişebildiği için collector
+  `XI_29`, `UFRS`, `UFRS_K` sırasıyla keşif yapıyor. İstenen yılların
+  3/6/9/12 dönemlerini aynı grup üzerinden çekiyor ve doğal anahtarla upsert
+  ediyor.
+- Eşlenen çekirdek `itemCode` alanları: dönen varlık/nakit, kısa ve uzun
+  finansal borç, kısa vadeli yükümlülük, özsermaye, satış, brüt/faaliyet/net
+  kâr, amortisman, faaliyet ve serbest nakit akışı.
+- Büyüme, kârlılık, bilanço ve nakit akışı bileşenlerinden 0-100 teknik skor
+  üretiliyor. Skor yatırım tavsiyesi değil, Faz 7 bileşik sinyaline girdi olacak
+  deterministik bir sıralama sezgisi. Yeterli oran/bileşen yoksa `NULL` kalıyor.
+- Explicit ticker/yıl aralıklı CLI, son 30 günün ilgili LLM sonuçlarından en
+  fazla 50 aktif ticker seçen günlük 07:00 ARQ işi ve snapshot/ham veri API
+  route'ları bağlandı.
+
+### Doğrulama
+
+- Kaynak uç nokta canlı THYAO verisiyle doğrulandı; gerçek yanıtın 14 çekirdek
+  satırlık küçültülmüş örneği fixture olarak kaydedildi.
+- THYAO 2025-2026 collector koşusu ilk çalışmada 880 yeni finansal gerçek ve 6
+  snapshot oluşturdu. Aynı komut ikinci kez `new=0` döndürdü; DB sayımı
+  880 toplam / 880 benzersiz doğal anahtar / 6 snapshot.
+- Çalışan API'de en güncel snapshot oranları ve `2025/12/3C` satış kalemi
+  doğrulandı. API/worker imajları sağlıklı; worker 13 fonksiyonla ve yeni cron
+  kaydıyla başladı.
+- Gerçek PostgreSQL'de Alembic head `a91e5c7d3f42`; `alembic check` temiz.
+  Docker suite **52 passed**; Ruff ve diff whitespace kontrolleri temiz.
+
+### Sıradaki iş
+
+Faz 6 — analist tavsiyeleri, TEFAS fon akımları ve konsensüs. Faz 4'ün gerçek
+Gemini çağrısı API anahtarı sağlanana kadar ayrı açık madde olarak kalıyor.
+
 ## 2026-09-07 — Faz 4 LLM değerlendirme katmanı
 
 ### Tamamlananlar
@@ -55,10 +94,10 @@ Faz 4 kanonik durumda 🔶. Anahtar sağlandığında önce `LLM_BATCH_SIZE=1` i
 çalıştırılmalı; structured yanıt ve gerçek usage metadata görüldükten sonra
 normal batch'e çıkılmalı.
 
-### Sıradaki iş
+### Bu devir notunun devamı
 
-Faz 5 — Temel analiz motoru. Faz 4 canlı API doğrulaması anahtar gelince ayrıca
-tamamlanabilir; Faz 5'in deterministik finansal hesapları bundan bağımsızdır.
+Faz 5 uygulanıp doğrulandı; güncel sonuç dosyanın başındaki Faz 5 bölümündedir.
+Faz 4 canlı API doğrulaması anahtar gelince ayrıca tamamlanabilir.
 
 ## 2026-09-07 — Faz 3 haber toplayıcı
 

@@ -226,7 +226,34 @@ Durumlar: ⬜ başlanmadı · 🔶 devam ediyor · ✅ tamamlandı ve doğruland
       ve kullanım metadata'sı doğrulanacak; o zamana kadar `LLM_ENABLED=false`.
 
 ## Faz 5 — Temel Analiz Motoru
-⬜ Başlanmadı
+✅ Kod ve gerçek PostgreSQL/Docker idempotency akışı doğrulandı
+
+- [x] `FinancialFact` + `FundamentalSnapshot` modelleri ve
+      `a91e5c7d3f42` migration'ı: ham finansal kalemler kaynak koduyla;
+      hesaplanmış oranlar, bileşen skorları ve veri tamlığı ayrı snapshot'ta
+      tutuluyor. Doğal anahtarlar tekrar satırı engelliyor.
+- [x] İş Yatırım `MaliTablo` uç noktası gerçek THYAO yanıtıyla doğrulandı.
+      Collector `XI_29`, `UFRS`, `UFRS_K` gruplarını sırayla keşfediyor;
+      3/6/9/12 aylık kümülatif ve bilanço anlık değerlerini kaynak `itemCode`
+      alanlarıyla eşliyor.
+- [x] Gelir/net kâr yıllık büyümesi; brüt, faaliyet ve net marj; cari oran;
+      borç/özsermaye; nakit/borç; yıllıklandırılmış ROE; faaliyet ve serbest
+      nakit akışı marjları deterministik hesaplanıyor.
+- [x] 0-100 temel skor büyüme, kârlılık, bilanço ve nakit akışı bileşenlerinin
+      açık eşiklerle hesaplanan teknik bir sıralama sezgisidir; yatırım
+      tavsiyesi değildir. Yetersiz veride skor üretilmiyor.
+- [x] Otomatik aday evreni son 30 gündeki ilgili LLM sonuçlarından en fazla 50
+      aktif BIST koduyla sınırlı. Manuel CLI açık ticker/yıl aralığını kabul
+      ediyor: `python -m scripts.run_once fundamentals --tickers THYAO
+      --start-year 2025 --end-year 2026`.
+- [x] API: `GET /api/fundamentals/{ticker}` ve
+      `GET /api/fundamentals/{ticker}/facts`; yıl, geçerli dönem ve kalem kodu
+      filtreleri. ARQ işi her gün 07:00'de instrument yenilemesinden sonra.
+- [x] Gerçek THYAO fixture'ı ve mapping/oran/turnaround/hatalı yanıt testleri
+      eklendi. Docker içinde **52/52 test geçti**; Ruff ve Alembic check temiz.
+- [x] Canlı Docker/PostgreSQL koşusu x2: ilk koşu 880 yeni benzersiz finansal
+      gerçek ve 6 snapshot oluşturdu; ikinci koşu `new=0`. DB'de 880/880 doğal
+      anahtar benzersiz, API son snapshot ve ham `3C` satış kalemini döndürdü.
 
 ## Faz 6 — Analist Tavsiyeleri + Fon Akımları + Konsensüs
 ⬜ Başlanmadı

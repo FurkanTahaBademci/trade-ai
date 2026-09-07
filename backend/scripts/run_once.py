@@ -6,6 +6,7 @@ Kullanim:
     python -m scripts.run_once kap --days 30 --no-attachments
     python -m scripts.run_once news
     python -m scripts.run_once llm
+    python -m scripts.run_once fundamentals --tickers THYAO,ASELS --start-year 2025
     python -m scripts.run_once prices --tickers THYAO,ASELS,GARAN --days 30
     python -m scripts.run_once prices                    # tum aktif hisseler, 3 yil backfill
 
@@ -79,7 +80,33 @@ async def run_llm() -> dict:
         return await run_llm_evaluations(session)
 
 
+async def run_fundamentals(
+    tickers: list[str] | None, start_year: int | None, end_year: int | None
+) -> dict:
+    from app.collectors.fundamentals import FundamentalsCollector
+
+    current_year = datetime.now(ZoneInfo("Europe/Istanbul")).year
+    start = start_year or current_year - 1
+    end = end_year or current_year
+    if end < start:
+        raise ValueError("--end-year, --start-year degerinden kucuk olamaz")
+    async with (
+        session_factory() as session,
+        FundamentalsCollector(
+            session,
+            tickers=tickers,
+            years=list(range(start, end + 1)),
+        ) as collector,
+    ):
+        return await collector.run_tracked()
+
+
 COLLECTORS = {
+    "fundamentals": lambda args: run_fundamentals(
+        tickers=args.tickers.split(",") if args.tickers else None,
+        start_year=args.start_year,
+        end_year=args.end_year,
+    ),
     "instruments": lambda args: run_instruments(),
     "kap": lambda args: run_kap(args.days, not args.no_attachments),
     "llm": lambda args: run_llm(),
@@ -110,6 +137,8 @@ def main() -> None:
         action="store_true",
         help="KAP eklerini indirme; yalnizca bildirim ve ek metadatasini kaydet.",
     )
+    parser.add_argument("--start-year", type=int, help="Finansal tablo baslangic yili.")
+    parser.add_argument("--end-year", type=int, help="Finansal tablo bitis yili.")
     args = parser.parse_args()
 
     result = asyncio.run(COLLECTORS[args.collector](args))

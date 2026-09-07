@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routers import evaluations, health, instruments, kap, news
+from app.api.routers import evaluations, fundamentals, health, instruments, kap, news
 from app.core.logging import configure_logging
 
 configure_logging()
@@ -39,6 +39,7 @@ app.include_router(instruments.router)
 app.include_router(kap.router)
 app.include_router(news.router)
 app.include_router(evaluations.router)
+app.include_router(fundamentals.router)
 
 
 @app.get("/")

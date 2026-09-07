@@ -15,6 +15,7 @@ from arq.connections import RedisSettings
 
 from app.core.config import get_settings
 from app.tasks.jobs import (
+    collect_fundamentals,
     collect_instruments,
     collect_kap,
     collect_news,
@@ -48,6 +49,7 @@ class WorkerSettings:
         collect_prices,
         collect_kap,
         collect_news,
+        collect_fundamentals,
         evaluate_sources,
     ]
     cron_jobs: ClassVar[list] = [
@@ -56,6 +58,8 @@ class WorkerSettings:
         cron(collect_news, minute=set(range(0, 60, 5)), second=30),
         # Haber/KAP toplandiktan sonra; LLM_ENABLED=false ise ucretli cagri yok.
         cron(evaluate_sources, minute=set(range(2, 60, 10))),
+        # Aday evren temel analizi; gunde bir, instrument yenilemesinden sonra.
+        cron(collect_fundamentals, hour={7}, minute={0}),
         # Hisse evreni gunde bir kere yeterli (KAP uyelik degisimi nadir).
         cron(collect_instruments, hour={6}, minute={0}),
         # Fiyat: BIST kapanisi (18:00-18:10 TRT) sonrasi guncel veri icin 18:30.
