@@ -494,9 +494,9 @@ Durumlar: ⬜ başlanmadı · 🔶 devam ediyor · ✅ tamamlandı ve doğruland
       deterministik backtest motoru ekle.
 - [x] Tarih araligi/strateji ayarlariyla calistirma, sonucu PostgreSQL'de saklama
       ve gecmis kosulari listeleme API'lerini ekle.
-- [ ] Getiri, maksimum dusus, oynaklik, Sharpe, islem/kazanma orani ve toplam
+- [x] Getiri, maksimum dusus, oynaklik, Sharpe, islem/kazanma orani ve toplam
       maliyet metriklerini; varsayimlariyla birlikte `/backtest` ekraninda goster.
-- [ ] Yetersiz veri ve sinyal sonrasi fiyat bulunamama durumlarini acikla; gercek
+- [x] Yetersiz veri ve sinyal sonrasi fiyat bulunamama durumlarini acikla; gercek
       endeks verisi olmadan temsili benchmark veya sonuc uydurma.
 - [ ] Birim/API testleri, production build ve Docker smoke testiyle dogrula.
 
