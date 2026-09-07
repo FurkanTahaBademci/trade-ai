@@ -17,7 +17,8 @@ from __future__ import annotations
 import asyncio
 import sys
 from dataclasses import dataclass, field
-from datetime import date, timedelta
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import httpx
 
@@ -26,6 +27,11 @@ from app.core.config import get_settings
 settings = get_settings()
 
 HEADERS = {"User-Agent": settings.collector_user_agent}
+ISTANBUL = ZoneInfo("Europe/Istanbul")
+
+
+def _today():
+    return datetime.now(ISTANBUL).date()
 
 
 @dataclass
@@ -44,7 +50,7 @@ async def check_kap_disclosure_list(client: httpx.AsyncClient) -> SourceCheck:
     """
     name = "kap_disclosure_list"
     url = "https://www.kap.org.tr/tr/api/disclosure/members/byCriteria"
-    today = date.today()
+    today = _today()
     payload = {
         "fromDate": (today - timedelta(days=1)).isoformat(),
         "toDate": today.isoformat(),
@@ -79,7 +85,7 @@ async def check_kap_disclosure_detail(client: httpx.AsyncClient) -> SourceCheck:
         return SourceCheck(name, False, "liste alinamadigi icin atlandi")
 
     # Listeyi tekrar cekip disclosureIndex al (check_kap_disclosure_list detayi donmuyor)
-    today = date.today()
+    today = _today()
     url_list = "https://www.kap.org.tr/tr/api/disclosure/members/byCriteria"
     payload = {
         "fromDate": (today - timedelta(days=3)).isoformat(),
@@ -125,7 +131,7 @@ async def check_tefas(client: httpx.AsyncClient) -> SourceCheck:
     """
     name = "tefas_fund_allocation"
     url = "https://www.tefas.gov.tr/api/funds/dagilimSiraliGetirT"
-    today = date.today()
+    today = _today()
     payload = {
         "fonTipi": "YAT",
         "fonKodu": None,
@@ -180,7 +186,7 @@ async def check_isyatirimhisse() -> SourceCheck:
             return SourceCheck(name, False, f"kutuphane import edilemedi: {exc!r}")
 
     try:
-        today = date.today()
+        today = _today()
         start = (today - timedelta(days=10)).strftime("%d-%m-%Y")
         end = today.strftime("%d-%m-%Y")
         result = await asyncio.to_thread(fetch_stock_data, ["THYAO"], start, end)

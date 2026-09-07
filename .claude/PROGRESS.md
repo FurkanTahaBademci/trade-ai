@@ -487,6 +487,10 @@ Durumlar: ⬜ başlanmadı · 🔶 devam ediyor · ✅ tamamlandı ve doğruland
       doğrulamalı path ve header aktarımıyla web'in same-origin proxy'sine taşındı.
 - [x] CORS/Host güvenlik testleri, production smoke, Next.js 16 build, `npm audit`
       (0 bulgu), Ruff ve toplam **102/102 test** temiz.
+- [x] **2026-09-08 eklendi:** `.github/workflows/ci.yml` — her push/PR'da backend
+      (`ruff check`, `pytest`, `alembic upgrade head --sql` ile DB'siz offline DDL
+      kontrolü) ve web (`tsc --noEmit`, `next build`) otomatik çalışıyor. Önceden
+      bunların hepsi elle çalıştırılıyordu.
 
 ## Faz 14 — Değerlendirme / Backtest
 ✅ Kod, testler, production build ve gerçek Docker/PostgreSQL akışı doğrulandı
@@ -529,9 +533,16 @@ Durumlar: ⬜ başlanmadı · 🔶 devam ediyor · ✅ tamamlandı ve doğruland
 - KAP ekleri şimdilik PostgreSQL `BYTEA` içinde saklanıyor. İlk kullanım için
   basit ve yedeklenebilir; veri büyüdüğünde Faz 10 öncesi retention veya S3
   uyumlu nesne depolama kararı verilmeli.
-- KAP'ın günlük 2000 kayıt sınırı dolarsa collector sessiz veri kaybetmek
-  yerine hata verir. Böyle bir gün görülürse üye/kategori bazında bölme
-  stratejisi eklenmeli.
+- ~~KAP'ın günlük 2000 kayıt sınırı dolarsa collector sessiz veri kaybetmek
+  yerine hata verir.~~ **2026-09-08 düzeltildi:** bir günün sorgusu limite
+  çarparsa collector artık hata vermeden önce aktif `instrument.kap_member_oid`
+  evrenini 150'lik parçalara bölüp aynı günü parça parça yeniden sorguluyor
+  (`KapCollector._fetch_day`), sonuçları birleştiriyor. Yalnızca bölünmüş bir
+  parça da limite çarparsa (gerçekçi değil ama teorik olarak mümkün) hâlâ
+  açıkça hata veriyor — sessiz veri kaybı yok. 4 yeni testle doğrulandı
+  (`tests/test_kap_collector_idempotency.py`); canlı KAP API'sine karşı normal
+  (bölünmemiş) yol 3 günlük gerçek koşuda hatasız çalıştı (244 bildirim,
+  `new=0`, idempotency bozulmadı).
 - 2026-09-08 canlı kontrolde `trade.furkantahabademci.com.tr` HTTPS ve web health
   başarılı; `api.trade.furkantahabademci.com.tr` ise TLS handshake hatası verdi.
   Arayüz private API/same-origin proxy ile bundan bağımsızlaştırıldı. API doğrudan

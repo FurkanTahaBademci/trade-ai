@@ -26,7 +26,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.collectors.base import BaseCollector, CollectorError, settings
-from app.models import KapAttachment, KapDisclosure
+from app.models import Instrument, KapAttachment, KapDisclosure
 
 KAP_DISCLOSURE_LIST_URL = "https://www.kap.org.tr/tr/api/disclosure/members/byCriteria"
 KAP_DETAIL_URL = "https://www.kap.org.tr/tr/api/notification/attachment-detail/{index}"
@@ -35,7 +35,14 @@ KAP_SEARCH_REFERER = "https://www.kap.org.tr/tr/bildirim-sorgu"
 
 DEFAULT_LOOKBACK_DAYS = 3
 KAP_RESULT_LIMIT = 2000
+# Bir gunun bildirim sayisi limite carparsa uye OID'lerine gore bu boyutta
+# parcalara bolunup ayri ayri sorgulanir (bkz. _fetch_day).
+KAP_MEMBER_CHUNK_SIZE = 150
 ISTANBUL = ZoneInfo("Europe/Istanbul")
+
+
+def _chunk(items: list[str], size: int) -> list[list[str]]:
+    return [items[index : index + size] for index in range(0, len(items), size)]
 
 # ObjectOutputStream ile yazilmis Java `byte[]` class descriptor'i. Hemen
 # ardindan 4-byte signed big-endian uzunluk ve dosyanin kendisi gelir.
@@ -271,31 +278,73 @@ class KapCollector(BaseCollector):
         all_items: dict[int, dict] = {}
         query_date = start_date
         while query_date <= self._end_date:
-            payload = {
-                "fromDate": query_date.isoformat(),
-                "toDate": query_date.isoformat(),
-                "mkkMemberOidList": [],
-                "subjectList": [],
-            }
-            data = await self.post_json(
-                KAP_DISCLOSURE_LIST_URL,
-                json=payload,
-                headers={"Referer": KAP_SEARCH_REFERER, "Content-Type": "application/json"},
-            )
-            if not isinstance(data, list):
-                raise CollectorError(f"KAP liste yaniti liste degil: {type(data).__name__}")
-            if len(data) >= KAP_RESULT_LIMIT:
-                raise CollectorError(
-                    f"KAP gunluk liste limiti doldu ({len(data)}); {query_date} icin "
-                    "veri kaybi riski var"
-                )
-            for item in data:
+            for item in await self._fetch_day(query_date):
                 index = item.get("disclosureIndex") or item.get("basicDisclosureIndex")
                 if index is None:
                     raise CollectorError(f"KAP liste satirinda index eksik: {item!r}")
                 all_items[int(index)] = item
             query_date += timedelta(days=1)
         return list(all_items.values())
+
+    async def _post_list(self, query_date: date, member_oids: list[str]) -> list[dict]:
+        payload = {
+            "fromDate": query_date.isoformat(),
+            "toDate": query_date.isoformat(),
+            "mkkMemberOidList": member_oids,
+            "subjectList": [],
+        }
+        data = await self.post_json(
+            KAP_DISCLOSURE_LIST_URL,
+            json=payload,
+            headers={"Referer": KAP_SEARCH_REFERER, "Content-Type": "application/json"},
+        )
+        if not isinstance(data, list):
+            raise CollectorError(f"KAP liste yaniti liste degil: {type(data).__name__}")
+        return data
+
+    async def _active_member_oids(self) -> list[str]:
+        result = await self._session.scalars(
+            select(Instrument.kap_member_oid).where(Instrument.is_active.is_(True)).distinct()
+        )
+        return sorted({oid for oid in result.all() if oid})
+
+    async def _fetch_day(self, query_date: date) -> list[dict]:
+        """Bir gunun bildirim listesini ceker.
+
+        KAP tek istekte en fazla `KAP_RESULT_LIMIT` kayit dondurur; asilirsa
+        fazlasi sessizce kaybolur. Bu durumda gunun sorgusu, evrendeki aktif
+        uye OID'lerine gore parcalara bolunup ayri ayri tekrarlanir, boylece
+        tek bir yogun gun veri kaybina yol acmadan tamamlanir.
+        """
+
+        data = await self._post_list(query_date, [])
+        if len(data) < KAP_RESULT_LIMIT:
+            return data
+
+        member_oids = await self._active_member_oids()
+        if not member_oids:
+            raise CollectorError(
+                f"KAP gunluk liste limiti doldu ({len(data)}); {query_date} icin "
+                "veri kaybi riski var (aktif uye listesi bos, bolme yapilamadi)"
+            )
+        self.log.warning(
+            "kap_daily_limit_hit_splitting_by_member",
+            query_date=query_date.isoformat(),
+            member_count=len(member_oids),
+        )
+        merged: dict[int, dict] = {}
+        for chunk in _chunk(member_oids, KAP_MEMBER_CHUNK_SIZE):
+            chunk_data = await self._post_list(query_date, chunk)
+            if len(chunk_data) >= KAP_RESULT_LIMIT:
+                raise CollectorError(
+                    f"KAP uye-bazli bolme sonrasi da limit doldu ({query_date}, "
+                    f"{len(chunk)} uyelik parca); KAP_MEMBER_CHUNK_SIZE dusurulmeli"
+                )
+            for item in chunk_data:
+                index = item.get("disclosureIndex") or item.get("basicDisclosureIndex")
+                if index is not None:
+                    merged[int(index)] = item
+        return list(merged.values())
 
     async def _download_attachment(self, fields: dict) -> bool:
         obj_id = fields["obj_id"]
