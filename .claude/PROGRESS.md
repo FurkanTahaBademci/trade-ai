@@ -256,7 +256,7 @@ Durumlar: ⬜ başlanmadı · 🔶 devam ediyor · ✅ tamamlandı ve doğruland
       anahtar benzersiz, API son snapshot ve ham `3C` satış kalemini döndürdü.
 
 ## Faz 6 — Analist Tavsiyeleri + Fon Akımları + Konsensüs
-🔶 Çekirdek akış ve Docker entegrasyonu doğrulandı; kurum PDF hattı açık
+✅ Çekirdek akış + kurum PDF hattı; Docker/PostgreSQL/Redis'te canlı doğrulandı
 
 - [x] `AnalystRecommendation` + günlük `AnalystConsensus` modelleri ve
       `c62f1a8e4d73` migration'ı: kaynak/kurum/tarih/hedef/tavsiye geçmişi,
@@ -282,8 +282,39 @@ Durumlar: ⬜ başlanmadı · 🔶 devam ediyor · ✅ tamamlandı ve doğruland
 - [x] Canlı TEFAS YAT koşusu x2: 10.202 snapshot, 10.037 dağılım eşleşmesi ve 5
       işlem günü agregası; ikinci koşu `new=0`. DB'de 10.202/10.202 doğal anahtar
       benzersiz.
-- [ ] Kurumların yayımladığı özgün PDF raporları için keşif/indirme/metin ve
-      tablo çıkarma hattı eklenip doğrudan kaynak kapsamı genişletilecek.
+- [x] Kurum PDF hattı (`collectors/institutional_reports.py`): PhillipCapital
+      Türkiye'nin `arastirma-urunleri` sayfası — login gerektirmeyen, sunucu
+      tarafında render edilen tek arac kurum arşivi olarak bu oturumda
+      araştırıldı ve doğrulandı (İş Yatırım/Ak Yatırım/Oyak/QNB Finansinvest/
+      Tacirler/Şeker gibi diğerleri üyelik duvarı veya JS-SPA arkasında).
+      Şirket Raporları kategorisi keşfedilip (sayfalama + azalan tarih sıralı
+      erken durma) PDF indiriliyor, `pdftotext -layout` (poppler-utils) ile
+      sayfa 1 metne çevrilip "Bloomberg Ticker" çapasından sonraki pencerede
+      hedef fiyat/referans fiyat/getiri potansiyeli/öneri etiketleri
+      ayrıştırılıyor. GUID → `source_key`, checksum (`pdf_sha256`) `raw_data`
+      JSONB'de. Aynı `AnalystRecommendation`/`AnalystConsensus` şeması ve
+      `recompute_analyst_consensus()` (analysts.py'den ortak fonksiyona
+      çıkarıldı) yeniden kullanıldı — yeni migration gerekmedi.
+- [x] Sablon tutarsızlığı: raporların ~%15'i ("Bloomberg Ticker" içeren yeni
+      şablon) güvenilir ayrıştırılabiliyor; "Toplantı Notu" ve eski kapak
+      şablonları yapısal hedef fiyat tablosu taşımıyor — isme dayalı tahmin
+      YAPILMADAN sessizce atlanıyor (proje kuralına uygun, sadece kod eşlemesi).
+- [x] Redis tabanlı atlama önbelleği (`institutional_reports:skipped_guids`):
+      ayrıştırılamayan/aktif olmayan tickera düşen PDF'ler DB'ye hiç
+      yazılmadığı için önbellek olmadan her koşuda tekrar indirilip
+      ayrıştırılıyorlardı — bu oturumda canlı testte yakalanıp düzeltildi.
+- [x] Docker imajına `poppler-utils` eklendi (`pdftotext` için). Docker içinde
+      **65/65 test geçti** (9 yeni: 4 gerçek PDF şablonu — TR/EN/nokta-ondalık/
+      atlama senaryosu — + liste HTML + tarih/GUID ayrıştırma); Ruff temiz.
+- [x] Canlı PhillipCapital koşusu x3: ilk koşu (2 sayfa sınırlı) 20 keşif/3
+      kabul, ikinci koşu (önbellek düzeltmesi öncesi) `new=17` bulup **collector
+      idempotency hatasını ortaya çıkardı**, düzeltme sonrası üçüncü koşu
+      sadece sayfa 1'i kontrol edip `new=0` döndü (sayfalama erken durması
+      çalışıyor). Tam geri dolum: 138 rapor keşfedildi, 21 kabul edildi, 114
+      şablon uyumsuzluğu nedeniyle atlandı, 0 indirme hatası; tekrar
+      koşuda `new=0`. DB'de 24/24 `source_key` benzersiz (bazı raporların
+      TR/EN ayrı PDF'leri var, ikisi de ayrı meşru kayıt). GRSEL konsensüsü
+      API'de `source_breakdown: {"phillipcapital_pdf": 1}` ile doğrulandı.
 
 ## Faz 7 — Bileşik Skor + Sinyal Motoru
 ⬜ Başlanmadı

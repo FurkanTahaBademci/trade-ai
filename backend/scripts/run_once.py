@@ -8,6 +8,8 @@ Kullanim:
     python -m scripts.run_once llm
     python -m scripts.run_once fundamentals --tickers THYAO,ASELS --start-year 2025
     python -m scripts.run_once analysts
+    python -m scripts.run_once institutional-reports
+    python -m scripts.run_once institutional-reports --max-pages 2
     python -m scripts.run_once fund-flows --fund-kind YAT --days 7
     python -m scripts.run_once prices --tickers THYAO,ASELS,GARAN --days 30
     python -m scripts.run_once prices                    # tum aktif hisseler, 3 yil backfill
@@ -110,6 +112,16 @@ async def run_analysts() -> dict:
         return await collector.run_tracked()
 
 
+async def run_institutional_reports(max_pages: int | None) -> dict:
+    from app.collectors.institutional_reports import InstitutionalReportCollector
+
+    async with (
+        session_factory() as session,
+        InstitutionalReportCollector(session, max_pages=max_pages) as collector,
+    ):
+        return await collector.run_tracked()
+
+
 async def run_fund_flows(fund_kind: str, days: int | None) -> dict:
     from app.collectors.fund_flows import FundFlowCollector
 
@@ -129,6 +141,7 @@ async def run_fund_flows(fund_kind: str, days: int | None) -> dict:
 
 COLLECTORS = {
     "analysts": lambda args: run_analysts(),
+    "institutional-reports": lambda args: run_institutional_reports(args.max_pages),
     "fund-flows": lambda args: run_fund_flows(args.fund_kind, args.days),
     "fundamentals": lambda args: run_fundamentals(
         tickers=args.tickers.split(",") if args.tickers else None,
@@ -167,6 +180,11 @@ def main() -> None:
     )
     parser.add_argument("--start-year", type=int, help="Finansal tablo baslangic yili.")
     parser.add_argument("--end-year", type=int, help="Finansal tablo bitis yili.")
+    parser.add_argument(
+        "--max-pages",
+        type=int,
+        help="institutional-reports: liste sayfasi taramasini N sayfayla sinirla (test icin).",
+    )
     parser.add_argument(
         "--fund-kind",
         choices=["YAT", "EMK", "BYF", "GYF", "GSYF"],

@@ -4,7 +4,113 @@ Son güncelleme: 2026-09-07 (Europe/Istanbul)
 
 Bu dosya, Codex'in yaptığı değişiklikleri Claude ve diğer ajanların hızlıca
 inceleyebilmesi için tutulur. Kanonik faz durumu `PROGRESS.md`, değişmemesi
-gereken ürün kararları `CLAUDE.md` içindedir.
+gereken ürün kararları `CLAUDE.md` içindedir. Aşağıdaki 2026-09-07 (Claude)
+girişi Codex değil, Claude tarafından yazıldı — paylaşılan tek devir
+günlüğünü bölmemek için burada tutuluyor, başlıkta ajan belirtildi.
+
+## 2026-09-07 (Claude) — Faz 6 kapanışı: kurum PDF hattı (PhillipCapital)
+
+### Neden bu kaynak
+
+Faz 6'nın açık maddesi kurum PDF hattıydı. Bu oturumda ~15 arac kurumun
+araştırma sayfası araştırıldı (İş Yatırım `arastirma.isyatirim.com.tr`, Ak
+Yatırım, Oyak Yatırım, QNB Finansinvest, Tacirler, Şeker, Deniz, Halk,
+Phillip Capital, Tera, ...). Çoğu ya üyelik duvarının arkasında ("Üye ve
+Müşterilere Özel İçerik") ya da JS ile render edilen SPA. **PhillipCapital
+Türkiye'nin `phillipcapital.com.tr/arastirma-urunleri` sayfası** login
+gerektirmeyen, sunucu tarafında render edilen, kategori/sayfa query
+parametreleriyle filtrelenebilen tek kaynak olarak doğrulandı. "Şirket
+Raporları" kategorisinde 138 gerçek rapor bulundu (2023-2026 arası).
+
+### Tamamlananlar
+
+- `app/collectors/institutional_reports.py` (yeni dosya): liste sayfasını
+  keşfeder (`_ProductListParser`, azalan tarih sıralı sayfalama + erken
+  durma), yeni PDF'leri indirir, `pdftotext -layout` (poppler-utils,
+  subprocess) ile sayfa 1'i metne çevirir, "Bloomberg Ticker" satırından
+  sonraki ~900 karakterlik pencerede etiket bazlı (TR/EN çoklu varyant)
+  hedef fiyat/referans fiyat/getiri potansiyeli/öneri alanlarını ayrıştırır.
+- Yeni tablo YOK — mevcut `AnalystRecommendation`/`AnalystConsensus` şeması
+  yeniden kullanıldı (`source="phillipcapital_pdf"`, `source_key`=PDF GUID).
+  `raw_data` JSONB'de checksum (`pdf_sha256`), boyut, başlık, kategori.
+- `analysts.py`: konsensüs yeniden hesaplama mantığı `recompute_analyst_consensus()`
+  ortak fonksiyonuna çıkarıldı (hem `AnalystCollector` hem yeni collector
+  kullanıyor — DRY, "collectors/base.py tek doğru yazılır" ruhunu paylaşılan
+  yardımcı fonksiyonlara da genişletti). `normalize_recommendation()`
+  sözlüğüne İngilizce (Outperform/Market Perform/Underperform/Neutral/
+  Overweight/Underweight) ve PhillipCapital'a özgü "Endeks Üzeri Getiri"
+  (İş Yatırım'ın "Endeks Üstü Getiri" ifadesinden farklı, aynı anlamda BUY
+  sözcüğü — gerçek ASTOR fixture'ında yakalandı) eklendi.
+- ARQ cron `collect_institutional_reports` (07:45, analist işinden sonra);
+  manuel `python -m scripts.run_once institutional-reports [--max-pages N]`.
+- Dockerfile'a `poppler-utils` eklendi (`pdftotext` için).
+- Fixture'lar (`backend/tests/fixtures/institutional_reports/`): liste
+  HTML'i (4 gerçek kart + sayfalama) ve 4 gerçek PDF'in `pdftotext -layout`
+  çıktısı (EREGL TR/EN, ASTOR TR başlangıç raporu, KMPUR "Toplantı Notu"
+  atlanma senaryosu) — ham PDF binary'leri commit edilmedi (KAP ekinde
+  olduğu gibi, 300-1000 KB aralığında, gereksiz repo şişmesi).
+- 9 yeni test `tests/test_institutional_mapping.py`'e eklendi (aynı Faz 6
+  test dosyası — ayrı dosya açılmadı).
+
+### Canlı doğrulamada bulunan ve düzeltilen hata
+
+İlk canlı koşuda **collector idempotency hatası** yakalandı: "Bloomberg
+Ticker" taşımayan şablonlar (`skipped_unparseable_template`) hiçbir zaman
+DB'ye yazılmadığı için ikinci koşuda da "new" sayılıp yeniden indirilip
+ayrıştırılıyorlardı — hem gereksiz ağ trafiği hem de sayfalama erken durma
+optimizasyonunu bozuyordu (bir sayfada en az bir atlanan rapor olduğu sürece
+collector sonsuza kadar tüm sayfaları tarardı). Redis SET
+(`institutional_reports:skipped_guids`) ile düzeltildi — atlanan GUID'ler de
+`existing_keys`'e dahil ediliyor artık. Bu, DB satır idempotency'sinin
+("iki kez çalıştır, ikinci sıfır satır" — vibe kural #5) ağ/iş idempotency'si
+ile aynı şey olmadığını gösteren somut bir örnek: DB'de zaten hep 0 yeni
+satır vardı (`accepted=0`), ama collector gereksiz yere PDF indirmeye devam
+ediyordu.
+
+### Canlı doğrulama (Docker + gerçek PostgreSQL/Redis)
+
+- Docker `poppler-utils` ile yeniden build edildi; worker 19 fonksiyonla
+  (yeni cron dahil) başladı.
+- 2 sayfa sınırlı ilk koşu: 20 keşif, 3 kabul (formal şablon), 17 atlama.
+  İkinci koşu (düzeltme öncesi kod) `new=17` döndürerek hatayı ortaya
+  çıkardı. Düzeltme sonrası üçüncü koşu yalnız sayfa 1'i kontrol edip
+  `new=0`, sıfır PDF indirme.
+- Redis atlama önbelleği temizlenip tam geri dolum çalıştırıldı: 138 rapor
+  keşfedildi (14 sayfa), 21 kabul, 114 şablon uyumsuzluğu, 0 indirme hatası.
+  Tekrar koşu `new=0`. DB'de 24/24 `source_key` benzersiz (bazı raporların
+  ayrı TR/EN PDF'i var — ikisi de meşru ayrı kayıt, `calculate_consensus`
+  zaten (ticker, institution) bazında dedup ediyor).
+- Docker içinde **65/65 test geçti** (58 → 65); Ruff/format değiştirilen
+  dosyalarda temiz; `alembic check` yeni işlem bulmadı (head hâlâ
+  `c62f1a8e4d73` — şema değişmedi).
+- API doğrulaması: `GET /api/analysts/GRSEL/consensus` → `institution_count:
+  1`, `source_breakdown: {"phillipcapital_pdf": 1}`, `recommendation_score:
+  100` (BUY), `average_target: 564.0`.
+
+### İncelemede özellikle bakılacak kararlar
+
+1. Raporların yalnızca ~%15'i ("Bloomberg Ticker" satırı taşıyan göreceli
+   yeni şablon) güvenilir ayrıştırılıyor. Eski kapak/"Toplantı Notu"
+   şablonları isme dayalı tahmin yapılmadan sessizce atlanıyor — proje
+   kuralı ("eşleme mantığı asla isme dayanmamalı") burada bilinçli olarak
+   kapsam daraltmayı, yanlış eşlemeye tercih ediyor.
+2. Redis atlama önbelleği kalıcı değildir (Redis verisi kaybolursa 114
+   şablon-uyumsuz rapor bir kereliğine yeniden indirilir) — bu kabul
+   edilebilir, çünkü DB idempotency'si (unique `source_key`) her koşulda
+   korunuyor; önbellek sadece bant genişliği optimizasyonu.
+3. `recompute_analyst_consensus()` ortak fonksiyonu artık üç yerden
+   tetikleniyor (AnalystCollector, InstitutionalReportCollector, ve
+   dolaylı olarak günlük 07:30/07:45 cron'ları) — konsensüs hangi
+   collector'ın son çalıştığına bakmaksızın tüm `analyst_recommendation`
+   tablosunu okuyup yeniden hesaplıyor, bu yüzden sıralama/zamanlama
+   hassasiyeti yok.
+
+### Sıradaki iş
+
+Faz 6 artık ✅. Sırada Faz 7 (bileşik skor + sinyal motoru) var — haber/KAP
+LLM değerlendirmeleri, temel analiz skoru, analist konsensüsü ve fon akımını
+0-100 tek skora birleştirecek. Faz 4'ün gerçek Gemini API anahtarı doğrulaması
+hâlâ ayrı açık madde (kullanıcı tarafında).
 
 ## 2026-09-07 — Faz 6 analist konsensüsü ve TEFAS fon akımı (çekirdek)
 
@@ -43,6 +149,10 @@ gereken ürün kararları `CLAUDE.md` içindedir.
 Kilit ürün kararındaki özgün kurum PDF hattı henüz eklenmedi. Mevcut doğrudan
 İş Yatırım HTML kaynağı güvenilir kurumsal kapsam sağlıyor, ancak PDF rapor
 keşfi/indirme/checksum/metin-tablosu çıkarımı tamamlanmadan Faz 6 ✅ yapılmadı.
+
+**Güncelleme (2026-09-07, Claude):** Kurum PDF hattı eklendi ve Faz 6 ✅
+yapıldı — bkz. dosyanın başındaki "Faz 6 kapanışı: kurum PDF hattı
+(PhillipCapital)" girişi.
 
 ## 2026-09-07 — Faz 5 temel analiz motoru
 

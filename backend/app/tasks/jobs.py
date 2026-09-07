@@ -83,3 +83,13 @@ async def collect_fund_flows(ctx: dict) -> dict:
 
     async with session_factory() as session, FundFlowCollector(session) as collector:
         return await collector.run_tracked()
+
+
+async def collect_institutional_reports(ctx: dict) -> dict:
+    from app.collectors.institutional_reports import InstitutionalReportCollector
+
+    async with (
+        session_factory() as session,
+        InstitutionalReportCollector(session) as collector,
+    ):
+        return await collector.run_tracked()

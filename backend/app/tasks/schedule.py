@@ -18,6 +18,7 @@ from app.tasks.jobs import (
     collect_analysts,
     collect_fund_flows,
     collect_fundamentals,
+    collect_institutional_reports,
     collect_instruments,
     collect_kap,
     collect_news,
@@ -54,6 +55,7 @@ class WorkerSettings:
         collect_fundamentals,
         collect_analysts,
         collect_fund_flows,
+        collect_institutional_reports,
         evaluate_sources,
     ]
     cron_jobs: ClassVar[list] = [
@@ -66,6 +68,9 @@ class WorkerSettings:
         cron(collect_fundamentals, hour={7}, minute={0}),
         # Kurumsal hedefler sabah; TEFAS akimi gun sonu verisi sonrasinda.
         cron(collect_analysts, hour={7}, minute={30}),
+        # Kurum PDF hatti (PhillipCapital) analist collector'indan sonra;
+        # kendi upsert'inin ardindan konsensusu tekrar hesaplar.
+        cron(collect_institutional_reports, hour={7}, minute={45}),
         cron(collect_fund_flows, hour={20}, minute={0}),
         # Hisse evreni gunde bir kere yeterli (KAP uyelik degisimi nadir).
         cron(collect_instruments, hour={6}, minute={0}),

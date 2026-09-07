@@ -85,11 +85,38 @@ def _turkish_date(value: str) -> date:
 def normalize_recommendation(value: str) -> str:
     normalized = value.upper().translate(str.maketrans("ÇĞİÖŞÜ", "CGIOSU"))
     normalized = re.sub(r"\s+", " ", normalized).strip(" .")
-    if normalized in {"AL", "GUCLU AL", "END. USTU", "ENDEKS USTU GETIRI", "EU"}:
+    if normalized in {
+        "AL",
+        "GUCLU AL",
+        "END. USTU",
+        "ENDEKS USTU GETIRI",
+        "ENDEKS UZERI GETIRI",
+        "EU",
+        "OUTPERFORM",
+        "OVERWEIGHT",
+        "BUY",
+    }:
         return "BUY"
-    if normalized in {"TUT", "NOTR", "ENDEKSE PARALEL GETIRI", "EP"}:
+    if normalized in {
+        "TUT",
+        "NOTR",
+        "ENDEKSE PARALEL GETIRI",
+        "EP",
+        "MARKET PERFORM",
+        "NEUTRAL",
+        "EQUAL WEIGHT",
+        "HOLD",
+    }:
         return "HOLD"
-    if normalized in {"SAT", "END. ALTI", "ENDEKS ALTI GETIRI", "EA"}:
+    if normalized in {
+        "SAT",
+        "END. ALTI",
+        "ENDEKS ALTI GETIRI",
+        "EA",
+        "UNDERPERFORM",
+        "UNDERWEIGHT",
+        "SELL",
+    }:
         return "SELL"
     return "REVIEW"
 
@@ -235,6 +262,54 @@ def calculate_consensus(
     return output
 
 
+async def recompute_analyst_consensus(session: AsyncSession) -> list[dict]:
+    """Tum kaynaklardan (isyatirim, halkaarztakvimi, kurum PDF hatti, ...)
+    biriken `analyst_recommendation` satirlarindan ticker bazli konsensusu
+    yeniden hesaplar. Her kaynak collector'i kendi upsert'inden sonra bunu
+    cagirir; boylece konsensus hangi kaynagin son calistigina bakmadan
+    guncel kalir.
+    """
+    cutoff = datetime.now(UTC).date() - timedelta(days=365)
+    recommendations = list(
+        (
+            await session.scalars(
+                select(AnalystRecommendation).where(
+                    AnalystRecommendation.recommendation_date >= cutoff
+                )
+            )
+        ).all()
+    )
+    price_rows = (
+        await session.execute(
+            select(PriceDaily.ticker, PriceDaily.close)
+            .distinct(PriceDaily.ticker)
+            .order_by(PriceDaily.ticker, PriceDaily.date.desc())
+        )
+    ).all()
+    as_of = datetime.now(ZoneInfo("Europe/Istanbul")).date()
+    consensus = calculate_consensus(
+        recommendations,
+        market_prices=dict(price_rows),
+        as_of_date=as_of,
+    )
+    if consensus:
+        stmt = pg_insert(AnalystConsensus).values(consensus)
+        update_fields = {
+            key: getattr(stmt.excluded, key)
+            for key in consensus[0]
+            if key not in {"ticker", "as_of_date"}
+        }
+        update_fields["computed_at"] = func.now()
+        update_fields["updated_at"] = func.now()
+        await session.execute(
+            stmt.on_conflict_do_update(
+                constraint="uq_analyst_consensus_identity", set_=update_fields
+            )
+        )
+        await session.commit()
+    return consensus
+
+
 class AnalystCollector(BaseCollector):
     name = "analysts"
 
@@ -300,44 +375,7 @@ class AnalystCollector(BaseCollector):
             )
             await self._session.commit()
 
-        cutoff = datetime.now(UTC).date() - timedelta(days=365)
-        recommendations = list(
-            (
-                await self._session.scalars(
-                    select(AnalystRecommendation).where(
-                        AnalystRecommendation.recommendation_date >= cutoff
-                    )
-                )
-            ).all()
-        )
-        price_rows = (
-            await self._session.execute(
-                select(PriceDaily.ticker, PriceDaily.close)
-                .distinct(PriceDaily.ticker)
-                .order_by(PriceDaily.ticker, PriceDaily.date.desc())
-            )
-        ).all()
-        as_of = datetime.now(ZoneInfo("Europe/Istanbul")).date()
-        consensus = calculate_consensus(
-            recommendations,
-            market_prices=dict(price_rows),
-            as_of_date=as_of,
-        )
-        if consensus:
-            stmt = pg_insert(AnalystConsensus).values(consensus)
-            update_fields = {
-                key: getattr(stmt.excluded, key)
-                for key in consensus[0]
-                if key not in {"ticker", "as_of_date"}
-            }
-            update_fields["computed_at"] = func.now()
-            update_fields["updated_at"] = func.now()
-            await self._session.execute(
-                stmt.on_conflict_do_update(
-                    constraint="uq_analyst_consensus_identity", set_=update_fields
-                )
-            )
-            await self._session.commit()
+        consensus = await recompute_analyst_consensus(self._session)
         return {
             "sources_ok": len(source_results),
             "source_failures": failures,

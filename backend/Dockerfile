@@ -6,9 +6,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Sistem bagimliliklari (asyncpg/psycopg derlemesi ve saglik kontrolu icin curl)
+# Sistem bagimliliklari: saglik kontrolu icin curl, kurum PDF hatti
+# (institutional_reports collector'i) icin pdftotext (poppler-utils).
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 
 # NOT: pip install -e . oncesinde tum kaynak kopyalanmali — pyproject.toml'daki

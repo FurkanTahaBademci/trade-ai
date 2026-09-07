@@ -16,6 +16,11 @@ agdaki servislere baglanmadan, gercekci veriyle calisabilsin (bkz. proje
 | `analysts/isyatirim_tracking_sample.html` | İş Yatırım takip listesi (3 gerçek satıra küçültülmüş) | 2026-09-07 |
 | `analysts/halkaarz_targets_sample.html` | Halka Arz Takvimi hedef fiyat listesi (4 gerçek satıra küçültülmüş) | 2026-09-07 |
 | `tefas/flow_sample.json` | TEFAS genel bilgi + dağılım (2 fon, 2 gerçek gün) | 2026-09-07 |
+| `institutional_reports/phillipcapital_listing_sample.html` | PhillipCapital `arastirma-urunleri?category=Şirket Raporları` (4 gerçek rapor kartı + sayfalama) | 2026-09-07 |
+| `institutional_reports/eregl_tr_page1.txt` | PhillipCapital EREGL şirket güncelleme raporu PDF'i, sayfa 1 (`pdftotext -layout`, TR şablon) | 2026-09-07 |
+| `institutional_reports/eregl_en_page1.txt` | Aynı EREGL raporunun İngilizce sürümü, sayfa 1 | 2026-09-07 |
+| `institutional_reports/astor_tr_page1.txt` | PhillipCapital ASTOR kapsama başlangıç raporu, sayfa 1 | 2026-09-07 |
+| `institutional_reports/kmpur_meeting_note_page1.txt` | PhillipCapital "Toplantı Notu" (yapısal hedef fiyat tablosu yok — atlanma senaryosu), sayfa 1 | 2026-09-07 |
 
 **Not:** Kaynaklarin semasi degisirse (yeni alan, kaldirilan alan, farkli
 sarmalayici) bu dosyalar guncellenmeli — `backend/scripts/smoke_sources.py`
