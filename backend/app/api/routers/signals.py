@@ -1,11 +1,12 @@
 """Bilesik skor siralamasi ve ticker gecmisi endpoint'leri."""
 
 from datetime import date
+from decimal import Decimal
 from enum import StrEnum
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
@@ -30,6 +31,9 @@ async def list_latest_signals(
     ticker: Annotated[str | None, Query(min_length=1, max_length=16)] = None,
     label: Annotated[SignalLabel | None, Query()] = None,
     min_score: Annotated[float | None, Query(ge=0, le=100)] = None,
+    after_score: Annotated[Decimal | None, Query(ge=0, le=100)] = None,
+    after_ticker: Annotated[str | None, Query(min_length=1, max_length=16)] = None,
+    after_id: Annotated[int | None, Query(ge=1)] = None,
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
 ) -> list[CompositeSignalSnapshot]:
     target_date = as_of or await db.scalar(select(func.max(CompositeSignalSnapshot.as_of_date)))
@@ -44,8 +48,35 @@ async def list_latest_signals(
         stmt = stmt.where(CompositeSignalSnapshot.signal_label == label)
     if min_score is not None:
         stmt = stmt.where(CompositeSignalSnapshot.composite_score >= min_score)
+    if after_score is not None and after_ticker and after_id:
+        stmt = stmt.where(
+            or_(
+                CompositeSignalSnapshot.composite_score < after_score,
+                and_(
+                    CompositeSignalSnapshot.composite_score == after_score,
+                    CompositeSignalSnapshot.ticker > after_ticker.upper(),
+                ),
+                and_(
+                    CompositeSignalSnapshot.composite_score == after_score,
+                    CompositeSignalSnapshot.ticker == after_ticker.upper(),
+                    CompositeSignalSnapshot.id < after_id,
+                ),
+            )
+        )
+    elif after_score is not None and after_ticker:
+        stmt = stmt.where(
+            or_(
+                CompositeSignalSnapshot.composite_score < after_score,
+                and_(
+                    CompositeSignalSnapshot.composite_score == after_score,
+                    CompositeSignalSnapshot.ticker > after_ticker.upper(),
+                ),
+            )
+        )
     stmt = stmt.order_by(
-        CompositeSignalSnapshot.composite_score.desc(), CompositeSignalSnapshot.ticker
+        CompositeSignalSnapshot.composite_score.desc(),
+        CompositeSignalSnapshot.ticker,
+        CompositeSignalSnapshot.id.desc(),
     ).limit(limit)
     return list((await db.scalars(stmt)).all())
 

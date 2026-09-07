@@ -8,19 +8,26 @@ gereken ürün kararları `CLAUDE.md` içindedir. Aşağıdaki 2026-09-07 (Claud
 girişi Codex değil, Claude tarafından yazıldı — paylaşılan tek devir
 günlüğünü bölmemek için burada tutuluyor, başlıkta ajan belirtildi.
 
-## 2026-09-08 — Haber akışı sonsuz kaydırma
+## 2026-09-08 — Liste ekranlarında sonsuz kaydırma
 
 - `/haberler` ilk yüklemede 12 kayıt getiriyor; kullanıcı listenin sonuna
   yaklaşınca `IntersectionObserver` üzerinden sonraki 12 kayıt yükleniyor.
   Yükleme iskeleti, hata/yeniden deneme ve tüm kayıtlar görüldü durumları eklendi.
+- Aynı yapı `/kap` (15'li), `/analizler` (12'li) ve `/sinyaller` (15'li)
+  ekranlarına taşındı. `/piyasalar`, tam evren üzerinde çalışan aramayı korurken
+  DOM'a 20'şer satır ekliyor. Eski sayfa numarası bileşeni tamamen kaldırıldı.
 - Tarayıcı istekleri same-origin `/api/news-feed` route'u üzerinden internal API'ye
-  gidiyor; böylece API adresi tarayıcıdan erişilebilir olmasa da Coolify private
-  ağ düzeni korunuyor. Kaynak filtreleri sonraki kademelerde de taşınıyor.
-- Backend cursor'ı yalnız tarihten tarih + ID çiftine yükseltildi; aynı yayın
-  zamanındaki haberler arasında kayıt atlama ve mükerrer kart riski önlendi.
+  ve diğer listeler `/api/list-feed/[kind]` üzerinden internal API'ye gidiyor;
+  böylece API adresi tarayıcıdan erişilebilir olmasa da Coolify private ağ düzeni
+  korunuyor. Kaynak/etiket filtreleri sonraki kademelerde de taşınıyor.
+- Haber, KAP ve analiz cursor'ları tarih + benzersiz ID; sinyal cursor'ı skor +
+  ticker + benzersiz ID kullanıyor. Eşit sıralama değerlerinde kayıt atlama ve
+  mükerrer kart riski önlendi.
 - Canlı Docker kontrolünde ilk ve ikinci 12'li sayfa arasında `overlap=0`.
   Headless Chrome 800px görünümde 12, uzun kaydırma görünümünde 120 kart render
-  etti. Production build, TypeScript, Ruff ve **103/103 test** temiz.
+  etti. KAP 15→90, Piyasalar 20→180 kayıt ilerledi; KAP ve Sinyal API'lerinde
+  ardışık kademeler `overlap=0`. Production build, TypeScript, Ruff ve
+  **106/106 test** temiz.
 
 ## 2026-09-07 — Faz 13 Docker/Coolify üretim hazırlığı tamamlandı
 

@@ -1,13 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useMemo } from "react";
 import { formatDate, sourceName } from "@/lib/format";
 import type { NewsArticle } from "@/lib/types";
+import { useInfiniteFeed } from "@/lib/use-infinite-feed";
 import { Icon } from "./icon";
+import { InfiniteFeedStatus } from "./infinite-feed-status";
 import { EmptyState, TickerPills } from "./ui";
 
 const PAGE_SIZE = 12;
+const newsCursor = (item: NewsArticle) => ({ before: item.published_at, before_id: item.id });
+const newsKey = (item: NewsArticle) => item.id;
 
 export function InfiniteNewsFeed({
   initialItems,
@@ -16,59 +20,15 @@ export function InfiniteNewsFeed({
   initialItems: NewsArticle[];
   source?: string;
 }) {
-  const [items, setItems] = useState(initialItems);
-  const [hasMore, setHasMore] = useState(initialItems.length === PAGE_SIZE);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const loadingRef = useRef(false);
-  const sentinelRef = useRef<HTMLDivElement>(null);
-
-  const loadMore = useCallback(async () => {
-    const lastItem = items.at(-1);
-    if (!lastItem || !hasMore || loadingRef.current) return;
-
-    loadingRef.current = true;
-    setLoading(true);
-    setError(null);
-
-    const params = new URLSearchParams({
-      limit: String(PAGE_SIZE),
-      before: lastItem.published_at,
-      before_id: String(lastItem.id),
-    });
-    if (source) params.set("source", source);
-
-    try {
-      const response = await fetch(`/api/news-feed?${params}`, { cache: "no-store" });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-      const nextItems = (await response.json()) as NewsArticle[];
-      setItems((current) => {
-        const knownIds = new Set(current.map((item) => item.id));
-        return [...current, ...nextItems.filter((item) => !knownIds.has(item.id))];
-      });
-      setHasMore(nextItems.length === PAGE_SIZE);
-    } catch {
-      setError("Yeni haberler yüklenemedi. Bağlantıyı kontrol edip tekrar deneyin.");
-    } finally {
-      loadingRef.current = false;
-      setLoading(false);
-    }
-  }, [hasMore, items, source]);
-
-  useEffect(() => {
-    const sentinel = sentinelRef.current;
-    if (!sentinel || !hasMore) return;
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) void loadMore();
-      },
-      { rootMargin: "500px 0px" },
-    );
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [hasMore, loadMore]);
+  const filters = useMemo(() => ({ source }), [source]);
+  const { items, hasMore, loading, error, loadMore, sentinelRef } = useInfiniteFeed({
+    initialItems,
+    pageSize: PAGE_SIZE,
+    endpoint: "/api/news-feed",
+    filters,
+    cursorFor: newsCursor,
+    keyFor: newsKey,
+  });
 
   if (!items.length) {
     return <div className="panel-flat"><EmptyState /></div>;
@@ -83,12 +43,7 @@ export function InfiniteNewsFeed({
       {items.map((item) => <NewsCard key={item.id} item={item}/>) }
       {loading && Array.from({ length: 4 }, (_, index) => <NewsSkeleton key={index}/>) }
     </div>
-    <div ref={sentinelRef} className="flex min-h-24 items-center justify-center py-6">
-      {error ? <div className="text-center"><p className="text-xs text-[var(--negative)]">{error}</p><button type="button" onClick={() => void loadMore()} className="mt-3 rounded-[10px] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs font-medium transition hover:bg-[var(--surface-hover)]">Tekrar dene</button></div>
-        : loading ? <div className="flex items-center gap-2 text-xs text-[var(--text-muted)]"><span className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--border-strong)] border-t-[var(--primary)]"/>Haberler yükleniyor</div>
-        : !hasMore ? <p className="text-xs text-[var(--text-muted)]">Tüm haberleri gördünüz.</p>
-        : <span className="sr-only">Daha fazla haber için aşağı kaydırın</span>}
-    </div>
+    <InfiniteFeedStatus sentinelRef={sentinelRef} loading={loading} error={error} hasMore={hasMore} onRetry={() => void loadMore()} endLabel="Tüm haberleri gördünüz."/>
   </section>;
 }
 

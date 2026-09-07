@@ -24,8 +24,8 @@ birleştiren sürümlü 0-100 skor motoru tamamlandı.
 risk sınırları ve mükerrer işlem koruması olan sanal portföy motoru tamamlandı.
 
 ✅ **Dashboard**: mevcut özelliklerin tamamı için responsive Next.js arayüz,
-detay ekranları, kaydırdıkça yüklenen haber akışı, paper portföy görünümü ve
-merkezi tema sistemi hazır.
+detay ekranları, Haber/KAP/AI Analiz/Sinyal/Piyasa listelerinde kaydırdıkça
+kademeli yükleme, paper portföy görünümü ve merkezi tema sistemi hazır.
 
 ✅ **TCMB Faiz & Makro**: resmî PPK kararları ve yaklaşan toplantılar, faiz
 koridoru ve senaryo bazlı piyasa aktarım kanallarıyla izleniyor.

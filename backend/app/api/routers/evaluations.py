@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import cast, select
+from sqlalchemy import and_, cast, or_, select
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -26,6 +26,10 @@ async def list_evaluations(
     before: Annotated[
         datetime | None, Query(description="Cursor: bu tarihten eski degerlendirmeler")
     ] = None,
+    before_id: Annotated[
+        int | None,
+        Query(ge=1, description="Ayni olusturma zamanindaki kayitlar icin cursor ID"),
+    ] = None,
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
 ) -> list[LlmEvaluation]:
     stmt = select(LlmEvaluation).order_by(
@@ -41,7 +45,14 @@ async def list_evaluations(
         stmt = stmt.where(LlmEvaluation.tier == tier)
     if status:
         stmt = stmt.where(LlmEvaluation.status == status)
-    if before:
+    if before and before_id:
+        stmt = stmt.where(
+            or_(
+                LlmEvaluation.created_at < before,
+                and_(LlmEvaluation.created_at == before, LlmEvaluation.id < before_id),
+            )
+        )
+    elif before:
         stmt = stmt.where(LlmEvaluation.created_at < before)
     result = await db.execute(stmt.limit(limit))
     return list(result.scalars().all())

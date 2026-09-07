@@ -6,7 +6,7 @@ from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
-from sqlalchemy import cast, select
+from sqlalchemy import and_, cast, or_, select
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -25,6 +25,10 @@ async def list_disclosures(
     before: Annotated[
         datetime | None, Query(description="Cursor: bu tarihten eski bildirimler")
     ] = None,
+    before_index: Annotated[
+        int | None,
+        Query(ge=1, description="Ayni yayin zamanindaki bildirimler icin cursor index"),
+    ] = None,
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
 ) -> list[KapDisclosure]:
     stmt = select(KapDisclosure).order_by(
@@ -36,7 +40,17 @@ async def list_disclosures(
         stmt = stmt.where(cast(KapDisclosure.ticker_codes, JSONB).contains([ticker.upper()]))
     if disclosure_class:
         stmt = stmt.where(KapDisclosure.disclosure_class == disclosure_class.upper())
-    if before:
+    if before and before_index:
+        stmt = stmt.where(
+            or_(
+                KapDisclosure.published_at < before,
+                and_(
+                    KapDisclosure.published_at == before,
+                    KapDisclosure.disclosure_index < before_index,
+                ),
+            )
+        )
+    elif before:
         stmt = stmt.where(KapDisclosure.published_at < before)
     result = await db.execute(stmt.limit(limit))
     return list(result.scalars().unique().all())
