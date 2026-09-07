@@ -53,3 +53,10 @@ async def collect_news(ctx: dict) -> dict:
 
     async with session_factory() as session, NewsCollector(session) as collector:
         return await collector.run_tracked()
+
+
+async def evaluate_sources(ctx: dict) -> dict:
+    from app.llm.service import run_llm_evaluations
+
+    async with session_factory() as session:
+        return await run_llm_evaluations(session)

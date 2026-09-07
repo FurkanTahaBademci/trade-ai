@@ -5,6 +5,7 @@ Kullanim:
     python -m scripts.run_once kap --days 3
     python -m scripts.run_once kap --days 30 --no-attachments
     python -m scripts.run_once news
+    python -m scripts.run_once llm
     python -m scripts.run_once prices --tickers THYAO,ASELS,GARAN --days 30
     python -m scripts.run_once prices                    # tum aktif hisseler, 3 yil backfill
 
@@ -71,9 +72,17 @@ async def run_news() -> dict:
         return await collector.run_tracked()
 
 
+async def run_llm() -> dict:
+    from app.llm.service import run_llm_evaluations
+
+    async with session_factory() as session:
+        return await run_llm_evaluations(session)
+
+
 COLLECTORS = {
     "instruments": lambda args: run_instruments(),
     "kap": lambda args: run_kap(args.days, not args.no_attachments),
+    "llm": lambda args: run_llm(),
     "news": lambda args: run_news(),
     "prices": lambda args: run_prices(
         tickers=args.tickers.split(",") if args.tickers else None,

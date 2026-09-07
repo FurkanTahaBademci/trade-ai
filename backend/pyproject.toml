@@ -16,6 +16,7 @@ dependencies = [
     "httpx>=0.28",
     "tenacity>=9.0",
     "feedparser>=6.0",
+    "google-genai>=1.60",
     "structlog>=24.4",
     "isyatirimhisse>=1.0",
     "pandas>=2.2",
@@ -33,6 +34,9 @@ dev = [
 # scripts/ zaten backend/ workdir'inden `python -m scripts.xxx` ile calisiyor,
 # ayrica pip paketi olmasina gerek yok.
 include = ["app*"]
+
+[tool.setuptools.package-data]
+"app.llm" = ["prompts/*.md"]
 
 [tool.ruff]
 line-length = 100

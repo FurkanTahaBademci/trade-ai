@@ -6,6 +6,60 @@ Bu dosya, Codex'in yaptığı değişiklikleri Claude ve diğer ajanların hızl
 inceleyebilmesi için tutulur. Kanonik faz durumu `PROGRESS.md`, değişmemesi
 gereken ürün kararları `CLAUDE.md` içindedir.
 
+## 2026-09-07 — Faz 4 LLM değerlendirme katmanı
+
+### Tamamlananlar
+
+- Haber ve KAP için ortak `llm_evaluation` şeması eklendi. Değerlendirme
+  anahtarı kaynak türü/id, içerik hash'i, prompt sürümü, model, tier ve varsa
+  parent Tier 1 anahtarından deterministik üretiliyor.
+- Başarılı/başarısız/running durumları, en fazla üç deneme, 30 dakikalık stale
+  recovery, input/output/total token, latency ve ham/yapılandırılmış çıktı
+  denetlenebilir biçimde saklanıyor.
+- Tier 1 tüm backlog'u `gemini-3.7-flash` ile süzer; Tier 2 yalnız ilgili,
+  varsayılan 70+ etkili, derin analiz işaretli ve aktif BIST ticker'lı kayıtlara
+  `gemini-3.1-pro-preview` ile uygulanır. Tier 1 düşük, Tier 2 orta thinking.
+- Backlog seçimi yalnız son N kayda bağlı değil: hiç işlenmemiş kaynaklar ile
+  retry edilebilir hata/stale kayıtlar ayrıca SQL'den seçiliyor.
+- Promptlar `app/llm/prompts/v1.md` içinde sürümlü. Structured output şeması
+  promptta tekrarlanmıyor; Pydantic JSON Schema SDK config'ine veriliyor.
+  Kaynak delimiter karakterleri kaçışlanıyor ve prompt injection talimatları
+  açıkça güvenilmeyen veri kabul ediliyor.
+- Harcama güvenliği için `LLM_ENABLED=false`, günlük token limitleri, batch ve
+  kaynak karakter limitleri eklendi. Anahtar olsa bile açıkça enable edilmeden
+  API çağrısı yapılmıyor.
+- `google-genai>=1.60`, değerlendirme API route'ları, 10 dakikalık ARQ işi ve
+  `scripts.run_once llm` CLI komutu bağlandı.
+
+### Doğrulama
+
+- Docker build `google-genai 2.22.0` ile başarılı. Kullanılan
+  `response_json_schema`, `ThinkingConfig(thinking_level=...)` ve paketlenmiş
+  prompt dosyası çalışan imaj içinde doğrulandı.
+- Alembic gerçek PostgreSQL head `f47a1c8d6b20`; `alembic check` yeni işlem
+  bulmadı. JSONB/GİN indeksleri, skor CHECK constraint'leri ve parent anahtarı
+  gerçek tabloda oluştu.
+- Sahte Gemini geçidiyle gerçek DB koşusu: Tier 1 ve Tier 2 birer başarılı,
+  parent bağlantısı doğru, 200 input/100 output token toplamı, hayalî ticker
+  elendi. Aynı iki değerlendirme tekrar çağrıldığında ikisi de `skipped`.
+  Geçici test satırları koşu sonunda silindi.
+- `LLM_ENABLED=false` ile gerçek CLI ve otomatik cron ücretli çağrı yapmadan
+  `{enabled: false}` döndü.
+- Docker suite: **45 passed**. Ruff, OpenAPI, `/api/evaluations` boş liste ve
+  bulunamayan detay 404 davranışı temiz.
+
+### Açık kalan tek doğrulama
+
+Ortamda `GEMINI_API_KEY` yok. Gerçek ücretli API çağrısı yapılmadı ve bu yüzden
+Faz 4 kanonik durumda 🔶. Anahtar sağlandığında önce `LLM_BATCH_SIZE=1` ile CLI
+çalıştırılmalı; structured yanıt ve gerçek usage metadata görüldükten sonra
+normal batch'e çıkılmalı.
+
+### Sıradaki iş
+
+Faz 5 — Temel analiz motoru. Faz 4 canlı API doğrulaması anahtar gelince ayrıca
+tamamlanabilir; Faz 5'in deterministik finansal hesapları bundan bağımsızdır.
+
 ## 2026-09-07 — Faz 3 haber toplayıcı
 
 ### Tamamlananlar
@@ -48,11 +102,10 @@ gereken ürün kararları `CLAUDE.md` içindedir.
 3. Tüm ham RSS satırı `raw_entry` içinde korunuyor; şema değişimlerini geriye
    dönük incelemek mümkün.
 
-### Sıradaki iş
+### Bu devir notunun devamı
 
-Faz 4 — LLM değerlendirme katmanı. Haber/KAP girdilerinin ortak değerlendirme
-şeması, model çağrı bütçesi ve deterministik yeniden-işleme anahtarı şemadan
-önce netleştirilmeli.
+Buradaki Faz 4 planı uygulandı; güncel sonuç ve açık canlı API doğrulaması
+dosyanın başındaki Faz 4 bölümündedir.
 
 ## 2026-09-06 — Faz 2 KAP toplayıcı
 

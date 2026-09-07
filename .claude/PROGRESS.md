@@ -193,7 +193,37 @@ Durumlar: ⬜ başlanmadı · 🔶 devam ediyor · ✅ tamamlandı ve doğruland
       **34/34 test geçti**; Ruff ve PostgreSQL migration DDL kontrolü temiz.
 
 ## Faz 4 — LLM Değerlendirme Katmanı
-⬜ Başlanmadı
+🔶 Kod ve Docker entegrasyonu tamam; canlı Gemini çağrısı API anahtarı bekliyor
+
+- [x] `LlmEvaluation` modeli + `f47a1c8d6b20` migration'ı: haber/KAP kaynak
+      kimliği, içerik hash'i, prompt/model/tier bazlı deterministik anahtar,
+      Tier 1→Tier 2 parent zinciri, skorlar, yapılandırılmış/ham çıktı, hata,
+      deneme sayısı, latency ve token kullanımı saklanıyor.
+- [x] Promptlar repo içinde sürümlü `app/llm/prompts/v1.md` dosyasında; kaynak
+      metni güvenilmeyen veri kabul ediliyor, delimiter enjeksiyonu kaçışlanıyor
+      ve çıktı yatırım tavsiyesi/al-sat emri üretmeyecek şekilde sınırlandırılıyor.
+- [x] Resmi `google-genai` SDK eklendi. Tier 1 `gemini-3.7-flash` + düşük
+      thinking, Tier 2 geçerli endpoint `gemini-3.1-pro-preview` + orta thinking;
+      Pydantic/JSON Schema ile yapılandırılmış çıktı kullanılıyor.
+- [x] Maliyet kapıları: `LLM_ENABLED=false` güvenli varsayılanı, günlük input /
+      output token limitleri, batch sınırı ve kaynak metni boyut sınırı.
+- [x] Tier 2 yalnız Tier 1'in ilgili (>=60), yüksek etkili (varsayılan >=70),
+      derin analiz istediği ve aktif BIST ticker'ı taşıdığı kayıtlarda açılıyor.
+      Modelin uydurduğu/aktif olmayan ticker kodları saklanmadan eleniyor.
+- [x] Backlog açlığı önlendi: hiç değerlendirilmemiş eski kaynaklar, başarısız
+      işler ve 30 dakikadan uzun `running` kalan işler ayrı SQL seçimleriyle
+      kuyruğa geri geliyor; en fazla üç deneme yapılıyor.
+- [x] API: `GET /api/evaluations`, `GET /api/evaluations/{id}`; kaynak, source
+      id, ticker, tier, durum, cursor ve limit filtreleri.
+- [x] ARQ değerlendirme işi 10 dakikada bir; `python -m scripts.run_once llm`
+      CLI komutu. Kapalı durumda worker gerçekten ücretli çağrı yapmadan dönüyor.
+- [x] Gerçek PostgreSQL + sahte Gemini geçidi: Tier 1 ve Tier 2 ilk çağrıda iki
+      bağlı satır oluşturdu, ikinci çağrılar `skipped`; tokenlar kaydedildi,
+      ticker filtresi çalıştı ve geçici test satırları temizlendi.
+- [x] Docker içinde **45/45 test geçti**; Ruff, OpenAPI, Alembic head/check,
+      API liste/404 ve worker cron kaydı doğrulandı.
+- [ ] `GEMINI_API_KEY` sağlanıp kontrollü küçük batch ile gerçek Gemini çağrısı
+      ve kullanım metadata'sı doğrulanacak; o zamana kadar `LLM_ENABLED=false`.
 
 ## Faz 5 — Temel Analiz Motoru
 ⬜ Başlanmadı
