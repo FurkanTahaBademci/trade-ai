@@ -16,6 +16,7 @@ from app.models.instrument import Instrument
 from app.models.kap import KapAttachment, KapDisclosure
 from app.models.llm_evaluation import LlmEvaluation
 from app.models.news import NewsArticle
+from app.models.paper import PaperPortfolio, PaperPortfolioSnapshot, PaperPosition, PaperTrade
 from app.models.price import PriceDaily
 from app.models.signal import CompositeSignalSnapshot
 
@@ -33,5 +34,9 @@ __all__ = [
     "KapDisclosure",
     "LlmEvaluation",
     "NewsArticle",
+    "PaperPortfolio",
+    "PaperPortfolioSnapshot",
+    "PaperPosition",
+    "PaperTrade",
     "PriceDaily",
 ]

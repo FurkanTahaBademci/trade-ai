@@ -20,10 +20,13 @@ entegrasyonu doğrulandı (807 ticker; örnek fiyat akışı x2 idempotent).
 değerlendirmesi, temel analiz, analist konsensüsü, TEFAS fon akımı ve bunları
 birleştiren sürümlü 0-100 skor motoru tamamlandı.
 
-✅ **Dashboard**: mevcut özelliklerin tamamı için responsive Next.js arayüz,
-detay ekranları, sayfalama ve merkezi tema sistemi hazır.
+✅ **Faz 8 — Paper Portföy**: canlı emir göndermeyen, komisyon/kayma içeren,
+risk sınırları ve mükerrer işlem koruması olan sanal portföy motoru tamamlandı.
 
-Toplam **72 ağsız test** geçiyor. Docker ile yapılan canlı doğrulamaların
+✅ **Dashboard**: mevcut özelliklerin tamamı için responsive Next.js arayüz,
+detay ekranları, sayfalama, paper portföy görünümü ve merkezi tema sistemi hazır.
+
+Toplam **78 ağsız test** geçiyor. Docker ile yapılan canlı doğrulamaların
 sayısal sonuçları `.claude/CODEX_NOTES.md` içinde.
 
 ## Hızlı başlangıç (yerel geliştirme)
@@ -37,6 +40,13 @@ make smoke                # tum veri kaynaklarini dogrula
 
 - API: http://localhost:8000/docs
 - Dashboard: http://localhost:3000
+- Paper portföy: http://localhost:3000/portfoy
+
+Paper motorunu elle çalıştırmak için:
+
+```bash
+docker compose exec api python -m scripts.run_once paper
+```
 
 ### Arayüz teması
 

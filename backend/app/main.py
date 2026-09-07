@@ -16,6 +16,7 @@ from app.api.routers import (
     instruments,
     kap,
     news,
+    paper,
     signals,
 )
 from app.core.logging import configure_logging
@@ -52,6 +53,7 @@ app.include_router(fundamentals.router)
 app.include_router(institutional.analysts_router)
 app.include_router(institutional.funds_router)
 app.include_router(signals.router)
+app.include_router(paper.router)
 
 
 @app.get("/")

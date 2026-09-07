@@ -8,6 +8,33 @@ gereken ürün kararları `CLAUDE.md` içindedir. Aşağıdaki 2026-09-07 (Claud
 girişi Codex değil, Claude tarafından yazıldı — paylaşılan tek devir
 günlüğünü bölmemek için burada tutuluyor, başlıkta ajan belirtildi.
 
+## 2026-09-07 — Faz 8 paper portföy motoru ve portföy ekranı
+
+- Canlı emir göndermeyen, long-only ve kaldıraçsız `paper-v1` motoru eklendi.
+  Varsayılan portföy 1.000.000 TL; giriş skoru `>=75`, güven `>=0,25`, kapsam
+  `>=2`; çıkış skoru `<40`; en fazla 10 pozisyon ve pozisyon başına `%10` risk.
+  İşlemlerde `%0,10` komisyon, `%0,05` kayma ve 1.000 TL minimum büyüklük var.
+- `paper_portfolio`, `paper_position`, `paper_trade` ve günlük
+  `paper_portfolio_snapshot` tabloları `f95c4a21d8e7` migration'ıyla eklendi.
+  Deterministik execution key aynı gün/yön/strateji emrini mükerrer yazdırmıyor.
+- Portföy liste/detay, pozisyon, işlem ve performans API'leri; manuel `paper`
+  CLI komutu ve sinyal işinden sonra 18:46 ARQ cron'u bağlandı.
+- Next.js `/portfoy` sayfası toplam değer/nakit/K-Z/komisyon kartlarını,
+  performans SVG grafiğini, açık pozisyonları ve işlem geçmişini gösteriyor.
+  Sidebar'a eklendi ve mevcut merkezi CSS tema değişkenlerini kullanıyor.
+- Doğrulama: Ruff temiz, offline migration DDL başarılı, web production build
+  başarılı ve **78 test geçti**. Docker migration head `f95c4a21d8e7`; canlı
+  API uç noktalarının tamamı ve `/portfoy` HTTP 200 döndü.
+- Test DB'sinde ilk uygun 10 adayın 30 günlük fiyatı (200 satır) tamamlandı.
+  Paper koşusu ilk seferde 10 alış açtı; hemen tekrarı `trades=0` döndürdü.
+  DB'de 10 işlem/10 benzersiz execution key ve 10 pozisyon var. İlk toplam
+  değer 998.502,40 TL (`-%0,1498`); bu, alış komisyonu ve kayma varsayımına uygun.
+
+### Sıradaki iş
+
+Faz 10 — alarm ve gözlemlenebilirlik. Faz 4'ün gerçek Gemini API anahtarı
+doğrulaması kullanıcı anahtarı sağlanana kadar ayrı açık madde olarak kalıyor.
+
 ## 2026-09-07 (Claude) — Faz 6 kapanışı: kurum PDF hattı (PhillipCapital)
 
 ### Neden bu kaynak
@@ -105,11 +132,11 @@ ediyordu.
    tablosunu okuyup yeniden hesaplıyor, bu yüzden sıralama/zamanlama
    hassasiyeti yok.
 
-### Sıradaki iş
+### Sıradaki iş (bu kaydın yazıldığı andaki durum)
 
-Faz 7 ve mevcut özellikleri kapsayan Faz 9 dashboard artık ✅. Sırada Faz 8
-(paper portföy motoru) var. Faz 4'ün gerçek Gemini API anahtarı doğrulaması
-hâlâ ayrı açık madde (kullanıcı tarafında).
+Faz 7 ve o tarihteki özellikleri kapsayan Faz 9 dashboard tamamlandı. Faz 8
+sonraki Codex kaydında tamamlandı; güncel sıradaki iş Faz 10'dur. Faz 4'ün
+gerçek Gemini API anahtarı doğrulaması hâlâ ayrı açık madde (kullanıcı tarafında).
 
 ## 2026-09-07 — Faz 7 bileşik skor + sinyal motoru ve dashboard entegrasyonu
 

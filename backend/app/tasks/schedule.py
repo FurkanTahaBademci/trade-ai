@@ -25,6 +25,7 @@ from app.tasks.jobs import (
     collect_prices,
     compute_signals,
     evaluate_sources,
+    run_paper_portfolio,
 )
 
 logger = structlog.get_logger(__name__)
@@ -59,6 +60,7 @@ class WorkerSettings:
         collect_institutional_reports,
         evaluate_sources,
         compute_signals,
+        run_paper_portfolio,
     ]
     cron_jobs: ClassVar[list] = [
         cron(heartbeat, minute=set(range(0, 60, 5))),  # her 5 dakikada bir
@@ -68,6 +70,8 @@ class WorkerSettings:
         cron(evaluate_sources, minute=set(range(2, 60, 10))),
         # LLM degerlendirmesinden sonra bilesik skorlari tazele.
         cron(compute_signals, minute=set(range(4, 60, 10))),
+        # EOD fiyatindan sonraki ilk sinyal turunda paper portfoyu calistir.
+        cron(run_paper_portfolio, hour={18}, minute={46}),
         # Aday evren temel analizi; gunde bir, instrument yenilemesinden sonra.
         cron(collect_fundamentals, hour={7}, minute={0}),
         # Kurumsal hedefler sabah; TEFAS akimi gun sonu verisi sonrasinda.

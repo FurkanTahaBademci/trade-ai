@@ -9,6 +9,7 @@ const nav: { label: string; href: string; icon: IconName }[] = [
   { label: "Genel Bakış", href: "/", icon: "home" },
   { label: "Piyasalar", href: "/piyasalar", icon: "markets" },
   { label: "Bileşik Sinyaller", href: "/sinyaller", icon: "activity" },
+  { label: "Paper Portföy", href: "/portfoy", icon: "trend" },
   { label: "Haber Akışı", href: "/haberler", icon: "news" },
   { label: "KAP Bildirimleri", href: "/kap", icon: "kap" },
   { label: "AI Analizleri", href: "/analizler", icon: "ai" },

@@ -339,16 +339,40 @@ Durumlar: ⬜ başlanmadı · 🔶 devam ediyor · ✅ tamamlandı ve doğruland
       sıralama/ticker geçmişi canlı doğrulandı.
 
 ## Faz 8 — Paper Portföy Motoru
-⬜ Başlanmadı
+✅ Kod, API, worker, arayüz ve gerçek PostgreSQL idempotency akışı doğrulandı
+
+- [x] Long-only ve kaldıraçsız `paper-v1` stratejisi: 1.000.000 TL sanal
+      başlangıç bakiyesi, en fazla 10 pozisyon, pozisyon başına en fazla `%10`
+      portföy ağırlığı ve tam adetli işlemler.
+- [x] Giriş kapıları bileşik skor `>=75`, güven `>=0,25` ve en az iki bileşen;
+      çıkış kapısı skor `<40`. Yalnızca en fazla yedi günlük EOD fiyatı kullanılır.
+- [x] Alış/satışlarda `%0,10` komisyon ve `%0,05` fiyat kayması; minimum işlem
+      değeri 1.000 TL. Canlı aracı kurum veya emir bağlantısı yoktur.
+- [x] Portföy, açık pozisyon, işlem defteri ve günlük performans snapshot modelleri;
+      `f95c4a21d8e7` migration'ı. Gün/portföy/ticker/yön/strateji sürümünden türetilen
+      benzersiz execution key aynı emrin yeniden yazılmasını engeller.
+- [x] API: portföy listesi/detayı, pozisyonlar, işlem geçmişi ve performans serisi.
+      CLI: `python -m scripts.run_once paper`; worker her işlem günü 18:46'da,
+      sinyal motorundan sonra portföyü günceller.
+- [x] `/portfoy` ekranı: toplam değer, nakit, K/Z ve komisyon özetleri; performans
+      grafiği, açık pozisyon tablosu ve son işlemler. Merkezi tema tokenlarını kullanır.
+- [x] Saf emir planlama, eşik, sıralama, execution key ve route testleriyle toplam
+      **78/78 test geçti**; Ruff, production web build ve offline PostgreSQL DDL temiz.
+- [x] Canlı Docker/PostgreSQL: migration head `f95c4a21d8e7`; 10 aday için 200 EOD
+      fiyatı tamamlandı. İlk koşu 10 alış/10 pozisyon, ikinci koşu 0 yeni işlem;
+      DB'de 10 işlem/10 benzersiz key. İlk snapshot 998.502,40 TL (`-%0,1498`),
+      başlangıç farkı yalnızca modellenen komisyon ve fiyat kaymasından oluşuyor.
 
 ## Faz 9 — Next.js Dashboard
-✅ Mevcut Faz 1-7 özellikleri için responsive arayüz tamamlandı
+✅ Mevcut Faz 1-8 özellikleri için responsive arayüz tamamlandı
 
 - [x] Genel bakış, piyasalar/hisse detayı, haber, KAP, AI analizleri, kurumsal
       veriler ve bileşik sinyal sıralaması; detay ekranları ve sayfalama.
 - [x] Renkler `web/src/app/globals.css` içindeki tek tema token bloğundan yönetiliyor.
 - [x] Bileşik skor sıralaması dashboard ve hisse detayına bağlandı; production
       Docker build ve ana rotalar canlı veriyle HTTP 200 doğrulandı.
+- [x] Paper portföy ekranı performans/pozisyon/işlem API'lerine bağlandı;
+      `/portfoy` çalışan Docker servisi üzerinden HTTP 200 doğrulandı.
 
 ## Faz 10 — Alarm + Gözlemlenebilirlik
 ⬜ Başlanmadı

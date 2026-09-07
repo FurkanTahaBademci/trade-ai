@@ -100,3 +100,10 @@ async def compute_signals(ctx: dict) -> dict:
 
     async with session_factory() as session:
         return await run_signal_engine(session)
+
+
+async def run_paper_portfolio(ctx: dict) -> dict:
+    from app.paper.service import run_paper_portfolio as execute_paper_portfolio
+
+    async with session_factory() as session:
+        return await execute_paper_portfolio(session)
