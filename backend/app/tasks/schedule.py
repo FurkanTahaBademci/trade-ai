@@ -26,6 +26,7 @@ from app.tasks.jobs import (
     collect_kap,
     collect_news,
     collect_prices,
+    collect_tcmb_policy,
     compute_signals,
     evaluate_sources,
     run_paper_portfolio,
@@ -66,6 +67,7 @@ class WorkerSettings:
         evaluate_sources,
         compute_signals,
         run_paper_portfolio,
+        collect_tcmb_policy,
         monitor_system,
     ]
     cron_jobs: ClassVar[list] = [
@@ -79,6 +81,8 @@ class WorkerSettings:
         cron(compute_signals, minute=set(range(4, 60, 10))),
         # EOD fiyatindan sonraki ilk sinyal turunda paper portfoyu calistir.
         cron(run_paper_portfolio, hour={18}, minute={46}),
+        # Resmi TCMB PPK takvimi ve yeni karar kontrolu.
+        cron(collect_tcmb_policy, hour={6}, minute={30}),
         # Aday evren temel analizi; gunde bir, instrument yenilemesinden sonra.
         cron(collect_fundamentals, hour={7}, minute={0}),
         # Kurumsal hedefler sabah; TEFAS akimi gun sonu verisi sonrasinda.

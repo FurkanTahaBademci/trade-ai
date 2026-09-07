@@ -26,7 +26,10 @@ risk sınırları ve mükerrer işlem koruması olan sanal portföy motoru tamam
 ✅ **Dashboard**: mevcut özelliklerin tamamı için responsive Next.js arayüz,
 detay ekranları, sayfalama, paper portföy görünümü ve merkezi tema sistemi hazır.
 
-Toplam **85 ağsız test** geçiyor. Docker ile yapılan canlı doğrulamaların
+✅ **TCMB Faiz & Makro**: resmî PPK kararları ve yaklaşan toplantılar, faiz
+koridoru ve senaryo bazlı piyasa aktarım kanallarıyla izleniyor.
+
+Toplam **91 ağsız test** geçiyor. Docker ile yapılan canlı doğrulamaların
 sayısal sonuçları `.claude/CODEX_NOTES.md` içinde.
 
 ## Hızlı başlangıç (yerel geliştirme)
@@ -41,6 +44,7 @@ make smoke                # tum veri kaynaklarini dogrula
 - API: http://localhost:8000/docs
 - Dashboard: http://localhost:3000
 - Paper portföy: http://localhost:3000/portfoy
+- Faiz ve makro: http://localhost:3000/makro
 
 Paper motorunu elle çalıştırmak için:
 

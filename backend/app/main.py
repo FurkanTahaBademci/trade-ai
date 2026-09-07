@@ -15,6 +15,7 @@ from app.api.routers import (
     institutional,
     instruments,
     kap,
+    macro,
     news,
     paper,
     signals,
@@ -54,6 +55,7 @@ app.include_router(institutional.analysts_router)
 app.include_router(institutional.funds_router)
 app.include_router(signals.router)
 app.include_router(paper.router)
+app.include_router(macro.router)
 
 
 @app.get("/")

@@ -26,6 +26,7 @@ COLLECTOR_POLICIES: dict[str, tuple[str, int]] = {
     "analysts": ("Analist gorusleri", 80 * 60 * 60),
     "institutional_reports": ("Kurum raporlari", 80 * 60 * 60),
     "fund_flows": ("TEFAS fon akimi", 96 * 60 * 60),
+    "tcmb_policy": ("TCMB faiz kararlari", 72 * 60 * 60),
 }
 WORKER_MAX_AGE_SECONDS = 10 * 60
 

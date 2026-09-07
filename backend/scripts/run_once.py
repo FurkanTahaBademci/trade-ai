@@ -13,6 +13,7 @@ Kullanim:
     python -m scripts.run_once fund-flows --fund-kind YAT --days 7
     python -m scripts.run_once signals --tickers THYAO,ASELS
     python -m scripts.run_once paper
+    python -m scripts.run_once tcmb-policy --years 2025,2026
     python -m scripts.run_once prices --tickers THYAO,ASELS,GARAN --days 30
     python -m scripts.run_once prices                    # tum aktif hisseler, 3 yil backfill
 
@@ -155,6 +156,16 @@ async def run_paper() -> dict:
         return await run_paper_portfolio(session)
 
 
+async def run_tcmb_policy(years: list[int] | None, refresh: bool) -> dict:
+    from app.collectors.tcmb_policy import TcmbPolicyCollector
+
+    async with (
+        session_factory() as session,
+        TcmbPolicyCollector(session, years=years, refresh=refresh) as collector,
+    ):
+        return await collector.run_tracked()
+
+
 COLLECTORS = {
     "analysts": lambda args: run_analysts(),
     "institutional-reports": lambda args: run_institutional_reports(args.max_pages),
@@ -174,6 +185,10 @@ COLLECTORS = {
         days=args.days,
     ),
     "signals": lambda args: run_signals(args.tickers.split(",") if args.tickers else None),
+    "tcmb-policy": lambda args: run_tcmb_policy(
+        [int(year) for year in args.years.split(",")] if args.years else None,
+        args.refresh,
+    ),
 }
 
 
@@ -198,6 +213,12 @@ def main() -> None:
     )
     parser.add_argument("--start-year", type=int, help="Finansal tablo baslangic yili.")
     parser.add_argument("--end-year", type=int, help="Finansal tablo bitis yili.")
+    parser.add_argument("--years", help="TCMB icin virgulle ayrilmis yil listesi.")
+    parser.add_argument(
+        "--refresh",
+        action="store_true",
+        help="TCMB tarafinda daha once yayimlanmis karar metinlerini yeniden isle.",
+    )
     parser.add_argument(
         "--max-pages",
         type=int,

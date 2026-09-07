@@ -107,3 +107,10 @@ async def run_paper_portfolio(ctx: dict) -> dict:
 
     async with session_factory() as session:
         return await execute_paper_portfolio(session)
+
+
+async def collect_tcmb_policy(ctx: dict) -> dict:
+    from app.collectors.tcmb_policy import TcmbPolicyCollector
+
+    async with session_factory() as session, TcmbPolicyCollector(session) as collector:
+        return await collector.run_tracked()

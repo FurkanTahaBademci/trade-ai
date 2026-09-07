@@ -37,13 +37,14 @@ async def get_portfolio(
 
 @router.get("/portfolios/{portfolio_id}/positions", response_model=list[PaperPositionOut])
 async def list_positions(
-    portfolio_id: int, db: Annotated[AsyncSession, Depends(get_db)]
+    portfolio_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    ticker: Annotated[str | None, Query(min_length=1, max_length=16)] = None,
 ) -> list[PaperPosition]:
-    stmt = (
-        select(PaperPosition)
-        .where(PaperPosition.portfolio_id == portfolio_id)
-        .order_by(PaperPosition.market_value.desc(), PaperPosition.ticker)
-    )
+    stmt = select(PaperPosition).where(PaperPosition.portfolio_id == portfolio_id)
+    if ticker:
+        stmt = stmt.where(PaperPosition.ticker == ticker.upper())
+    stmt = stmt.order_by(PaperPosition.market_value.desc(), PaperPosition.ticker)
     return list((await db.scalars(stmt)).all())
 
 
@@ -51,14 +52,13 @@ async def list_positions(
 async def list_trades(
     portfolio_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
+    ticker: Annotated[str | None, Query(min_length=1, max_length=16)] = None,
     limit: Annotated[int, Query(ge=1, le=1_000)] = 100,
 ) -> list[PaperTrade]:
-    stmt = (
-        select(PaperTrade)
-        .where(PaperTrade.portfolio_id == portfolio_id)
-        .order_by(PaperTrade.trade_date.desc(), PaperTrade.id.desc())
-        .limit(limit)
-    )
+    stmt = select(PaperTrade).where(PaperTrade.portfolio_id == portfolio_id)
+    if ticker:
+        stmt = stmt.where(PaperTrade.ticker == ticker.upper())
+    stmt = stmt.order_by(PaperTrade.trade_date.desc(), PaperTrade.id.desc()).limit(limit)
     return list((await db.scalars(stmt)).all())
 
 

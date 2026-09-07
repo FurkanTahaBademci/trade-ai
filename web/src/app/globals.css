@@ -15,10 +15,10 @@
   --text: #f4f6f8;
   --text-secondary: #9ba6b5;
   --text-muted: #667085;
-  --primary: #c7ff4a;
-  --primary-strong: #a9eb12;
-  --primary-soft: rgba(199, 255, 74, 0.1);
-  --primary-contrast: #101608;
+  --primary: #7fa6e8;
+  --primary-strong: #668ed4;
+  --primary-soft: rgba(127, 166, 232, 0.12);
+  --primary-contrast: #08111f;
   --positive: #4ade80;
   --positive-soft: rgba(74, 222, 128, 0.1);
   --negative: #fb7185;
@@ -43,7 +43,7 @@ html { background: var(--background); }
 
 body {
   margin: 0;
-  background: radial-gradient(circle at 62% -20%, rgba(199, 255, 74, 0.045), transparent 30rem), var(--background);
+  background: radial-gradient(circle at 62% -20%, rgba(127, 166, 232, 0.055), transparent 30rem), var(--background);
   color: var(--text);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";

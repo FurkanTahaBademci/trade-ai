@@ -373,6 +373,12 @@ Durumlar: ⬜ başlanmadı · 🔶 devam ediyor · ✅ tamamlandı ve doğruland
       Docker build ve ana rotalar canlı veriyle HTTP 200 doğrulandı.
 - [x] Paper portföy ekranı performans/pozisyon/işlem API'lerine bağlandı;
       `/portfoy` çalışan Docker servisi üzerinden HTTP 200 doğrulandı.
+- [x] Hisse detay sayfası fiyat, geniş finansal metrikler, bileşik sinyal,
+      analist konsensüsü/görüşleri, ilgili haberler, KAP bildirimleri, AI
+      değerlendirmeleri, paper pozisyon/işlemler ve makro faiz ortamını tek
+      ekranda birleştiriyor; uzun sayfa için bölüm kısayolları eklendi.
+- [x] Neon sarı ana vurgu, merkezi tema bloğunda sakin mavi (`#7fa6e8`)
+      palete çevrildi; tüm sayfalar ek değişiklik olmadan yeni rengi kullanıyor.
 
 ## Faz 10 — Alarm + Gözlemlenebilirlik
 🔶 Çekirdek sağlık ve alarm katmanı tamam; genişletiliyor
@@ -387,8 +393,27 @@ Durumlar: ⬜ başlanmadı · 🔶 devam ediyor · ✅ tamamlandı ve doğruland
 - [x] `/sistem` ekranı altyapı bağlantılarını, worker'ı ve veri hatlarını
       profesyonel durum görünümüyle gösteriyor.
 - [x] Tazelik/hata/ilk çalışma durumları ve webhook dedup testleri dahil toplam
-      **85/85 test geçti**; Ruff ve production web build temiz.
+      **91/91 test geçti**; Ruff ve production web build temiz.
 - [ ] Canlı N8N URL'si sağlandığında kontrollü test alarmı uçtan uca doğrulanacak.
+
+## Ek Özellik — TCMB Faiz Kararları + Piyasa Etkisi
+✅ Resmî kaynak, API, worker, arayüz ve idempotency akışı doğrulandı
+
+- [x] Resmî TCMB PPK yıl/takvim sayfaları doğrudan okunuyor; geçmiş karar
+      bağlantıları ile yaklaşan bağlantısız toplantı tarihleri ayrıştırılıyor.
+- [x] Karar metninden politika faizi, önceki oran, baz puan değişimi, gecelik
+      borç verme/borçlanma koridoru, karar özeti ve yönlendirme çıkarılıyor.
+- [x] Politika faizi HIKE/CUT/HOLD ayrımı yalnız bir hafta vadeli repo oranına
+      göre yapılıyor; koridordaki tekil değişiklik yanlışlıkla faiz artışı sayılmıyor.
+- [x] Hisse, banka, gayrimenkul, TL ve tahvil aktarım kanalları için açıkça
+      “kural tabanlı senaryo” olarak etiketlenen etki açıklamaları var; gerçekleşmiş
+      getiri veya yatırım tavsiyesi iddiası yok.
+- [x] `b7d4e9a2c610` migration'ı, `/api/macro/policy-decisions`, günlük 06:30
+      worker işi, `tcmb-policy [--years ...] [--refresh]` CLI komutu ve `/makro`
+      ekranı eklendi.
+- [x] Canlı TCMB 2025-2026 koşusu: 17 tarih, 14 yayımlanmış karar, 3 yaklaşan
+      toplantı. İkinci koşu `new=0`, `details_fetched=0`; canlı API ve `/makro`
+      ekranı HTTP 200. Gerçek kaynak fixture testleri dahil toplam 91 test geçti.
 
 ## Faz 11 — Değerlendirme / Backtest
 ⬜ Başlanmadı

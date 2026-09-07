@@ -8,6 +8,33 @@ gereken ürün kararları `CLAUDE.md` içindedir. Aşağıdaki 2026-09-07 (Claud
 girişi Codex değil, Claude tarafından yazıldı — paylaşılan tek devir
 günlüğünü bölmemek için burada tutuluyor, başlıkta ajan belirtildi.
 
+## 2026-09-07 — Birleşik hisse detayı, sakin tema ve TCMB faiz modülü
+
+- Hisse detayı artık tek ticker altında fiyat grafiği, 12 finansal metrik,
+  bileşik skor bileşenleri, analist konsensüsü ve kurum görüşleri, ilgili haber,
+  KAP, AI değerlendirmeleri, paper pozisyon/işlem geçmişi ve son TCMB faiz
+  ortamını birlikte gösteriyor. Fiyat/finansal/görüş/gündem/analiz anchor
+  kısayolları uzun sayfada gezinmeyi kolaylaştırıyor.
+- Paper pozisyon ve işlem endpoint'lerine opsiyonel tam ticker filtresi eklendi;
+  hisse sayfası portföyün tamamını taşımıyor.
+- Tema tokenlarındaki neon sarı `#c7ff4a`, düşük parlaklıklı mavi `#7fa6e8`
+  ile değiştirildi. Arka plan radyal ışığı ve kontrast tokenı aynı palete uyarlandı.
+- Resmî TCMB PPK yıl sayfası collector'ı geçmiş karar URL'lerini ve yaklaşan
+  toplantıları topluyor. Karar metni politika/koridor oranlarını, baz puan
+  değişimini, özeti ve yönlendirmeyi ayrıştırıyor. Migration head
+  `b7d4e9a2c610`; API, 06:30 cron ve manuel CLI bağlandı.
+- Etki alanı tahmin edilen fiyat getirisi değildir: HIKE/CUT/HOLD kararına göre
+  hisse, banka, gayrimenkul, TL ve tahvil aktarım kanallarını açıklayan sürümlü
+  `rule_based_scenario_v1` sözlüğüdür ve ekranda disclaimer taşır.
+- Canlı koşu 2025-2026 için 17 tarih buldu: 14 karar + 10 Eylül/22 Ekim/
+  10 Aralık 2026 toplantıları. Tekrar koşusu `new=0`, `details_fetched=0`.
+  Canlı test, 20 Mart 2025'te politika faizi sabitken koridor artışının ilk
+  sınıflandırmayı yanıltabildiğini yakaladı; politika oranı özel parser'ıyla
+  düzeltildi ve `--refresh` ile mevcut kayıtlar yenilendi.
+- Ruff/offline DDL/Next.js production build temiz; **91 test geçti**. `/makro`
+  ve `/piyasalar/THYAO` Docker üzerinden HTTP 200 ve headless Chrome ekran
+  görüntüsüyle görsel olarak doğrulandı.
+
 ## 2026-09-07 — Faz 10 sağlık ve alarm çekirdeği (ara teslim)
 
 - Redis'teki collector başarı/hata kayıtları ilk kez `/health/detailed` içine
