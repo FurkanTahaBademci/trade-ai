@@ -489,10 +489,10 @@ Durumlar: ⬜ başlanmadı · 🔶 devam ediyor · ✅ tamamlandı ve doğruland
 ## Faz 14 — Değerlendirme / Backtest
 🟨 Devam ediyor
 
-- [ ] Bilesik sinyalleri, sinyal tarihinden sonraki ilk mevcut EOD kapanisinda
+- [x] Bilesik sinyalleri, sinyal tarihinden sonraki ilk mevcut EOD kapanisinda
       uygulayan; komisyon, kayma, nakit ve pozisyon limitlerini hesaba katan
       deterministik backtest motoru ekle.
-- [ ] Tarih araligi/strateji ayarlariyla calistirma, sonucu PostgreSQL'de saklama
+- [x] Tarih araligi/strateji ayarlariyla calistirma, sonucu PostgreSQL'de saklama
       ve gecmis kosulari listeleme API'lerini ekle.
 - [ ] Getiri, maksimum dusus, oynaklik, Sharpe, islem/kazanma orani ve toplam
       maliyet metriklerini; varsayimlariyla birlikte `/backtest` ekraninda goster.

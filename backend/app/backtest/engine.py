@@ -51,6 +51,8 @@ class BacktestConfig:
             raise ValueError("kapsam ve pozisyon limitleri pozitif olmali")
         if not (0 < self.max_position_weight <= 1):
             raise ValueError("max_position_weight 0 ile 1 arasinda olmali")
+        if self.max_positions * self.max_position_weight > 1:
+            raise ValueError("toplam hedef pozisyon agirligi 1'i asamaz")
         if self.fee_rate < 0 or not (0 <= self.slippage_rate < 1):
             raise ValueError("maliyet oranlari gecersiz")
         if self.min_trade_value < 0 or self.max_execution_delay_days < 1:

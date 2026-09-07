@@ -5,6 +5,7 @@ onu görsün (bkz. alembic/env.py -> target_metadata).
 """
 
 from app.core.db import Base
+from app.models.backtest import BacktestRun, BacktestRunPoint, BacktestRunTrade
 from app.models.fundamental import FinancialFact, FundamentalSnapshot
 from app.models.institutional import (
     AnalystConsensus,
@@ -25,6 +26,9 @@ from app.models.signal import CompositeSignalSnapshot
 __all__ = [
     "AnalystConsensus",
     "AnalystRecommendation",
+    "BacktestRun",
+    "BacktestRunPoint",
+    "BacktestRunTrade",
     "Base",
     "CollectorSchedule",
     "CompositeSignalSnapshot",

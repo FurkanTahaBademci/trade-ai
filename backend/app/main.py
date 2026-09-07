@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
 from app.api.routers import (
+    backtests,
     evaluations,
     fundamentals,
     health,
@@ -61,6 +62,7 @@ app.include_router(fundamentals.router)
 app.include_router(institutional.analysts_router)
 app.include_router(institutional.funds_router)
 app.include_router(signals.router)
+app.include_router(backtests.router)
 app.include_router(paper.router)
 app.include_router(macro.router)
 app.include_router(schedules.router)
