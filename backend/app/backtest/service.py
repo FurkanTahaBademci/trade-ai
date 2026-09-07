@@ -29,6 +29,11 @@ def _decimal(value: float | Decimal) -> Decimal:
     return Decimal(str(value))
 
 
+def backtest_status(*, signal_count: int, point_count: int, skipped_signal_count: int) -> str:
+    has_executable_signal = signal_count > skipped_signal_count
+    return "COMPLETED" if has_executable_signal and point_count >= 2 else "INSUFFICIENT_DATA"
+
+
 async def create_backtest_run(session: AsyncSession, request: BacktestCreate) -> BacktestRun:
     signal_rows = list(
         (
@@ -97,7 +102,11 @@ async def create_backtest_run(session: AsyncSession, request: BacktestCreate) ->
         config=config,
     )
     metrics = result.metrics
-    status = "COMPLETED" if signal_rows and len(result.points) >= 2 else "INSUFFICIENT_DATA"
+    status = backtest_status(
+        signal_count=len(signal_rows),
+        point_count=len(result.points),
+        skipped_signal_count=result.skipped_signals,
+    )
     run = BacktestRun(
         strategy_version=STRATEGY_VERSION,
         signal_model_version=SIGNAL_MODEL_VERSION,

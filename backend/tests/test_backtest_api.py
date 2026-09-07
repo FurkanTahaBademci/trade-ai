@@ -5,6 +5,7 @@ from datetime import date
 import pytest
 from pydantic import ValidationError
 
+from app.backtest.service import backtest_status
 from app.main import app
 from app.schemas.backtest import BacktestCreate
 
@@ -37,3 +38,11 @@ def test_backtest_rejects_invalid_dates_and_thresholds():
             entry_score=40,
             exit_score=40,
         )
+
+
+def test_backtest_marks_all_unexecutable_signals_as_insufficient_data():
+    assert (
+        backtest_status(signal_count=176, point_count=22, skipped_signal_count=176)
+        == "INSUFFICIENT_DATA"
+    )
+    assert backtest_status(signal_count=176, point_count=22, skipped_signal_count=175) == "COMPLETED"
