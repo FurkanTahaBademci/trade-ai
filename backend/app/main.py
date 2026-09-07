@@ -18,6 +18,7 @@ from app.api.routers import (
     macro,
     news,
     paper,
+    schedules,
     signals,
 )
 from app.core.logging import configure_logging
@@ -56,6 +57,7 @@ app.include_router(institutional.funds_router)
 app.include_router(signals.router)
 app.include_router(paper.router)
 app.include_router(macro.router)
+app.include_router(schedules.router)
 
 
 @app.get("/")

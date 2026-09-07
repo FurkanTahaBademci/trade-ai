@@ -19,12 +19,14 @@ from app.models.macro import MonetaryPolicyDecision
 from app.models.news import NewsArticle
 from app.models.paper import PaperPortfolio, PaperPortfolioSnapshot, PaperPosition, PaperTrade
 from app.models.price import PriceDaily
+from app.models.schedule import CollectorSchedule, ScheduleAuditLog
 from app.models.signal import CompositeSignalSnapshot
 
 __all__ = [
     "AnalystConsensus",
     "AnalystRecommendation",
     "Base",
+    "CollectorSchedule",
     "CompositeSignalSnapshot",
     "FinancialFact",
     "FundFlowAggregate",
@@ -41,4 +43,5 @@ __all__ = [
     "PaperPosition",
     "PaperTrade",
     "PriceDaily",
+    "ScheduleAuditLog",
 ]

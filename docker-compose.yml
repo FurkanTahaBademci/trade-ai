@@ -58,9 +58,7 @@ services:
       DATABASE_URL: ${DATABASE_URL}
       REDIS_URL: redis://redis:6379/0
     depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
+      api:
         condition: service_healthy
     command: ["arq", "app.tasks.schedule.WorkerSettings"]
     # Dis dunyaya port acilmiyor - sadece Redis'ten is aliyor.
@@ -72,6 +70,7 @@ services:
     environment:
       API_INTERNAL_URL: http://api:8000
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+      ADMIN_API_TOKEN: ${ADMIN_API_TOKEN:-}
     depends_on:
       api:
         condition: service_healthy

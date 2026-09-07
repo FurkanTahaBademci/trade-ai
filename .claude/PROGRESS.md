@@ -416,29 +416,33 @@ Durumlar: ⬜ başlanmadı · 🔶 devam ediyor · ✅ tamamlandı ve doğruland
       ekranı HTTP 200. Gerçek kaynak fixture testleri dahil toplam 91 test geçti.
 
 ## Faz 11 — Tarama Takvimi Yönetimi
-⬜ Planlandı — sıradaki geliştirme
+✅ PostgreSQL, Redis worker, yönetim API'si ve `/sistem` arayüzü tamamlandı
 
-- [ ] `/sistem` ekranında her veri hattının etkin çalışma aralığını, son çalışma
+- [x] `/sistem` ekranında her veri hattının etkin çalışma aralığını, son çalışma
       zamanını, son sonucu ve hesaplanan bir sonraki çalışma zamanını göster.
-- [ ] Haber taramasının mevcut varsayılanını (5 dakika), KAP/LLM/sinyal ve diğer
+- [x] Haber taramasının mevcut varsayılanını (5 dakika), KAP/LLM/sinyal ve diğer
       collector takvimleriyle birlikte tek yönetim ekranından değiştirilebilir yap.
-- [ ] Ayarları PostgreSQL'de migration ile oluşturulacak `collector_schedule`
+- [x] Ayarları PostgreSQL'de migration ile oluşturulan `collector_schedule`
       tablosunda sakla; container yeniden başladığında seçimler kaybolmasın.
-- [ ] Etkinleştir/duraklat, “şimdi çalıştır” ve dakika/saat/gün bazlı aralık
+- [x] Etkinleştir/duraklat, “şimdi çalıştır” ve dakika/saat/gün bazlı aralık
       işlemleri için doğrulamalı yönetim API'si ekle. Çok sık istekleri önlemek
       için collector bazlı güvenli alt sınırlar tanımla.
-- [ ] Statik ARQ cron listesini, veritabanındaki etkin ayarları okuyabilen dinamik
+- [x] Statik ARQ cron listesini, veritabanındaki etkin ayarları okuyabilen dinamik
       tetikleyiciye taşı; birden fazla worker çalıştığında Redis kilidi ve mevcut
       idempotency kuralları aynı işin iki kez çalışmasını engellesin.
-- [ ] Takvim değişiklikleri ve elle çalıştırmalar için kullanıcı/zaman/eski-yeni
+- [x] Takvim değişiklikleri ve elle çalıştırmalar için aktör/zaman/eski-yeni
       değer içeren audit kaydı tut; yönetim uçlarını kimlik doğrulama ile koru.
-- [ ] Europe/Istanbul saat dilimini arayüzde açık göster; worker içinde UTC ile
+- [x] Europe/Istanbul saat dilimini arayüzde açık göster; worker içinde UTC ile
       güvenli dönüşüm yap ve yaz/kış saati varsayımlarını test et.
-- [ ] API, worker ve web testlerine ek olarak Docker yeniden başlatma sonrası
+- [x] API, worker ve web testlerine ek olarak Docker yeniden başlatma sonrası
       ayar kalıcılığı ve çoklu-worker yarış testi ekle.
+- [x] `c4e8a2b1d730` migration head'i, 12 varsayılan takvim, otomatik ve manuel
+      Redis enqueue akışları canlı Docker/PostgreSQL üzerinde doğrulandı. Haber
+      ayarı 5→10→duraklat→5 ve ayrıca 5→7→container recreate→7→5 akışlarında
+      doğru kaldı. Ruff, production web build ve toplam **99/99 test** temiz.
 
 ## Faz 12 — Gelişmiş Hisse Grafikleri
-⬜ Planlandı — Faz 11'in ardından
+⬜ Planlandı — sıradaki geliştirme
 
 - [ ] Mevcut 90 günlük kapanış çizgisini 1A/3A/6A/1Y/3Y/Tümü aralıkları,
       tooltip, crosshair, yakınlaştırma ve mobil kullanımla geliştir.

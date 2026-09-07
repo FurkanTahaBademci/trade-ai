@@ -8,6 +8,27 @@ gereken ürün kararları `CLAUDE.md` içindedir. Aşağıdaki 2026-09-07 (Claud
 girişi Codex değil, Claude tarafından yazıldı — paylaşılan tek devir
 günlüğünü bölmemek için burada tutuluyor, başlıkta ajan belirtildi.
 
+## 2026-09-07 — Faz 11 dinamik tarama takvimi tamamlandı
+
+- Statik collector cron'ları `c4e8a2b1d730` migration'ıyla PostgreSQL'deki
+  `collector_schedule` tablosuna taşındı. 12 iş için varsayılan aralık, güvenli
+  minimum, etkinlik, son enqueue ve sonraki çalışma zamanı kalıcı tutuluyor.
+- Dakikalık `dispatch_due_schedules` tick'i vadesi gelen işleri deterministik
+  job ID ile ARQ/Redis kuyruğuna ekliyor. 55 saniyelik Redis NX kilidi, birden
+  fazla worker'ın aynı tick'i işlemesini; job ID ise aynı slotun yinelenmesini
+  önlüyor. Kaçırılmış slotlar topluca çalıştırılmadan gelecekteki ilk slota taşınıyor.
+- `GET/PATCH /api/schedules` ve `POST /api/schedules/{name}/run` eklendi.
+  Production mutation'larında `ADMIN_API_TOKEN` zorunlu; Next.js server action
+  anahtarı tarayıcıya açmadan interval, duraklat/etkinleştir ve manuel çalıştırma
+  işlemlerini yapıyor. Değişiklikler `schedule_audit_log` içinde tutuluyor.
+- `/sistem` artık haber ve KAP en üstte olmak üzere 12 takvimi, son/sonraki
+  çalışma bilgisini ve güvenli minimum aralığı gösteriyor. Haber varsayılanı 5 dk.
+- Canlı Docker testi: haber 5→10→pause→5; ayrıca 5→7 sonrası api/worker/web
+  container recreate edildi, değer PostgreSQL'den 7 olarak geri geldi ve 5'e
+  döndürüldü. Otomatik dispatcher vadesi gelen sinyal işini tek kez kuyruğa aldı;
+  manuel çalıştırma da worker'da başarıyla bitti. Migration head `c4e8a2b1d730`,
+  web build ve Ruff temiz, **99 test geçti**.
+
 ## 2026-09-07 — Yeni ürün kuyruğu
 
 - Uygulama sırası kanonik plana Faz 11 tarama takvimi yönetimi, Faz 12 gelişmiş

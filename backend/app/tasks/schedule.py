@@ -17,6 +17,7 @@ from arq.connections import RedisSettings
 from app.core.config import get_settings
 from app.core.redis import get_redis
 from app.monitoring.service import monitor_system
+from app.scheduling.service import dispatch_due_schedules
 from app.tasks.jobs import (
     collect_analysts,
     collect_fund_flows,
@@ -73,28 +74,9 @@ class WorkerSettings:
     cron_jobs: ClassVar[list] = [
         cron(heartbeat, minute=set(range(0, 60, 5))),  # her 5 dakikada bir
         cron(monitor_system, minute=set(range(1, 60, 5))),
-        cron(collect_kap, minute=set(range(0, 60, 5))),
-        cron(collect_news, minute=set(range(0, 60, 5)), second=30),
-        # Haber/KAP toplandiktan sonra; LLM_ENABLED=false ise ucretli cagri yok.
-        cron(evaluate_sources, minute=set(range(2, 60, 10))),
-        # LLM degerlendirmesinden sonra bilesik skorlari tazele.
-        cron(compute_signals, minute=set(range(4, 60, 10))),
-        # EOD fiyatindan sonraki ilk sinyal turunda paper portfoyu calistir.
-        cron(run_paper_portfolio, hour={18}, minute={46}),
-        # Resmi TCMB PPK takvimi ve yeni karar kontrolu.
-        cron(collect_tcmb_policy, hour={6}, minute={30}),
-        # Aday evren temel analizi; gunde bir, instrument yenilemesinden sonra.
-        cron(collect_fundamentals, hour={7}, minute={0}),
-        # Kurumsal hedefler sabah; TEFAS akimi gun sonu verisi sonrasinda.
-        cron(collect_analysts, hour={7}, minute={30}),
-        # Kurum PDF hatti (PhillipCapital) analist collector'indan sonra;
-        # kendi upsert'inin ardindan konsensusu tekrar hesaplar.
-        cron(collect_institutional_reports, hour={7}, minute={45}),
-        cron(collect_fund_flows, hour={20}, minute={0}),
-        # Hisse evreni gunde bir kere yeterli (KAP uyelik degisimi nadir).
-        cron(collect_instruments, hour={6}, minute={0}),
-        # Fiyat: BIST kapanisi (18:00-18:10 TRT) sonrasi guncel veri icin 18:30.
-        cron(collect_prices, hour={18}, minute={30}),
+        # Collector'larin araliklari PostgreSQL'deki collector_schedule
+        # tablosundan okunur. Bu tick vadesi gelenleri Redis kuyruguna ekler.
+        cron(dispatch_due_schedules, minute=set(range(60)), second={30}),
     ]
     on_startup = startup
     on_shutdown = shutdown

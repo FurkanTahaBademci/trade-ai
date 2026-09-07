@@ -29,7 +29,11 @@ detay ekranları, sayfalama, paper portföy görünümü ve merkezi tema sistemi
 ✅ **TCMB Faiz & Makro**: resmî PPK kararları ve yaklaşan toplantılar, faiz
 koridoru ve senaryo bazlı piyasa aktarım kanallarıyla izleniyor.
 
-Toplam **91 ağsız test** geçiyor. Docker ile yapılan canlı doğrulamaların
+✅ **Tarama Takvimi Yönetimi**: 12 veri/analiz işi `/sistem` ekranından
+görüntülenebilir, duraklatılabilir, aralığı değiştirilebilir ve elle çalıştırılabilir.
+Ayarlar PostgreSQL'de kalır; Redis kilidi mükerrer worker tetiklemesini önler.
+
+Toplam **99 ağsız test** geçiyor. Docker ile yapılan canlı doğrulamaların
 sayısal sonuçları `.claude/CODEX_NOTES.md` içinde.
 
 ## Hızlı başlangıç (yerel geliştirme)
@@ -84,14 +88,12 @@ Port çakışmasında `.env` içinde `API_PORT`/`WEB_PORT` ve buna uygun
 
 ## Sıradaki işler
 
-1. **Tarama takvimi yönetimi:** Haberler şu anda varsayılan olarak her 5
-   dakikada bir taranıyor. `/sistem` ekranından tüm collector'ların mevcut/sonraki
-   çalışmasını görme, aralığı değiştirme, duraklatma ve elle çalıştırma eklenecek;
-   ayarlar PostgreSQL'de kalıcı tutulacak.
-2. **Gelişmiş hisse grafikleri:** Mevcut 90 günlük kapanış grafiği; çoklu tarih
+1. ✅ **Tarama takvimi yönetimi:** Haberlerin varsayılan 5 dakikalık taraması
+   dahil 12 iş artık `/sistem` ekranından kalıcı biçimde yönetiliyor.
+2. ⬜ **Gelişmiş hisse grafikleri:** Mevcut 90 günlük kapanış grafiği; çoklu tarih
    aralıkları, hacim, düşük/yüksek/AOF, tooltip ve teknik göstergelerle geliştirilecek.
    Güvenilir açılış verisi bulunmadan sahte mum verisi üretilmeyecek.
-3. **Coolify üretim kapısı:** Kalıcı PostgreSQL volume/yedekleme, private ağ,
+3. ⬜ **Coolify üretim kapısı:** Kalıcı PostgreSQL volume/yedekleme, private ağ,
    health check, migration, restart kalıcılığı ve temiz kurulum smoke testi
    doğrulanacak. API/web/worker stateless kalacak.
 

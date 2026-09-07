@@ -33,6 +33,7 @@ class Settings(BaseSettings):
 
     n8n_webhook_url: str = ""
     monitoring_alert_cooldown_seconds: int = 3600
+    admin_api_token: str = ""
 
     collector_user_agent: str = "trade-ai/0.1 (kisisel arastirma)"
     kap_rate_limit_per_sec: float = 2.0
