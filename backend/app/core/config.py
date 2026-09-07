@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     llm_max_source_chars: int = 12_000
 
     n8n_webhook_url: str = ""
+    monitoring_alert_cooldown_seconds: int = 3600
 
     collector_user_agent: str = "trade-ai/0.1 (kisisel arastirma)"
     kap_rate_limit_per_sec: float = 2.0

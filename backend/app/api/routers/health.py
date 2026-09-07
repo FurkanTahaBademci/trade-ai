@@ -11,6 +11,7 @@ from fastapi import APIRouter
 
 from app.core.db import ping_db
 from app.core.redis import ping_redis
+from app.monitoring.service import get_monitoring_report
 
 logger = structlog.get_logger(__name__)
 
@@ -24,7 +25,7 @@ async def health() -> dict:
 
 @router.get("/health/detailed")
 async def health_detailed() -> dict:
-    result: dict = {"db": "unknown", "redis": "unknown"}
+    result: dict = {"db": "unknown", "redis": "unknown", "monitoring": None}
 
     try:
         await ping_db()
@@ -36,9 +37,12 @@ async def health_detailed() -> dict:
     try:
         await ping_redis()
         result["redis"] = "ok"
+        result["monitoring"] = await get_monitoring_report()
     except Exception as exc:  # noqa: BLE001
         logger.error("redis_ping_failed", error=str(exc))
         result["redis"] = f"error: {exc}"
 
-    result["status"] = "ok" if result["db"] == "ok" and result["redis"] == "ok" else "degraded"
+    infrastructure_ok = result["db"] == "ok" and result["redis"] == "ok"
+    monitoring_ok = result["monitoring"] and result["monitoring"]["status"] == "ok"
+    result["status"] = "ok" if infrastructure_ok and monitoring_ok else "degraded"
     return result

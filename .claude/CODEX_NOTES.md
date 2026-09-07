@@ -8,6 +8,24 @@ gereken ürün kararları `CLAUDE.md` içindedir. Aşağıdaki 2026-09-07 (Claud
 girişi Codex değil, Claude tarafından yazıldı — paylaşılan tek devir
 günlüğünü bölmemek için burada tutuluyor, başlıkta ajan belirtildi.
 
+## 2026-09-07 — Faz 10 sağlık ve alarm çekirdeği (ara teslim)
+
+- Redis'teki collector başarı/hata kayıtları ilk kez `/health/detailed` içine
+  bağlandı. KAP/haber için 20 dakika; günlük/iş günü kaynakları için hafta sonu
+  toleranslı 72-96 saatlik tazelik eşikleri var.
+- Worker heartbeat'i artık Redis'e yazılıyor. Ortak rapor `healthy`, `stale`,
+  `error` ve `pending` durumlarını; sorun ve bekleyen bileşen sayılarını döndürüyor.
+- Collector hataları anında, periyodik `monitor_system` işi gecikmiş kaynakları
+  beş dakikada bir değerlendiriyor. N8N alarmı yapılandırılmış JSON gönderiyor;
+  Redis fingerprint/cooldown aynı sorunu varsayılan 3600 saniye içinde tekrar
+  göndermiyor. Webhook boşsa dış istek yapılmıyor.
+- Yeni `/sistem` ekranı altyapı, worker ve sekiz veri hattını gösteriyor; ana
+  sayfadaki genel sağlık göstergesi artık yalnız HTTP erişimini değil raporun
+  gerçek `status` alanını kullanıyor.
+- Ruff temiz, Next.js production build başarılı, test suite **85 passed**.
+  N8N URL'si olmadığı için gerçek dış webhook çağrısı yapılmadı; sahte istemciyle
+  payload ve dedup davranışı doğrulandı.
+
 ## 2026-09-07 — Faz 8 paper portföy motoru ve portföy ekranı
 
 - Canlı emir göndermeyen, long-only ve kaldıraçsız `paper-v1` motoru eklendi.

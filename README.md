@@ -26,7 +26,7 @@ risk sınırları ve mükerrer işlem koruması olan sanal portföy motoru tamam
 ✅ **Dashboard**: mevcut özelliklerin tamamı için responsive Next.js arayüz,
 detay ekranları, sayfalama, paper portföy görünümü ve merkezi tema sistemi hazır.
 
-Toplam **78 ağsız test** geçiyor. Docker ile yapılan canlı doğrulamaların
+Toplam **85 ağsız test** geçiyor. Docker ile yapılan canlı doğrulamaların
 sayısal sonuçları `.claude/CODEX_NOTES.md` içinde.
 
 ## Hızlı başlangıç (yerel geliştirme)

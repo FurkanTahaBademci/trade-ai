@@ -7,6 +7,7 @@ zamanlanir. Haber ve KAP isleri ayni dakikada baslasa da haber 30 saniye
 gecikmeli calisarak ani istek yukunu dagitir.
 """
 
+from datetime import UTC, datetime
 from typing import ClassVar
 
 import structlog
@@ -14,6 +15,8 @@ from arq import cron
 from arq.connections import RedisSettings
 
 from app.core.config import get_settings
+from app.core.redis import get_redis
+from app.monitoring.service import monitor_system
 from app.tasks.jobs import (
     collect_analysts,
     collect_fund_flows,
@@ -32,6 +35,7 @@ logger = structlog.get_logger(__name__)
 
 
 async def startup(ctx: dict) -> None:
+    await get_redis().set("worker:last_heartbeat", datetime.now(UTC).isoformat())
     logger.info("worker_started")
 
 
@@ -41,6 +45,7 @@ async def shutdown(ctx: dict) -> None:
 
 async def heartbeat(ctx: dict) -> None:
     """Worker'in canli oldugunu loglayan basit is (Faz 0 dogrulamasi)."""
+    await get_redis().set("worker:last_heartbeat", datetime.now(UTC).isoformat())
     logger.info("worker_heartbeat")
 
 
@@ -61,9 +66,11 @@ class WorkerSettings:
         evaluate_sources,
         compute_signals,
         run_paper_portfolio,
+        monitor_system,
     ]
     cron_jobs: ClassVar[list] = [
         cron(heartbeat, minute=set(range(0, 60, 5))),  # her 5 dakikada bir
+        cron(monitor_system, minute=set(range(1, 60, 5))),
         cron(collect_kap, minute=set(range(0, 60, 5))),
         cron(collect_news, minute=set(range(0, 60, 5)), second=30),
         # Haber/KAP toplandiktan sonra; LLM_ENABLED=false ise ucretli cagri yok.

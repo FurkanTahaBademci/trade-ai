@@ -14,6 +14,7 @@ const nav: { label: string; href: string; icon: IconName }[] = [
   { label: "KAP Bildirimleri", href: "/kap", icon: "kap" },
   { label: "AI Analizleri", href: "/analizler", icon: "ai" },
   { label: "Kurumsal Veriler", href: "/kurumsal", icon: "funds" },
+  { label: "Sistem Sağlığı", href: "/sistem", icon: "activity" },
 ];
 
 function Brand() {

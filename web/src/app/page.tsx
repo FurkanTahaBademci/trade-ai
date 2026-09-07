@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { apiGet } from "@/lib/api";
-import type { CompositeSignal, Disclosure, Evaluation, FundFlow, Instrument, NewsArticle } from "@/lib/types";
+import type { CompositeSignal, Disclosure, Evaluation, FundFlow, Instrument, NewsArticle, SystemHealth } from "@/lib/types";
 import { eventName, formatDate, formatMoney, formatPercent, relativeTime, signalName, sourceName } from "@/lib/format";
 import { Icon } from "@/components/icon";
 import { EmptyState, ScoreRing, SectionTitle, ServiceNotice, TickerPills } from "@/components/ui";
@@ -8,11 +8,11 @@ import { EmptyState, ScoreRing, SectionTitle, ServiceNotice, TickerPills } from 
 export default async function Home() {
   const [instruments, news, disclosures, evaluations, flows, signals, health] = await Promise.all([
     apiGet<Instrument[]>("/api/instruments", []), apiGet<NewsArticle[]>("/api/news?limit=6", []), apiGet<Disclosure[]>("/api/disclosures?limit=5", []),
-    apiGet<Evaluation[]>("/api/evaluations?status=succeeded&limit=20", []), apiGet<FundFlow[]>("/api/funds/flows?limit=7", []), apiGet<CompositeSignal[]>("/api/signals?limit=5", []), apiGet<Record<string, unknown>>("/health/detailed", {}),
+    apiGet<Evaluation[]>("/api/evaluations?status=succeeded&limit=20", []), apiGet<FundFlow[]>("/api/funds/flows?limit=7", []), apiGet<CompositeSignal[]>("/api/signals?limit=5", []), apiGet<SystemHealth | null>("/health/detailed", null),
   ]);
   const focus = evaluations.data.find((item) => item.summary && item.impact_score != null);
   const latestFlow = flows.data[0];
-  const servicesUp = health.ok;
+  const servicesUp = health.ok && health.data?.status === "ok";
 
   return <>
     <ServiceNotice show={!instruments.ok && !news.ok}/>

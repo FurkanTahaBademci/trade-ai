@@ -155,4 +155,18 @@ class BaseCollector:
                 f"{datetime.now(UTC).isoformat()} | {exc!r}",
             )
             self.log.error("collector_run_failed", error=str(exc))
+            try:
+                from app.monitoring.service import send_webhook_alert
+
+                await send_webhook_alert(
+                    event_type="collector_failure",
+                    severity="error",
+                    title=f"{self.name} collector hatasi",
+                    message=str(exc),
+                    details={"collector": self.name},
+                    dedupe_key=f"collector_failure:{self.name}:{type(exc).__name__}",
+                    redis=redis,
+                )
+            except Exception as alert_exc:  # noqa: BLE001
+                self.log.error("collector_alert_failed", error=str(alert_exc))
             raise

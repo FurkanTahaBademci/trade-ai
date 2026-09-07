@@ -375,7 +375,20 @@ Durumlar: ⬜ başlanmadı · 🔶 devam ediyor · ✅ tamamlandı ve doğruland
       `/portfoy` çalışan Docker servisi üzerinden HTTP 200 doğrulandı.
 
 ## Faz 10 — Alarm + Gözlemlenebilirlik
-⬜ Başlanmadı
+🔶 Çekirdek sağlık ve alarm katmanı tamam; genişletiliyor
+
+- [x] `/health/detailed`: PostgreSQL/Redis yanında sekiz collector'ın son başarı,
+      son hata ve kaynak türüne göre tazelik durumunu raporluyor.
+- [x] ARQ worker heartbeat'i Redis'e yazılıyor; eksik, hatalı ve gecikmiş
+      bileşenler ortak sağlık raporunda ayrıştırılıyor.
+- [x] Collector hataları ve periyodik tazelik kontrolü, `N8N_WEBHOOK_URL`
+      tanımlıysa yapılandırılmış webhook alarmı gönderiyor. Aynı alarm için
+      varsayılan bir saatlik Redis cooldown mükerrer bildirimleri engelliyor.
+- [x] `/sistem` ekranı altyapı bağlantılarını, worker'ı ve veri hatlarını
+      profesyonel durum görünümüyle gösteriyor.
+- [x] Tazelik/hata/ilk çalışma durumları ve webhook dedup testleri dahil toplam
+      **85/85 test geçti**; Ruff ve production web build temiz.
+- [ ] Canlı N8N URL'si sağlandığında kontrollü test alarmı uçtan uca doğrulanacak.
 
 ## Faz 11 — Değerlendirme / Backtest
 ⬜ Başlanmadı
