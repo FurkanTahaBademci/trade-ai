@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 const MAX_PAGE_SIZE = 24;
 
 function apiBase() {
-  return process.env.API_INTERNAL_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+  return process.env.API_INTERNAL_URL ?? "http://localhost:8000";
 }
 
 export async function GET(request: NextRequest) {

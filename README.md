@@ -68,8 +68,8 @@ Dashboard renkleri tek noktadan, `web/src/app/globals.css` dosyasının başınd
 zeminler için `--background` / `--surface`, durum renkleri için
 `--positive` / `--negative` değişkenlerini değiştirmek yeterlidir.
 
-Port çakışmasında `.env` içinde `API_PORT`/`WEB_PORT` ve buna uygun
-`NEXT_PUBLIC_API_URL` değiştirilebilir.
+Port çakışmasında `.env` içinde `API_PORT`/`WEB_PORT` değiştirilebilir. Web,
+backend'e Docker'ın private ağındaki `API_INTERNAL_URL` üzerinden ulaşır.
 
 ## Servisler
 

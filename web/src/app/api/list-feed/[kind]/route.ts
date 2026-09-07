@@ -17,7 +17,7 @@ const feeds = {
 } as const;
 
 function apiBase() {
-  return process.env.API_INTERNAL_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+  return process.env.API_INTERNAL_URL ?? "http://localhost:8000";
 }
 
 export async function GET(

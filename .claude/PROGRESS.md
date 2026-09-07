@@ -483,6 +483,8 @@ Durumlar: ⬜ başlanmadı · 🔶 devam ediyor · ✅ tamamlandı ve doğruland
       şema ve seçili tablolar geri yüklenerek migration sürümü ve 12 takvim doğrulandı.
 - [x] API/worker `tradeai`, web `node` kullanıcısıyla çalışıyor; uygulama dosya
       sistemleri salt-okunur, yalnız `/tmp` ve Next cache tmpfs. Redis AOF etkin.
+- [x] Tarayıcıdaki KAP ek indirmeleri public API domainine bağlı kalmadan, kimlik
+      doğrulamalı path ve header aktarımıyla web'in same-origin proxy'sine taşındı.
 - [x] CORS/Host güvenlik testleri, production smoke, Next.js 16 build, `npm audit`
       (0 bulgu), Ruff ve toplam **102/102 test** temiz.
 
@@ -515,3 +517,7 @@ Durumlar: ⬜ başlanmadı · 🔶 devam ediyor · ✅ tamamlandı ve doğruland
 - KAP'ın günlük 2000 kayıt sınırı dolarsa collector sessiz veri kaybetmek
   yerine hata verir. Böyle bir gün görülürse üye/kategori bazında bölme
   stratejisi eklenmeli.
+- 2026-09-08 canlı kontrolde `trade.furkantahabademci.com.tr` HTTPS ve web health
+  başarılı; `api.trade.furkantahabademci.com.tr` ise TLS handshake hatası verdi.
+  Arayüz private API/same-origin proxy ile bundan bağımsızlaştırıldı. API doğrudan
+  dışarı açılacaksa sertifikanın kapsadığı tek-seviyeli hostname tanımlanmalı.

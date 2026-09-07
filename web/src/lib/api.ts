@@ -1,6 +1,6 @@
 export type ApiResult<T> = { data: T; ok: true } | { data: T; ok: false; error: string };
 
-function apiBase() { return process.env.API_INTERNAL_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"; }
+function apiBase() { return process.env.API_INTERNAL_URL ?? "http://localhost:8000"; }
 
 export async function apiGet<T>(path: string, fallback: T): Promise<ApiResult<T>> {
   try {
@@ -11,5 +11,3 @@ export async function apiGet<T>(path: string, fallback: T): Promise<ApiResult<T>
     return { data: fallback, ok: false, error: error instanceof Error ? error.message : "Servise ulaşılamadı" };
   }
 }
-
-export function publicApiUrl(path: string) { return `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}${path}`; }

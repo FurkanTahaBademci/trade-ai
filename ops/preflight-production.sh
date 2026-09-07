@@ -53,13 +53,14 @@ esac
 
 public_api_url=$(setting NEXT_PUBLIC_API_URL)
 case "$public_api_url" in
+  "") pass "Public API adresi kapali; web private API agini kullanacak" ;;
   https://*)
     case "$public_api_url" in
       *localhost*|*127.0.0.1*|*example.com*) fail "NEXT_PUBLIC_API_URL gercek production domaini olmali" ;;
       *) pass "NEXT_PUBLIC_API_URL HTTPS kullaniyor" ;;
     esac
     ;;
-  *) fail "NEXT_PUBLIC_API_URL HTTPS adresi olmali" ;;
+  *) fail "NEXT_PUBLIC_API_URL tanimliysa HTTPS adresi olmali" ;;
 esac
 
 cors_origins=$(setting CORS_ORIGINS)
@@ -75,9 +76,13 @@ esac
 
 allowed_hosts=$(setting ALLOWED_HOSTS)
 case "$allowed_hosts" in
-  ""|localhost,127.0.0.1,api|*example.com*|*\**|*://*) fail "ALLOWED_HOSTS production API domainini icermeli" ;;
-  *.*) pass "ALLOWED_HOSTS production domainiyle yapilandirildi" ;;
-  *) fail "ALLOWED_HOSTS production API domainini icermeli" ;;
+  ""|*example.com*|*\**|*://*) fail "ALLOWED_HOSTS guvenilir API hostlarini icermeli" ;;
+  *)
+    case ",$allowed_hosts," in
+      *,api,*) pass "ALLOWED_HOSTS private API hostname'ini iceriyor" ;;
+      *) fail "ALLOWED_HOSTS private 'api' hostname'ini icermeli" ;;
+    esac
+    ;;
 esac
 
 if docker compose config --quiet; then

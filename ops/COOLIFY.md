@@ -3,10 +3,12 @@
 ## Kaynak ve domain
 
 1. Git deposunu **Docker Compose** kaynak türüyle ekle.
-2. `web` servisine ana domaini, gerekirse `api` servisine ayrı API domainini bağla.
-   PostgreSQL, Redis ve worker servislerine public port/domain verme.
-3. Ana domain aynı origin üzerinden `/api` proxy'leyecekse `NEXT_PUBLIC_API_URL`
-   değerini ana domaine; ayrı API domaini kullanılıyorsa API'nin HTTPS adresine ayarla.
+2. `web` servisine ana domaini bağla. Web, API'ye private Docker ağı üzerinden
+   erişir; PostgreSQL, Redis, worker ve API'ye public port/domain vermek gerekmez.
+3. API'yi harici istemcilere açacaksan ayrı bir HTTPS domaini bağla. Cloudflare'ın
+   standart wildcard sertifikası genellikle yalnız tek alt-domain seviyesini
+   kapsadığı için `api.app.example.com` yerine `api-app.example.com` gibi sertifika
+   kapsamındaki bir ad kullan veya o hostname'i kapsayan sertifika tanımla.
 
 ## Zorunlu production değişkenleri
 
@@ -14,9 +16,8 @@
 - Güçlü ve benzersiz `POSTGRES_PASSWORD`
 - Parolayla eşleşen tam `DATABASE_URL`
 - En az 32 rastgele karakterli `ADMIN_API_TOKEN` (API ve web aynı değeri alır)
-- `NEXT_PUBLIC_API_URL=https://api.example.com` veya aynı-origin adresi
 - `CORS_ORIGINS=https://app.example.com` (birden çoksa virgülle ayır)
-- `ALLOWED_HOSTS=api.example.com,api,localhost`
+- `ALLOWED_HOSTS=api,localhost` (public API varsa domainini de ekle)
 - İhtiyaca göre Gemini ve N8N değişkenleri
 
 Secret değerlerini repoya veya image build argümanına koyma; Coolify Environment
@@ -43,8 +44,10 @@ Variables/Secrets alanında runtime değişkeni olarak tut.
    olmadan başlamaz.
 3. Tüm servislerin healthy olduğunu ve migration head'ini kontrol et:
    `docker compose ps` ve `docker compose exec -T api alembic current`.
-4. Domainler açıldıktan sonra:
-   `WEB_URL=https://app.example.com API_URL=https://api.example.com make production-smoke`.
+4. Domainler açıldıktan sonra public API kullanıyorsan:
+   `WEB_URL=https://app.example.com API_URL=https://api-app.example.com make production-smoke`.
+   API private kalıyorsa web için `/health`, ana sayfalar ve KAP ek indirme
+   rotasını kontrol et; API/DB health'i Coolify container health durumundan izle.
 5. `/sistem` ekranında worker, PostgreSQL, Redis ve veri hatlarının durumunu kontrol et.
 
 ## Geri alma
