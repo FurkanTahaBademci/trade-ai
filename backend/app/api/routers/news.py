@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import cast, select
+from sqlalchemy import and_, cast, or_, select
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,6 +23,10 @@ async def list_news(
     before: Annotated[
         datetime | None, Query(description="Cursor: bu tarihten eski haberler")
     ] = None,
+    before_id: Annotated[
+        int | None,
+        Query(ge=1, description="Ayni yayin zamanindaki haberler icin cursor ID"),
+    ] = None,
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
 ) -> list[NewsArticle]:
     stmt = select(NewsArticle).order_by(NewsArticle.published_at.desc(), NewsArticle.id.desc())
@@ -30,7 +34,14 @@ async def list_news(
         stmt = stmt.where(NewsArticle.source == source.lower())
     if ticker:
         stmt = stmt.where(cast(NewsArticle.ticker_codes, JSONB).contains([ticker.upper()]))
-    if before:
+    if before and before_id:
+        stmt = stmt.where(
+            or_(
+                NewsArticle.published_at < before,
+                and_(NewsArticle.published_at == before, NewsArticle.id < before_id),
+            )
+        )
+    elif before:
         stmt = stmt.where(NewsArticle.published_at < before)
     result = await db.execute(stmt.limit(limit))
     return list(result.scalars().all())

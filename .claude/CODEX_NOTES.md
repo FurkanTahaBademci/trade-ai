@@ -8,6 +8,20 @@ gereken ürün kararları `CLAUDE.md` içindedir. Aşağıdaki 2026-09-07 (Claud
 girişi Codex değil, Claude tarafından yazıldı — paylaşılan tek devir
 günlüğünü bölmemek için burada tutuluyor, başlıkta ajan belirtildi.
 
+## 2026-09-08 — Haber akışı sonsuz kaydırma
+
+- `/haberler` ilk yüklemede 12 kayıt getiriyor; kullanıcı listenin sonuna
+  yaklaşınca `IntersectionObserver` üzerinden sonraki 12 kayıt yükleniyor.
+  Yükleme iskeleti, hata/yeniden deneme ve tüm kayıtlar görüldü durumları eklendi.
+- Tarayıcı istekleri same-origin `/api/news-feed` route'u üzerinden internal API'ye
+  gidiyor; böylece API adresi tarayıcıdan erişilebilir olmasa da Coolify private
+  ağ düzeni korunuyor. Kaynak filtreleri sonraki kademelerde de taşınıyor.
+- Backend cursor'ı yalnız tarihten tarih + ID çiftine yükseltildi; aynı yayın
+  zamanındaki haberler arasında kayıt atlama ve mükerrer kart riski önlendi.
+- Canlı Docker kontrolünde ilk ve ikinci 12'li sayfa arasında `overlap=0`.
+  Headless Chrome 800px görünümde 12, uzun kaydırma görünümünde 120 kart render
+  etti. Production build, TypeScript, Ruff ve **103/103 test** temiz.
+
 ## 2026-09-07 — Faz 13 Docker/Coolify üretim hazırlığı tamamlandı
 
 - Compose servislerine health/start/grace ayarları, bellek sınırları ve dönen
