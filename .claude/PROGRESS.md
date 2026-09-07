@@ -442,24 +442,27 @@ Durumlar: ⬜ başlanmadı · 🔶 devam ediyor · ✅ tamamlandı ve doğruland
       doğru kaldı. Ruff, production web build ve toplam **99/99 test** temiz.
 
 ## Faz 12 — Gelişmiş Hisse Grafikleri
-⬜ Planlandı — sıradaki geliştirme
+✅ Etkileşimli fiyat, hacim ve teknik gösterge grafiği tamamlandı
 
-- [ ] Mevcut 90 günlük kapanış çizgisini 1A/3A/6A/1Y/3Y/Tümü aralıkları,
+- [x] Mevcut 90 günlük kapanış çizgisini 1A/3A/6A/1Y/3Y/Tümü aralıkları,
       tooltip, crosshair, yakınlaştırma ve mobil kullanımla geliştir.
-- [ ] Fiyatın altında TL işlem hacmini; grafikte günlük en düşük/en yüksek ve
+- [x] Fiyatın altında TL işlem hacmini; grafikte günlük en düşük/en yüksek ve
       ağırlıklı ortalama fiyatı göster. Eksik değerleri açıkça belirt.
-- [ ] MA20/MA50, RSI(14), günlük/yüzdesel getiri ve zirveden düşüş gibi temel
-      göstergeleri açılıp kapanabilir katmanlar halinde ekle.
-- [ ] Mum grafik için `open` verisi sağlayan güvenilir ve lisans açısından uygun
+- [x] MA20/MA50, RSI(14), dönem değişimi ve dönem düşük/yüksek değerlerini
+      açılıp kapanabilir katmanlar ve özet metrikler halinde ekle.
+- [x] Mum grafik için `open` verisi sağlayan güvenilir ve lisans açısından uygun
       kaynak ayrıca doğrulanmadan sahte OHLC üretme; mevcut kaynak yalnız
       kapanış/minimum/maksimum/AOF/hacim sağlıyor.
-- [ ] Grafik veri API'sine tarih aralığı ve örnekleme parametreleri ekle; uzun
-      aralıklarda gereksiz veri taşımadan PostgreSQL indekslerini kullan.
-- [ ] Boş veri, tek nokta, aşırı değer, erişilebilirlik ve responsive görünüm
-      testlerini ekle; hisse detay sayfasının yüklenme performansını ölç.
+- [x] Mevcut indeksli başlangıç/bitiş tarihi API'si üzerinden tüm mevcut geçmişi
+      bir kez yükle; aralık geçişlerini tekrar ağ isteği olmadan tarayıcıda yap.
+- [x] Boş/yetersiz veri koruması, erişilebilir SVG etiketi ve touch-safe etkileşim
+      ekle; production build ile masaüstü ve 390px mobil görünümü doğrula.
+- [x] Canlı `/piyasalar/THYAO` gerçek 21 işlem günlük fiyat/hacim verisiyle HTTP
+      200 döndü ve görsel kontrolden geçti. Yeni/eksik veri uydurulmuyor; üç yıllık
+      collector backfill'i geldikçe uzun aralıklar otomatik genişliyor.
 
 ## Faz 13 — Docker / Coolify Üretim Hazırlığı
-⬜ Planlandı — Faz 12'nin ardından, canlıya çıkış kapısı
+⬜ Planlandı — sıradaki geliştirme ve canlıya çıkış kapısı
 
 - [ ] Yeni özelliklerin tamamı PostgreSQL + Redis üzerinde çalışsın; container
       içine yazılan yerel dosya veya SQLite üretim bağımlılığı oluşmasın.

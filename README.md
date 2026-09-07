@@ -90,9 +90,9 @@ Port çakışmasında `.env` içinde `API_PORT`/`WEB_PORT` ve buna uygun
 
 1. ✅ **Tarama takvimi yönetimi:** Haberlerin varsayılan 5 dakikalık taraması
    dahil 12 iş artık `/sistem` ekranından kalıcı biçimde yönetiliyor.
-2. ⬜ **Gelişmiş hisse grafikleri:** Mevcut 90 günlük kapanış grafiği; çoklu tarih
-   aralıkları, hacim, düşük/yüksek/AOF, tooltip ve teknik göstergelerle geliştirilecek.
-   Güvenilir açılış verisi bulunmadan sahte mum verisi üretilmeyecek.
+2. ✅ **Gelişmiş hisse grafikleri:** Çoklu tarih aralığı, hacim, düşük/yüksek
+   bandı, AOF, tooltip, MA20/MA50 ve RSI katmanları hisse detayına eklendi.
+   Güvenilir açılış verisi bulunmadan sahte mum verisi üretilmiyor.
 3. ⬜ **Coolify üretim kapısı:** Kalıcı PostgreSQL volume/yedekleme, private ağ,
    health check, migration, restart kalıcılığı ve temiz kurulum smoke testi
    doğrulanacak. API/web/worker stateless kalacak.

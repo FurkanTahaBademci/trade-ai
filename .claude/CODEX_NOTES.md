@@ -8,6 +8,21 @@ gereken ürün kararları `CLAUDE.md` içindedir. Aşağıdaki 2026-09-07 (Claud
 girişi Codex değil, Claude tarafından yazıldı — paylaşılan tek devir
 günlüğünü bölmemek için burada tutuluyor, başlıkta ajan belirtildi.
 
+## 2026-09-07 — Faz 12 gelişmiş hisse grafikleri tamamlandı
+
+- `PriceChart` etkileşimli client bileşenine dönüştürüldü. 1A/3A/6A/1Y/3Y/Tümü
+  aralıkları, crosshair ve seçili gün tooltip'i, dönem getiri/düşük/yüksek
+  kartları eklendi.
+- Gerçek `price_daily` alanlarıyla min–maks fiyat bandı ve TL hacim barları;
+  açılıp kapanabilen AOF, MA20, MA50 ve RSI(14) katmanları çiziliyor. Kaynakta
+  `open` olmadığı için mum/OHLC verisi uydurulmadı.
+- Hisse sayfası indeksli fiyat API'sinden mevcut tüm geçmişi bir kez alıyor;
+  aralık değişimleri ek ağ isteği yapmadan tarayıcıda filtreleniyor. Üst başlıktaki
+  90 günlük performans hesabı tüm-geçmiş yüklemesinden bağımsız tutuldu.
+- Production Next.js build geçti. Canlı `/piyasalar/THYAO` 21 gerçek işlem günüyle
+  HTTP 200; 1440px masaüstü ve 390px mobil headless Chrome görüntüleri görsel
+  olarak doğrulandı. Uzun aralıklar üç yıllık collector backfill'i kadar veri gösterir.
+
 ## 2026-09-07 — Faz 11 dinamik tarama takvimi tamamlandı
 
 - Statik collector cron'ları `c4e8a2b1d730` migration'ıyla PostgreSQL'deki
