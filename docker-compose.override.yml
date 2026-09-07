@@ -1,0 +1,18 @@
+# Yerel gelistirme icin host port eslemeleri.
+#
+# `docker compose` bu dosyayi docker-compose.yml ile otomatik birlestirir,
+# bu yuzden yerelde `make dev` / `docker compose up` hala localhost:8000 ve
+# localhost:3000 uzerinden erisim saglar.
+#
+# Coolify ise sadece ana docker-compose.yml'i okur (Docker Compose Location:
+# /docker-compose.yml) — bu dosyayi hic gormez. Uretimde host port'u
+# publish etmek gereksiz ve sunucudaki baska servislerle cakisabilir
+# ("port is already allocated"); Coolify'in proxy'si zaten Ports Exposes
+# ayarlarindan icsel Docker agi uzerinden container'a baglanir.
+services:
+  api:
+    ports:
+      - "${API_PORT:-8000}:8000"
+  web:
+    ports:
+      - "${WEB_PORT:-3000}:3000"

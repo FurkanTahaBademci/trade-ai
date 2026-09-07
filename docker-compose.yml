@@ -68,8 +68,9 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    ports:
-      - "${API_PORT:-8000}:8000"
+    # Host'a port acilmiyor: Coolify proxy'si icsel agdan (Ports Exposes: 8000)
+    # baglanir. Yerel gelistirmede host port'u docker-compose.override.yml
+    # saglar (docker compose otomatik birlestirir).
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 15s
@@ -133,8 +134,9 @@ services:
     depends_on:
       api:
         condition: service_healthy
-    ports:
-      - "${WEB_PORT:-3000}:3000"
+    # Host'a port acilmiyor: Coolify proxy'si icsel agdan (Ports Exposes: 3000)
+    # baglanir. Yerel gelistirmede host port'u docker-compose.override.yml
+    # saglar (docker compose otomatik birlestirir).
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/health >/dev/null"]
       interval: 15s
