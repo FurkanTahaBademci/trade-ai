@@ -2,11 +2,83 @@
 @tailwind components;
 @tailwind utilities;
 
+/* TRADE-AI THEME — Uygulamanın tüm renkleri yalnızca bu bloktan yönetilir. */
 :root {
-  color-scheme: light dark;
+  color-scheme: dark;
+  --background: #080a0f;
+  --sidebar: #0b0e14;
+  --surface: #10141c;
+  --surface-raised: #151a24;
+  --surface-hover: #1a202c;
+  --border: #222936;
+  --border-strong: #303948;
+  --text: #f4f6f8;
+  --text-secondary: #9ba6b5;
+  --text-muted: #667085;
+  --primary: #c7ff4a;
+  --primary-strong: #a9eb12;
+  --primary-soft: rgba(199, 255, 74, 0.1);
+  --primary-contrast: #101608;
+  --positive: #4ade80;
+  --positive-soft: rgba(74, 222, 128, 0.1);
+  --negative: #fb7185;
+  --negative-soft: rgba(251, 113, 133, 0.1);
+  --warning: #fbbf24;
+  --warning-soft: rgba(251, 191, 36, 0.1);
+  --info: #60a5fa;
+  --info-soft: rgba(96, 165, 250, 0.1);
+  --chart-grid: #212936;
+  --overlay: rgba(0, 0, 0, 0.7);
+  --shadow: 0 18px 50px rgba(0, 0, 0, 0.24);
+  --radius-md: 14px;
 }
 
+* {
+  box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+html { background: var(--background); }
+
 body {
-  background: #0b0d12;
-  color: #e6e8eb;
+  margin: 0;
+  background: radial-gradient(circle at 62% -20%, rgba(199, 255, 74, 0.045), transparent 30rem), var(--background);
+  color: var(--text);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+a { color: inherit; text-decoration: none; }
+button, input, select { font: inherit; }
+button { color: inherit; }
+::selection { background: var(--primary); color: var(--primary-contrast); }
+
+@layer components {
+  .panel { @apply border; border-color: var(--border); border-radius: var(--radius-md); background: color-mix(in srgb, var(--surface) 94%, transparent); box-shadow: var(--shadow); }
+  .panel-flat { @apply border; border-color: var(--border); border-radius: var(--radius-md); background: var(--surface); }
+  .eyebrow { @apply text-[11px] font-semibold uppercase tracking-[0.16em]; color: var(--text-muted); }
+  .page-title { @apply text-2xl font-semibold tracking-[-0.035em] sm:text-[30px]; }
+  .muted { color: var(--text-secondary); }
+  .subtle { color: var(--text-muted); }
+  .divider { border-color: var(--border); }
+  .pill { @apply inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium; border-color: var(--border); color: var(--text-secondary); background: var(--surface-raised); }
+  .pill-positive { border-color: transparent; color: var(--positive); background: var(--positive-soft); }
+  .pill-negative { border-color: transparent; color: var(--negative); background: var(--negative-soft); }
+  .pill-primary { border-color: transparent; color: var(--primary); background: var(--primary-soft); }
+  .icon-button { @apply inline-flex h-9 w-9 items-center justify-center rounded-[10px] border transition-colors; color: var(--text-secondary); border-color: var(--border); background: var(--surface); }
+  .icon-button:hover { color: var(--text); background: var(--surface-hover); }
+  .input { @apply h-10 w-full rounded-[10px] border px-3 text-sm outline-none transition; color: var(--text); border-color: var(--border); background: var(--surface-raised); }
+  .input::placeholder { color: var(--text-muted); }
+  .input:focus { border-color: color-mix(in srgb, var(--primary) 60%, var(--border)); box-shadow: 0 0 0 3px var(--primary-soft); }
+  .table-shell { @apply overflow-hidden border; border-color: var(--border); border-radius: var(--radius-md); }
+  .data-table { @apply w-full border-collapse text-left text-sm; }
+  .data-table th { @apply px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em]; color: var(--text-muted); background: var(--surface-raised); }
+  .data-table td { @apply border-t px-4 py-3.5; border-color: var(--border); }
+  .data-table tbody tr { @apply transition-colors; }
+  .data-table tbody tr:hover { background: var(--surface-hover); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; }
 }

@@ -35,6 +35,13 @@ make smoke                # tum veri kaynaklarini dogrula
 - API: http://localhost:8000/docs
 - Dashboard: http://localhost:3000
 
+### Arayüz teması
+
+Dashboard renkleri tek noktadan, `web/src/app/globals.css` dosyasının başındaki
+`TRADE-AI THEME` CSS değişkenlerinden yönetilir. Marka rengi için `--primary`,
+zeminler için `--background` / `--surface`, durum renkleri için
+`--positive` / `--negative` değişkenlerini değiştirmek yeterlidir.
+
 Port çakışmasında `.env` içinde `API_PORT`/`WEB_PORT` ve buna uygun
 `NEXT_PUBLIC_API_URL` değiştirilebilir.
 

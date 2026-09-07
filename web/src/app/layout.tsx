@@ -1,19 +1,16 @@
 import type { Metadata } from "next";
+import { AppShell } from "@/components/app-shell";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "trade-ai",
-  description: "BIST piyasa istihbarati ve paper trading dashboard'u",
+  title: { default: "TradeAI", template: "%s · TradeAI" },
+  description: "BIST piyasa istihbaratı ve analiz terminali",
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="tr">
-      <body className="min-h-screen font-sans antialiased">{children}</body>
+      <body className="min-h-screen antialiased"><AppShell>{children}</AppShell></body>
     </html>
   );
 }
