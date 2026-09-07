@@ -93,3 +93,10 @@ async def collect_institutional_reports(ctx: dict) -> dict:
         InstitutionalReportCollector(session) as collector,
     ):
         return await collector.run_tracked()
+
+
+async def compute_signals(ctx: dict) -> dict:
+    from app.signals.service import run_signal_engine
+
+    async with session_factory() as session:
+        return await run_signal_engine(session)

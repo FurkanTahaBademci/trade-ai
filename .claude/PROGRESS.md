@@ -317,13 +317,38 @@ Durumlar: ⬜ başlanmadı · 🔶 devam ediyor · ✅ tamamlandı ve doğruland
       API'de `source_breakdown: {"phillipcapital_pdf": 1}` ile doğrulandı.
 
 ## Faz 7 — Bileşik Skor + Sinyal Motoru
-⬜ Başlanmadı
+✅ Kod, API, worker ve gerçek PostgreSQL idempotency akışı doğrulandı
+
+- [x] `CompositeSignalSnapshot` modeli ve `e84b2b3d91f0` migration'ı: ticker/gün/
+      model sürümü doğal anahtarı, 0-100 skor, teknik görünüm etiketi, güven,
+      kapsam, bileşen puanları/etkin ağırlıklar ve kaynak kanıtları saklanıyor.
+- [x] Sürümlü V1 motoru: AI `%35`, temel analiz `%30`, analist konsensüsü `%25`,
+      TEFAS piyasa akımı `%10`. Eksik kaynak sıfır sayılmıyor; mevcut ağırlıklar
+      yeniden normalize ediliyor ve en az iki bileşen olmadan skor yayımlanmıyor.
+- [x] LLM tarafında aynı kaynak belgesinin Tier 2 sonucu Tier 1'e tercih ediliyor;
+      duygu × etki × ilgi, güven ve üç günlük yarı ömürlü tazelikle birleştiriliyor.
+      Analist oyu hedef potansiyeliyle, fon akımı büyüklüğü piyasa genişliğiyle
+      beraber puanlanıyor.
+- [x] API: `GET /api/signals` (tarih/ticker/etiket/minimum skor filtreleri) ve
+      `GET /api/signals/{ticker}` geçmişi. CLI: `python -m scripts.run_once signals`.
+      Worker LLM işinden sonra her 10 dakikada bir skorları tazeliyor.
+- [x] Saf skor/esik/eksik veri/Tier 2/regresyon testleri dahil **72/72 test geçti**;
+      Ruff, production web build ve offline PostgreSQL DDL üretimi temiz.
+- [x] Gerçek PostgreSQL koşusu: 91 adaydan 88 snapshot, 3 düşük kapsam nedeniyle
+      atlandı. Tekrar koşuları `new=0`, `updated=88`; migration head ve API
+      sıralama/ticker geçmişi canlı doğrulandı.
 
 ## Faz 8 — Paper Portföy Motoru
 ⬜ Başlanmadı
 
 ## Faz 9 — Next.js Dashboard
-⬜ Başlanmadı
+✅ Mevcut Faz 1-7 özellikleri için responsive arayüz tamamlandı
+
+- [x] Genel bakış, piyasalar/hisse detayı, haber, KAP, AI analizleri, kurumsal
+      veriler ve bileşik sinyal sıralaması; detay ekranları ve sayfalama.
+- [x] Renkler `web/src/app/globals.css` içindeki tek tema token bloğundan yönetiliyor.
+- [x] Bileşik skor sıralaması dashboard ve hisse detayına bağlandı; production
+      Docker build ve ana rotalar canlı veriyle HTTP 200 doğrulandı.
 
 ## Faz 10 — Alarm + Gözlemlenebilirlik
 ⬜ Başlanmadı

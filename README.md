@@ -16,12 +16,15 @@ istekle doğrulandı.
 ✅ **Faz 1 — Hisse Evreni + Fiyat Verisi**: kod ve gerçek PostgreSQL
 entegrasyonu doğrulandı (807 ticker; örnek fiyat akışı x2 idempotent).
 
-✅ **Faz 2 — KAP Toplayıcı**: bildirim/detay/ek collector'ı, Java `byte[]` PDF
-çözümü, API uçları ve cron gerçek Docker/PostgreSQL üzerinde doğrulandı.
-İkinci canlı koşu `new=0`, `details_fetched=0` verdi.
+✅ **Faz 2-7 — Piyasa İstihbaratı + Bileşik Sinyal**: KAP, haber, Gemini
+değerlendirmesi, temel analiz, analist konsensüsü, TEFAS fon akımı ve bunları
+birleştiren sürümlü 0-100 skor motoru tamamlandı.
 
-Toplam **26 ağsız test** geçiyor. Docker ile yapılan canlı testlerin sayısal
-sonuçları ve geçici KAP ek indirme hataları `.claude/CODEX_NOTES.md` içinde.
+✅ **Dashboard**: mevcut özelliklerin tamamı için responsive Next.js arayüz,
+detay ekranları, sayfalama ve merkezi tema sistemi hazır.
+
+Toplam **72 ağsız test** geçiyor. Docker ile yapılan canlı doğrulamaların
+sayısal sonuçları `.claude/CODEX_NOTES.md` içinde.
 
 ## Hızlı başlangıç (yerel geliştirme)
 

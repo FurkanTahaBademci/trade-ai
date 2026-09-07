@@ -23,6 +23,7 @@ from app.tasks.jobs import (
     collect_kap,
     collect_news,
     collect_prices,
+    compute_signals,
     evaluate_sources,
 )
 
@@ -57,6 +58,7 @@ class WorkerSettings:
         collect_fund_flows,
         collect_institutional_reports,
         evaluate_sources,
+        compute_signals,
     ]
     cron_jobs: ClassVar[list] = [
         cron(heartbeat, minute=set(range(0, 60, 5))),  # her 5 dakikada bir
@@ -64,6 +66,8 @@ class WorkerSettings:
         cron(collect_news, minute=set(range(0, 60, 5)), second=30),
         # Haber/KAP toplandiktan sonra; LLM_ENABLED=false ise ucretli cagri yok.
         cron(evaluate_sources, minute=set(range(2, 60, 10))),
+        # LLM degerlendirmesinden sonra bilesik skorlari tazele.
+        cron(compute_signals, minute=set(range(4, 60, 10))),
         # Aday evren temel analizi; gunde bir, instrument yenilemesinden sonra.
         cron(collect_fundamentals, hour={7}, minute={0}),
         # Kurumsal hedefler sabah; TEFAS akimi gun sonu verisi sonrasinda.

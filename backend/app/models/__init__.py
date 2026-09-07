@@ -17,11 +17,13 @@ from app.models.kap import KapAttachment, KapDisclosure
 from app.models.llm_evaluation import LlmEvaluation
 from app.models.news import NewsArticle
 from app.models.price import PriceDaily
+from app.models.signal import CompositeSignalSnapshot
 
 __all__ = [
     "AnalystConsensus",
     "AnalystRecommendation",
     "Base",
+    "CompositeSignalSnapshot",
     "FinancialFact",
     "FundFlowAggregate",
     "FundSnapshot",

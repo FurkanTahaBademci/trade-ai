@@ -11,6 +11,7 @@ Kullanim:
     python -m scripts.run_once institutional-reports
     python -m scripts.run_once institutional-reports --max-pages 2
     python -m scripts.run_once fund-flows --fund-kind YAT --days 7
+    python -m scripts.run_once signals --tickers THYAO,ASELS
     python -m scripts.run_once prices --tickers THYAO,ASELS,GARAN --days 30
     python -m scripts.run_once prices                    # tum aktif hisseler, 3 yil backfill
 
@@ -139,6 +140,13 @@ async def run_fund_flows(fund_kind: str, days: int | None) -> dict:
         return await collector.run_tracked()
 
 
+async def run_signals(tickers: list[str] | None) -> dict:
+    from app.signals.service import run_signal_engine
+
+    async with session_factory() as session:
+        return await run_signal_engine(session, tickers=tickers)
+
+
 COLLECTORS = {
     "analysts": lambda args: run_analysts(),
     "institutional-reports": lambda args: run_institutional_reports(args.max_pages),
@@ -156,6 +164,7 @@ COLLECTORS = {
         tickers=args.tickers.split(",") if args.tickers else None,
         days=args.days,
     ),
+    "signals": lambda args: run_signals(args.tickers.split(",") if args.tickers else None),
 }
 
 

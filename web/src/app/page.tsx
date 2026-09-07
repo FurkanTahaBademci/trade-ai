@@ -1,14 +1,14 @@
 import Link from "next/link";
 import { apiGet } from "@/lib/api";
-import type { Disclosure, Evaluation, FundFlow, Instrument, NewsArticle } from "@/lib/types";
-import { eventName, formatDate, formatMoney, formatPercent, relativeTime, sourceName } from "@/lib/format";
+import type { CompositeSignal, Disclosure, Evaluation, FundFlow, Instrument, NewsArticle } from "@/lib/types";
+import { eventName, formatDate, formatMoney, formatPercent, relativeTime, signalName, sourceName } from "@/lib/format";
 import { Icon } from "@/components/icon";
 import { EmptyState, ScoreRing, SectionTitle, ServiceNotice, TickerPills } from "@/components/ui";
 
 export default async function Home() {
-  const [instruments, news, disclosures, evaluations, flows, health] = await Promise.all([
+  const [instruments, news, disclosures, evaluations, flows, signals, health] = await Promise.all([
     apiGet<Instrument[]>("/api/instruments", []), apiGet<NewsArticle[]>("/api/news?limit=6", []), apiGet<Disclosure[]>("/api/disclosures?limit=5", []),
-    apiGet<Evaluation[]>("/api/evaluations?status=succeeded&limit=20", []), apiGet<FundFlow[]>("/api/funds/flows?limit=7", []), apiGet<Record<string, unknown>>("/health/detailed", {}),
+    apiGet<Evaluation[]>("/api/evaluations?status=succeeded&limit=20", []), apiGet<FundFlow[]>("/api/funds/flows?limit=7", []), apiGet<CompositeSignal[]>("/api/signals?limit=5", []), apiGet<Record<string, unknown>>("/health/detailed", {}),
   ]);
   const focus = evaluations.data.find((item) => item.summary && item.impact_score != null);
   const latestFlow = flows.data[0];
@@ -21,7 +21,7 @@ export default async function Home() {
     <section className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       <Metric icon="markets" label="Takip evreni" value={instruments.ok ? instruments.data.length.toLocaleString("tr-TR") : "—"} meta="aktif BIST hissesi"/>
       <Metric icon="news" label="Son haberler" value={news.ok ? String(news.data.length) : "—"} meta="güncel akışta"/>
-      <Metric icon="ai" label="AI değerlendirme" value={evaluations.ok ? String(evaluations.data.length) : "—"} meta="son başarılı analiz"/>
+      <Metric icon="ai" label="Bileşik sinyal" value={signals.ok ? String(signals.data.length) : "—"} meta="güncel sıralamada"/>
       <Metric icon="funds" label="Fon hisse akımı" value={formatMoney(latestFlow?.estimated_stock_flow, true)} meta={latestFlow ? `${formatDate(latestFlow.date)} · ${formatPercent(latestFlow.positive_flow_pct)} pozitif` : "veri bekleniyor"} tone={(latestFlow?.estimated_stock_flow ?? 0) >= 0 ? "positive" : "negative"}/>
     </section>
 
@@ -33,6 +33,7 @@ export default async function Home() {
       </div>
 
       <div className="space-y-6">
+        <section><SectionTitle title="Bileşik sıralama" subtitle="Güncel teknik görünüm" href="/sinyaller"/><div className="panel-flat overflow-hidden">{signals.data.length ? signals.data.map((item, index) => <Link href={`/piyasalar/${item.ticker}`} key={item.id} className={`flex items-center gap-3 p-3.5 transition hover:bg-[var(--surface-hover)] ${index ? "border-t" : ""}`} style={{ borderColor: "var(--border)" }}><span className="w-5 text-center text-[11px] font-semibold text-[var(--text-muted)]">{index + 1}</span><span className="font-semibold text-[var(--primary)]">{item.ticker}</span><span className={`pill ml-auto ${item.signal_label.includes("POSITIVE") ? "pill-positive" : item.signal_label.includes("NEGATIVE") ? "pill-negative" : ""}`}>{signalName(item.signal_label)}</span><span className="w-8 text-right text-sm font-semibold">{Math.round(item.composite_score)}</span></Link>) : <EmptyState compact title="Skorlar hesaplanıyor"/>}</div></section>
         <section><SectionTitle title="Son KAP bildirimleri" subtitle="Şirket açıklamaları" href="/kap"/><div className="panel-flat overflow-hidden">{disclosures.data.length ? disclosures.data.map((item, i) => <Link href={`/kap/${item.disclosure_index}`} key={item.disclosure_index} className={`block p-4 transition hover:bg-[var(--surface-hover)] ${i ? "border-t" : ""}`} style={{ borderColor: "var(--border)" }}><div className="mb-2 flex items-center justify-between gap-3"><TickerPills tickers={item.ticker_codes}/><span className="shrink-0 text-[11px] text-[var(--text-muted)]">{relativeTime(item.published_at)}</span></div><p className="line-clamp-2 text-sm font-medium leading-5">{item.subject || item.summary || item.kap_title}</p>{item.attachment_count > 0 && <p className="mt-2 flex items-center gap-1 text-[11px] text-[var(--text-muted)]"><Icon name="file" size={12}/>{item.attachment_count} ek dosya</p>}</Link>) : <EmptyState compact/>}</div></section>
         <section><SectionTitle title="Veri kaynakları" subtitle="Sistem bağlantı durumu"/><div className="panel-flat divide-y divide-[var(--border)]">{["KAP bildirim servisi", "Piyasa fiyatları", "Haber kaynakları", "Kurumsal veri"].map((label) => <div key={label} className="flex items-center gap-3 px-4 py-3.5"><span className={`h-2 w-2 rounded-full ${servicesUp ? "bg-[var(--positive)]" : "bg-[var(--warning)]"}`}/><span className="text-xs font-medium">{label}</span><span className="ml-auto text-[11px] text-[var(--text-muted)]">{servicesUp ? "Bağlı" : "Bekleniyor"}</span></div>)}</div></section>
       </div>

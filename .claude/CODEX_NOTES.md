@@ -107,10 +107,25 @@ ediyordu.
 
 ### Sıradaki iş
 
-Faz 6 artık ✅. Sırada Faz 7 (bileşik skor + sinyal motoru) var — haber/KAP
-LLM değerlendirmeleri, temel analiz skoru, analist konsensüsü ve fon akımını
-0-100 tek skora birleştirecek. Faz 4'ün gerçek Gemini API anahtarı doğrulaması
+Faz 7 ve mevcut özellikleri kapsayan Faz 9 dashboard artık ✅. Sırada Faz 8
+(paper portföy motoru) var. Faz 4'ün gerçek Gemini API anahtarı doğrulaması
 hâlâ ayrı açık madde (kullanıcı tarafında).
+
+## 2026-09-07 — Faz 7 bileşik skor + sinyal motoru ve dashboard entegrasyonu
+
+- `composite_signal_snapshot`: ticker/gün/model sürümü doğal anahtarı; skor,
+  pozitif/nötr/negatif teknik etiket, güven, kapsam ve kaynak kanıtları.
+- V1 sabit ağırlıkları LLM `%35`, temel `%30`, analist `%25`, TEFAS piyasa
+  akımı `%10`. Eksik bileşenler sıfır değildir; mevcut ağırlıklar normalize
+  edilir ve en az iki kaynak zorunludur.
+- LLM dokümanları Tier 2 önceliği, confidence ve recency decay ile; analist
+  bileşeni oy dağılımı + hedef potansiyeliyle; piyasa rejimi akım büyüklüğü +
+  pozitif fon genişliğiyle hesaplanır. Model sürümü `v1`.
+- API liste/filtre/geçmiş, manuel CLI ve LLM sonrasında 10 dakikalık ARQ cron
+  eklendi. Arayüzde ayrı `/sinyaller` sıralaması, ana sayfa ilk beş ve hisse
+  detayında bileşen barları bulunuyor.
+- Docker/PostgreSQL canlı koşu x2+: 91 aday, 88 snapshot, 3 düşük kapsam;
+  tekrar `new=0`, `updated=88`. Alembic head `e84b2b3d91f0`, 72 test geçti.
 
 ## 2026-09-07 — Faz 6 analist konsensüsü ve TEFAS fon akımı (çekirdek)
 
