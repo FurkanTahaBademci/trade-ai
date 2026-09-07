@@ -489,7 +489,7 @@ Durumlar: ⬜ başlanmadı · 🔶 devam ediyor · ✅ tamamlandı ve doğruland
       (0 bulgu), Ruff ve toplam **102/102 test** temiz.
 
 ## Faz 14 — Değerlendirme / Backtest
-🟨 Devam ediyor
+✅ Kod, testler, production build ve gerçek Docker/PostgreSQL akışı doğrulandı
 
 - [x] Bilesik sinyalleri, sinyal tarihinden sonraki ilk mevcut EOD kapanisinda
       uygulayan; komisyon, kayma, nakit ve pozisyon limitlerini hesaba katan
@@ -500,7 +500,22 @@ Durumlar: ⬜ başlanmadı · 🔶 devam ediyor · ✅ tamamlandı ve doğruland
       maliyet metriklerini; varsayimlariyla birlikte `/backtest` ekraninda goster.
 - [x] Yetersiz veri ve sinyal sonrasi fiyat bulunamama durumlarini acikla; gercek
       endeks verisi olmadan temsili benchmark veya sonuc uydurma.
-- [ ] Birim/API testleri, production build ve Docker smoke testiyle dogrula.
+- [x] Birim/API testleri, production build ve Docker smoke testiyle dogrula.
+      Motor testleri (giris/cikis filtreleri, gecikmis/kayip fiyat atlama,
+      acik pozisyon mark-to-market, ucret/kayma/drawdown/Sharpe, bos veri seti,
+      gecersiz config) ve API sozlesme testleri (route kaydi, varsayilan/gecersiz
+      istek, durum hesaplama) dahil **117/117 test** (backend geneli) yesil;
+      degisen dosyalarda Ruff temiz. Web production build (`next build`,
+      Turbopack) hatasiz tamamlandi, `/backtest` route derlendi.
+      Canli Docker/PostgreSQL kosusu: `POST /api/backtests` gercek
+      `composite_signal_snapshot` (176 sinyal) ve `price_daily` (351 fiyat)
+      verisiyle calisti, `backtest_run/_point/_trade` tablolarina yazdi;
+      EOD fiyat toplayicisi o an `pending` oldugundan sinyal sonrasi fiyat
+      bulunamayip `status=INSUFFICIENT_DATA` dondu — bu, motorun veri
+      uydurmadan dogru sekilde raporladigi beklenen davranis. `GET
+      /api/backtests` listesi, `GET /api/backtests/{id}` detayi ve bulunamayan
+      id icin 404 canli API'de dogrulandi; `/backtest` ekrani gercek calisan
+      web container'inda HTTP 200 ve kosunun tarih/metrik verisiyle rendered.
 
 ---
 
