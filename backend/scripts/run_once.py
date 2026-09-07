@@ -7,6 +7,8 @@ Kullanim:
     python -m scripts.run_once news
     python -m scripts.run_once llm
     python -m scripts.run_once fundamentals --tickers THYAO,ASELS --start-year 2025
+    python -m scripts.run_once analysts
+    python -m scripts.run_once fund-flows --fund-kind YAT --days 7
     python -m scripts.run_once prices --tickers THYAO,ASELS,GARAN --days 30
     python -m scripts.run_once prices                    # tum aktif hisseler, 3 yil backfill
 
@@ -101,7 +103,33 @@ async def run_fundamentals(
         return await collector.run_tracked()
 
 
+async def run_analysts() -> dict:
+    from app.collectors.analysts import AnalystCollector
+
+    async with session_factory() as session, AnalystCollector(session) as collector:
+        return await collector.run_tracked()
+
+
+async def run_fund_flows(fund_kind: str, days: int | None) -> dict:
+    from app.collectors.fund_flows import FundFlowCollector
+
+    lookback = days or 7
+    if lookback < 1 or lookback > 28:
+        raise ValueError("fund-flows --days 1 ile 28 arasinda olmali")
+    end = datetime.now(ZoneInfo("Europe/Istanbul")).date()
+    start = end - timedelta(days=lookback - 1)
+    async with (
+        session_factory() as session,
+        FundFlowCollector(
+            session, fund_kind=fund_kind, start_date=start, end_date=end
+        ) as collector,
+    ):
+        return await collector.run_tracked()
+
+
 COLLECTORS = {
+    "analysts": lambda args: run_analysts(),
+    "fund-flows": lambda args: run_fund_flows(args.fund_kind, args.days),
     "fundamentals": lambda args: run_fundamentals(
         tickers=args.tickers.split(",") if args.tickers else None,
         start_year=args.start_year,
@@ -139,6 +167,12 @@ def main() -> None:
     )
     parser.add_argument("--start-year", type=int, help="Finansal tablo baslangic yili.")
     parser.add_argument("--end-year", type=int, help="Finansal tablo bitis yili.")
+    parser.add_argument(
+        "--fund-kind",
+        choices=["YAT", "EMK", "BYF", "GYF", "GSYF"],
+        default="YAT",
+        help="TEFAS fon tipi (varsayilan: YAT).",
+    )
     args = parser.parse_args()
 
     result = asyncio.run(COLLECTORS[args.collector](args))

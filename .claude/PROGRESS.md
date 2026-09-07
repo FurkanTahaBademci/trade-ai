@@ -256,7 +256,34 @@ Durumlar: ⬜ başlanmadı · 🔶 devam ediyor · ✅ tamamlandı ve doğruland
       anahtar benzersiz, API son snapshot ve ham `3C` satış kalemini döndürdü.
 
 ## Faz 6 — Analist Tavsiyeleri + Fon Akımları + Konsensüs
-⬜ Başlanmadı
+🔶 Çekirdek akış ve Docker entegrasyonu doğrulandı; kurum PDF hattı açık
+
+- [x] `AnalystRecommendation` + günlük `AnalystConsensus` modelleri ve
+      `c62f1a8e4d73` migration'ı: kaynak/kurum/tarih/hedef/tavsiye geçmişi,
+      kurum bazında son görüş, hedef dağılımı ve 0-100 görüş skoru saklanıyor.
+- [x] Doğrudan kurumsal kaynak olarak İş Yatırım takip listesi ve çok-kurumlu
+      agregatör olarak Halka Arz Takvimi ayrı parser/sağlık takibiyle bağlandı.
+      AL/TUT/SAT, endekse göre görüşler ve gözden geçiriliyor ortak sözlüğe
+      normalize ediliyor; aynı kurum iki kaynakta varsa en güncel, eşit tarihte
+      doğrudan kurumsal kayıt kazanıyor.
+- [x] `FundSnapshot` + `FundFlowAggregate`: TEFAS resmi genel bilgi ve portföy
+      dağılımı JSON uçları fon/tarih bazında birleştiriliyor. Net fon akımı,
+      AUM değişiminden birim fiyat getiri etkisi çıkarılarak tahmin ediliyor;
+      güncel yurtiçi hisse ağırlığıyla tahmini hisse akımı hesaplanıyor.
+- [x] API: analist geçmişi/konsensüsü, fon snapshot geçmişi ve günlük fon akım
+      agregaları. ARQ analist işi 07:30, TEFAS işi 20:00; manuel `analysts` ve
+      `fund-flows --fund-kind YAT --days 7` komutları.
+- [x] İki analist HTML kaynağı ve iki fon/iki gün TEFAS JSON'u gerçek fixture
+      olarak eklendi. Docker içinde **58/58 test geçti**; Ruff ve Alembic check
+      temiz, worker 17 fonksiyonla başladı.
+- [x] Canlı analist koşusu x2: 427 kabul edilen görüş, 90 ticker konsensüsü;
+      ikinci koşu `new=0`. THYAO konsensüsü 9 ayrı kurum üzerinden API'de
+      doğrulandı.
+- [x] Canlı TEFAS YAT koşusu x2: 10.202 snapshot, 10.037 dağılım eşleşmesi ve 5
+      işlem günü agregası; ikinci koşu `new=0`. DB'de 10.202/10.202 doğal anahtar
+      benzersiz.
+- [ ] Kurumların yayımladığı özgün PDF raporları için keşif/indirme/metin ve
+      tablo çıkarma hattı eklenip doğrudan kaynak kapsamı genişletilecek.
 
 ## Faz 7 — Bileşik Skor + Sinyal Motoru
 ⬜ Başlanmadı

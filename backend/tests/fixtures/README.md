@@ -13,6 +13,9 @@ agdaki servislere baglanmadan, gercekci veriyle calisabilsin (bkz. proje
 | `rss/bloomberght_sample.xml` | `bloomberght.com/rss` (ham XML) | 2026-09-06 |
 | `rss/investing_tr_sample.xml` | `tr.investing.com/rss/news.rss` (ham XML) | 2026-09-06 |
 | `financials/thyao_2025_sample.json` | İş Yatırım `MaliTablo` (147 satırdan analizde kullanılan 14 gerçek kalem) | 2026-09-07 |
+| `analysts/isyatirim_tracking_sample.html` | İş Yatırım takip listesi (3 gerçek satıra küçültülmüş) | 2026-09-07 |
+| `analysts/halkaarz_targets_sample.html` | Halka Arz Takvimi hedef fiyat listesi (4 gerçek satıra küçültülmüş) | 2026-09-07 |
+| `tefas/flow_sample.json` | TEFAS genel bilgi + dağılım (2 fon, 2 gerçek gün) | 2026-09-07 |
 
 **Not:** Kaynaklarin semasi degisirse (yeni alan, kaldirilan alan, farkli
 sarmalayici) bu dosyalar guncellenmeli — `backend/scripts/smoke_sources.py`

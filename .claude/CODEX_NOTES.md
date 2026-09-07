@@ -6,6 +6,44 @@ Bu dosya, Codex'in yaptığı değişiklikleri Claude ve diğer ajanların hızl
 inceleyebilmesi için tutulur. Kanonik faz durumu `PROGRESS.md`, değişmemesi
 gereken ürün kararları `CLAUDE.md` içindedir.
 
+## 2026-09-07 — Faz 6 analist konsensüsü ve TEFAS fon akımı (çekirdek)
+
+### Tamamlananlar
+
+- Analist görüş geçmişi ile günlük ticker konsensüsü için iki tablo; TEFAS fon
+  snapshot'ı ile günlük fon akım agregası için iki tablo eklendi. Migration
+  head `c62f1a8e4d73`.
+- İş Yatırım'ın resmi takip tablosu doğrudan kurumsal kaynak, Halka Arz Takvimi
+  çok-kurumlu agregatör olarak ayrık parser'larla bağlandı. Kurum bazında yalnız
+  son görüş konsensüse giriyor; tarih eşitliğinde doğrudan kaynak agregatörü
+  eziyor. Tavsiyeler BUY/HOLD/SELL/REVIEW sözlüğüne normalize ediliyor.
+- Konsensüs kurum ve oy sayıları, ortalama/medyan/min/max hedef, son EOD fiyata
+  göre potansiyel, hedef dağılımı ve 0-100 görüş skorunu saklıyor.
+- TEFAS `fonGnlBlgSiraliGetir` ve `dagilimSiraliGetirT` yanıtları fon/tarih
+  anahtarında birleştirildi. Net giriş/çıkış tahmini
+  `AUM_t - AUM_(t-1) * fiyat_t / fiyat_(t-1)`; yurtiçi hisse akımı bunun güncel
+  `hs` ağırlığıyla çarpımıdır. Bu bir tahmindir, TEFAS'ın yayımladığı doğrudan
+  nakit akışı alanı değildir.
+- Analist/fon API'leri, günlük 07:30 ve 20:00 cron'ları, manuel CLI komutları ve
+  gerçek-kaynak fixture testleri eklendi.
+
+### Canlı doğrulama
+
+- Analist x2: iki kaynak da 200; 53 İş Yatırım + 374 agregatör = 427 kayıt,
+  90 ticker konsensüsü. İkinci koşu `new=0`; DB 427/427 doğal anahtar benzersiz.
+  THYAO için 9 kurum, 400-580 TL hedef bandı ve kaynak kırılımı API'de döndü.
+- TEFAS YAT x2: 7 günlük istekte 10.202 snapshot, 10.037 dağılım eşleşmesi ve 5
+  işlem günü agregası. İkinci koşu `new=0`; DB 10.202/10.202 doğal anahtar
+  benzersiz. AAV snapshot ve günlük piyasa agregası API'den doğrulandı.
+- Docker suite **58 passed**; Alembic head/check, Ruff/format ve whitespace
+  kontrolleri temiz. Worker 17 fonksiyonla yeni iki cron'u kaydetti.
+
+### Açık kalan Faz 6 işi
+
+Kilit ürün kararındaki özgün kurum PDF hattı henüz eklenmedi. Mevcut doğrudan
+İş Yatırım HTML kaynağı güvenilir kurumsal kapsam sağlıyor, ancak PDF rapor
+keşfi/indirme/checksum/metin-tablosu çıkarımı tamamlanmadan Faz 6 ✅ yapılmadı.
+
 ## 2026-09-07 — Faz 5 temel analiz motoru
 
 ### Tamamlananlar

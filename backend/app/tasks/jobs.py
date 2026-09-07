@@ -69,3 +69,17 @@ async def collect_fundamentals(ctx: dict) -> dict:
     # fazla 50 aktif BIST kodunu secer; tum evreni maliyetli sekilde taramaz.
     async with session_factory() as session, FundamentalsCollector(session) as collector:
         return await collector.run_tracked()
+
+
+async def collect_analysts(ctx: dict) -> dict:
+    from app.collectors.analysts import AnalystCollector
+
+    async with session_factory() as session, AnalystCollector(session) as collector:
+        return await collector.run_tracked()
+
+
+async def collect_fund_flows(ctx: dict) -> dict:
+    from app.collectors.fund_flows import FundFlowCollector
+
+    async with session_factory() as session, FundFlowCollector(session) as collector:
+        return await collector.run_tracked()
