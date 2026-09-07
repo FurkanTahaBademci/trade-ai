@@ -52,6 +52,7 @@ services:
   api:
     build:
       context: ./backend
+      dockerfile: Dockerfile
     restart: unless-stopped
     init: true
     read_only: true
@@ -86,6 +87,7 @@ services:
   worker:
     build:
       context: ./backend
+      dockerfile: Dockerfile
     restart: unless-stopped
     init: true
     read_only: true
@@ -116,6 +118,7 @@ services:
   web:
     build:
       context: ./web
+      dockerfile: Dockerfile
     restart: unless-stopped
     init: true
     read_only: true
