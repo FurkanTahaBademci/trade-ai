@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { MarketFeedItem } from "@/lib/types";
+import { fetchMarketFeed, searchMarketFeed } from "@/lib/market-feed";
 import { Icon } from "./icon";
 
 export function CommandPalette() {
@@ -11,7 +12,19 @@ export function CommandPalette() {
   const [query, setQuery] = useState("");
   const [index, setIndex] = useState(0);
   const [items, setItems] = useState<MarketFeedItem[] | null>(null);
+  const [loadError, setLoadError] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const loadItems = useCallback(() => {
+    setItems(null);
+    setLoadError(false);
+    fetchMarketFeed()
+      .then(setItems)
+      .catch(() => {
+        setItems([]);
+        setLoadError(true);
+      });
+  }, []);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -30,25 +43,17 @@ export function CommandPalette() {
     if (!open) return;
     setQuery("");
     setIndex(0);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     inputRef.current?.focus();
-    if (items == null) {
-      fetch("/api/market-feed", { cache: "no-store" })
-        .then((response) => (response.ok ? response.json() : []))
-        .then((data: MarketFeedItem[]) => setItems(Array.isArray(data) ? data : []))
-        .catch(() => setItems([]));
-    }
-  }, [open, items]);
+    return () => { document.body.style.overflow = previousOverflow; };
+  }, [open]);
 
-  const results = useMemo(() => {
-    const value = query.trim().toLocaleUpperCase("tr-TR");
-    if (!items) return [];
-    const filtered = !value
-      ? items
-      : items.filter((item) => item.ticker.includes(value) || item.name.toLocaleUpperCase("tr-TR").includes(value));
-    return filtered
-      .sort((a, b) => Number(b.ticker.startsWith(value)) - Number(a.ticker.startsWith(value)))
-      .slice(0, 8);
-  }, [items, query]);
+  useEffect(() => {
+    if (open && items == null) loadItems();
+  }, [items, loadItems, open]);
+
+  const results = useMemo(() => searchMarketFeed(items ?? [], query), [items, query]);
 
   function select(item: MarketFeedItem) {
     setOpen(false);
@@ -56,14 +61,14 @@ export function CommandPalette() {
   }
 
   function onKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
-    if (event.key === "ArrowDown") { event.preventDefault(); setIndex((i) => Math.min(i + 1, results.length - 1)); }
-    else if (event.key === "ArrowUp") { event.preventDefault(); setIndex((i) => Math.max(i - 1, 0)); }
+    if (event.key === "ArrowDown" && results.length) { event.preventDefault(); setIndex((i) => Math.min(i + 1, results.length - 1)); }
+    else if (event.key === "ArrowUp" && results.length) { event.preventDefault(); setIndex((i) => Math.max(i - 1, 0)); }
     else if (event.key === "Enter" && results[index]) { event.preventDefault(); select(results[index]); }
   }
 
   return <>
-    <button type="button" onClick={() => setOpen(true)} className="hidden h-9 w-56 items-center gap-2 rounded-[10px] border px-3 text-xs text-[var(--text-muted)] transition hover:bg-[var(--surface-hover)] md:flex" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
-      <Icon name="search" size={15}/> Hisse ara... <kbd className="ml-auto text-[10px]">⌘ K</kbd>
+    <button type="button" onClick={() => setOpen(true)} aria-label="Hisse ara" className="flex h-9 w-9 items-center justify-center gap-2 rounded-[10px] border text-xs text-[var(--text-muted)] transition hover:bg-[var(--surface-hover)] md:w-56 md:justify-start md:px-3" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
+      <Icon name="search" size={15}/><span className="hidden md:inline">Hisse ara...</span><kbd className="ml-auto hidden text-[10px] md:inline">Ctrl K</kbd>
     </button>
     {open && <div className="fixed inset-0 z-[60] grid place-items-start justify-center pt-[12vh]">
       <button type="button" aria-label="Kapat" className="fixed inset-0 bg-[var(--overlay)]" onClick={() => setOpen(false)}/>
@@ -77,14 +82,19 @@ export function CommandPalette() {
             onKeyDown={onKeyDown}
             placeholder="Kod veya şirket adıyla ara..."
             aria-label="Hisse ara"
+            aria-controls="market-search-results"
+            aria-expanded="true"
+            aria-activedescendant={results[index] ? `market-result-${results[index].ticker}` : undefined}
+            role="combobox"
             className="h-14 w-full bg-transparent text-sm outline-none placeholder:text-[var(--text-muted)]"
           />
           <kbd className="text-[10px] text-[var(--text-muted)]">Esc</kbd>
         </div>
-        <div className="max-h-[50vh] overflow-y-auto p-2">
+        <div id="market-search-results" role="listbox" className="max-h-[50vh] overflow-y-auto p-2">
           {items == null ? <p className="p-4 text-center text-xs text-[var(--text-muted)]">Yükleniyor...</p>
+            : loadError ? <div className="p-4 text-center"><p className="text-xs text-[var(--negative)]">Piyasa verileri yüklenemedi.</p><button type="button" onClick={loadItems} className="mt-3 rounded-md border px-3 py-1.5 text-xs" style={{ borderColor: "var(--border)" }}>Tekrar dene</button></div>
             : results.length === 0 ? <p className="p-4 text-center text-xs text-[var(--text-muted)]">{query ? "Eşleşen hisse yok" : "Aramaya başlayın"}</p>
-            : results.map((item, i) => <button key={item.ticker} type="button" onMouseEnter={() => setIndex(i)} onClick={() => select(item)} className={`flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-left text-sm transition ${i === index ? "bg-[var(--primary-soft)] text-[var(--primary)]" : "hover:bg-[var(--surface-hover)]"}`}>
+            : results.map((item, i) => <button id={`market-result-${item.ticker}`} role="option" aria-selected={i === index} key={item.ticker} type="button" onMouseEnter={() => setIndex(i)} onClick={() => select(item)} className={`flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-left text-sm transition ${i === index ? "bg-[var(--primary-soft)] text-[var(--primary)]" : "hover:bg-[var(--surface-hover)]"}`}>
               <span className="font-semibold">{item.ticker}</span>
               <span className="min-w-0 flex-1 truncate text-xs text-[var(--text-muted)]">{item.name}</span>
               {item.composite_score != null && <span className="text-[10px] text-[var(--text-muted)]">{Math.round(item.composite_score)}/100</span>}

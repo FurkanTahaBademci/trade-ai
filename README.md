@@ -25,7 +25,8 @@ risk sınırları ve mükerrer işlem koruması olan sanal portföy motoru tamam
 
 ✅ **Dashboard**: mevcut özelliklerin tamamı için responsive Next.js arayüz,
 detay ekranları, Haber/KAP/AI Analiz/Sinyal/Piyasa listelerinde kaydırdıkça
-kademeli yükleme, paper portföy görünümü ve merkezi tema sistemi hazır.
+kademeli yükleme, her ekrandan hisse arama, tarayıcı tabanlı izleme listesi,
+paper portföy görünümü ve merkezi tema sistemi hazır.
 
 ✅ **TCMB Faiz & Makro**: resmî PPK kararları ve yaklaşan toplantılar, faiz
 koridoru ve senaryo bazlı piyasa aktarım kanallarıyla izleniyor.
@@ -38,8 +39,8 @@ Ayarlar PostgreSQL'de kalır; Redis kilidi mükerrer worker tetiklemesini önler
 rotasyonu, salt-okunur dosya sistemi ve yetkisiz kullanıcılarla sertleştirildi.
 PostgreSQL/Redis kalıcılığı ile yedekleme, geri yükleme ve üretim smoke komutları hazır.
 
-Toplam **102 ağsız test** geçiyor. Docker ile yapılan canlı doğrulamaların
-sayısal sonuçları `.claude/CODEX_NOTES.md` içinde.
+Toplam **150 backend + 28 web ağsız test** geçiyor. Docker ile yapılan canlı
+doğrulamaların sayısal sonuçları `.claude/CODEX_NOTES.md` içinde.
 
 ## Hızlı başlangıç (yerel geliştirme)
 

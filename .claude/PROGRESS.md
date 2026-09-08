@@ -422,7 +422,7 @@ Durumlar: ⬜ başlanmadı · 🔶 devam ediyor · ✅ tamamlandı ve doğruland
       kutusu ve zil ikonu daha önce tamamen dekoratifti (yalnız `/piyasalar`'a
       link). Şimdi ⌘K/Ctrl+K ile her sayfadan açılan gerçek bir komut paleti
       var — 807 hisseyi tek istekte (`GET /api/market-feed`, `/api/instruments`
-      + `/api/signals`'ı birleştiren same-origin proxy) fuzzy arar, ok
+      + `/api/signals`'ı birleştiren same-origin proxy) kod/şirket adında arar, ok
       tuşlarıyla gezilir, Enter ile hisse sayfasına gider. İzleme listesi
       bilinçli olarak yalnızca tarayıcı `localStorage`'ında tutulur (tek
       kullanıcılı, kimlik doğrulamasız bir sistemde backend tablosu gereksiz
@@ -436,6 +436,17 @@ Durumlar: ⬜ başlanmadı · 🔶 devam ediyor · ✅ tamamlandı ve doğruland
       `/izleme-listesi` sayfası THYAO'yu doğru skorla gösterdi. **150/150
       backend (değişmedi), 25/25 web testi** yeşil; `tsc --noEmit` ve
       production build temiz.
+- [x] **2026-09-08 sağlamlaştırma:** Arama tetikleyicisi mobil üst çubukta da
+      erişilebilir yapıldı. Palet yüklenirken yazılmış sorgunun istek bitince
+      sıfırlanması ve boş sonuçta klavye seçiminin `-1` olması düzeltildi;
+      combobox/listbox erişilebilirlik bağları, arka plan kaydırma kilidi ve
+      görünür hata/yeniden-dene durumu eklendi. İzleme listesi artık diğer
+      sekmelerdeki `storage` değişikliklerini dinliyor; bozuk/tekrarlı ticker
+      kayıtlarını normalize ediyor ve servis hatasını boş liste gibi göstermiyor.
+      Aktif evrenden çıkmış kayıtlar kullanıcı tarafından temizlenebiliyor.
+      Normalizasyon ve sıralama için 3 test eklendi: **150/150 backend,
+      28/28 web testi**, TypeScript, production build ve `npm audit` temiz;
+      390 px headless Chrome görünümünde mobil arama düğmesi doğrulandı.
 
 ## Faz 10 — Alarm + Gözlemlenebilirlik
 🔶 Çekirdek sağlık ve alarm katmanı tamam; genişletiliyor

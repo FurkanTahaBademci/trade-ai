@@ -8,6 +8,25 @@ gereken ürün kararları `CLAUDE.md` içindedir. Aşağıdaki 2026-09-07 (Claud
 girişi Codex değil, Claude tarafından yazıldı — paylaşılan tek devir
 günlüğünü bölmemek için burada tutuluyor, başlıkta ajan belirtildi.
 
+## 2026-09-08 — Arama ve izleme listesi sağlamlaştırması
+
+- Komut paletinin yalnız masaüstünde görünen tetikleyicisi mobil üst çubuğa da
+  taşındı. API isteği sonuçlandığında yazılmış sorguyu sıfırlayan effect döngüsü
+  ayrıldı; boş sonuçta klavye indeksinin negatife düşmesi engellendi.
+- Aramaya combobox/listbox erişilebilirlik ilişkileri, sayfa kaydırma kilidi ve
+  görünür hata/yeniden deneme durumu eklendi. Market yanıtları tarayıcıya
+  alınmadan önce doğrulanıp normalize ediliyor; arama sıralaması giriş dizisini
+  artık mutasyona uğratmıyor.
+- İzleme listesi aynı tarayıcının diğer sekmelerindeki `storage` olaylarını
+  dinliyor. Tekrarlı, bozuk ve küçük harfli localStorage girdileri normalize
+  ediliyor; servis hatası boş liste olarak gösterilmiyor ve artık aktif olmayan
+  ticker kayıtları arayüzden temizlenebiliyor.
+- Üç yeni saf fonksiyon testiyle web toplamı **28/28**; backend **150/150**,
+  TypeScript, Next.js production build, diff kontrolü ve `npm audit` temiz.
+  390 px headless Chrome görünümünde mobil arama düğmesi; CDP ile palet odağı ve
+  API hata görünümü doğrulandı. Bu ortamda Docker soketi yetkisi olmadığı için
+  yeni image/Compose provası ayrıca çalıştırılamadı.
+
 ## 2026-09-08 — Production preflight kontrolü
 
 - `ops/preflight-production.sh` ve `make preflight` eklendi. Kontrol secret
