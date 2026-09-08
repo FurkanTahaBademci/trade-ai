@@ -202,6 +202,21 @@ Durumlar: ⬜ başlanmadı · 🔶 devam ediyor · ✅ tamamlandı ve doğruland
       156 yeni; ikinci koşu `new=0`. Her 5 kaynaktan da en az bir satır
       `GET /api/news?source=...` ile doğrulandı; `/haberler?source=foreks`
       HTTP 200 ve doğru filtre etiketleriyle render edildi.
+- [x] **2026-09-08 6. kaynak — TRT Haber Ekonomi:** resmi devlet yayın kuruluşu
+      teli eklendi, doğrudan BIST100 haberleri içeriyor ("Borsa günü yükselişle
+      tamamladı", "BIST 100 endeksi ... puandan başladı"). Değerlendirilip
+      **eklenmeyen** adaylar (kalite/gürültü nedeniyle): Hürriyet ekonomi feed'i
+      SEO dolgu içeriği ("İTO Firma Sorgulama Nasıl Yapılır" tarzı), Sözcü
+      ekonomi feed'i genel magazin/dizi haberleriyle karışık, Milliyet'in
+      "ekonomirss.xml" adresi genel son-dakika feed'ine yönleniyor, Ekonomim.com
+      genel/magazin içerikli, Finansgundem Cloudflare yönlendirme döngüsünde,
+      CNN Türk/Paraanaliz/BorsaGündem/T24/Bigpara boş veya 404 döndü — ticker
+      eşlemesinde yanlış-pozitif riskini artıracakları için hiçbiri eklenmedi.
+      Toplam 6 RSS kaynağı. `trthaber_sample.xml` fixture'ı (60 gerçek satırdan
+      ilk 15'i) ve yeni mapping testiyle doğrulandı (**127/127 backend test**,
+      21/21 web testi yeşil). Canlı Docker koşusu: 6/6 kaynak başarılı, 245
+      listelendi, 60 yeni; ikinci koşu `new=1` (TRT'nin gerçek zamanlı yeni
+      yayını, idempotency sorunu değil). `/haberler?source=trthaber` HTTP 200.
 
 ## Faz 4 — LLM Değerlendirme Katmanı
 🔶 Kod ve Docker entegrasyonu tamam; canlı Gemini çağrısı API anahtarı bekliyor

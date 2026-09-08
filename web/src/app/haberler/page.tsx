@@ -8,7 +8,7 @@ import { InfiniteNewsFeed } from "@/components/infinite-news-feed";
 
 export const metadata: Metadata = { title: "Haber Akışı" };
 
-const NEWS_SOURCES = ["bloomberght", "investing_tr", "aa_ekonomi", "dunya", "foreks"];
+const NEWS_SOURCES = ["bloomberght", "investing_tr", "aa_ekonomi", "dunya", "foreks", "trthaber"];
 
 export default async function NewsPage({ searchParams }: { searchParams: Promise<{ source?: string }> }) {
   const { source } = await searchParams; const query = source ? `&source=${encodeURIComponent(source)}` : "";
