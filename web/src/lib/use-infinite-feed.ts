@@ -47,11 +47,15 @@ export function useInfiniteFeed<T>({
       const payload: unknown = await response.json();
       if (!Array.isArray(payload)) throw new Error("Invalid feed response");
       const nextItems = payload as T[];
-      setItems((current) => {
-        const knownKeys = new Set(current.map(keyFor));
-        return [...current, ...nextItems.filter((item) => !knownKeys.has(keyFor(item)))];
+      const knownKeys = new Set(items.map(keyFor));
+      const additions = nextItems.filter((item) => {
+        const key = keyFor(item);
+        if (knownKeys.has(key)) return false;
+        knownKeys.add(key);
+        return true;
       });
-      setHasMore(nextItems.length === pageSize);
+      setItems((current) => [...current, ...additions]);
+      setHasMore(nextItems.length === pageSize && additions.length > 0);
     } catch {
       setError("Yeni kayıtlar yüklenemedi. Bağlantıyı kontrol edip tekrar deneyin.");
     } finally {
@@ -62,7 +66,7 @@ export function useInfiniteFeed<T>({
 
   useEffect(() => {
     const sentinel = sentinelRef.current;
-    if (!sentinel || !hasMore) return;
+    if (!sentinel || !hasMore || error || typeof IntersectionObserver === "undefined") return;
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) void loadMore();
@@ -71,7 +75,7 @@ export function useInfiniteFeed<T>({
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [hasMore, loadMore]);
+  }, [error, hasMore, loadMore]);
 
   return { items, hasMore, loading, error, loadMore, sentinelRef };
 }

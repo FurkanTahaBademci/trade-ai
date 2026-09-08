@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 const MAX_PAGE_SIZE = 30;
 const feeds = {
+  backtests: { path: "/api/backtests", parameters: ["before_id"] },
   kap: {
     path: "/api/disclosures",
     parameters: ["before", "before_index"],

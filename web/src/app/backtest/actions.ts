@@ -2,48 +2,39 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { backtestFields, validateBacktestForm, type BacktestField, type BacktestFormState } from "@/lib/backtest-form";
 
-function apiBase() {
-  return process.env.API_INTERNAL_URL ?? "http://localhost:8000";
-}
-
-function numberValue(formData: FormData, name: string) {
-  return Number(formData.get(name));
-}
-
-export async function createBacktestAction(formData: FormData) {
+export async function createBacktestAction(_previous: BacktestFormState, formData: FormData): Promise<BacktestFormState> {
+  const values = Object.fromEntries(Object.keys(backtestFields).map((name) => [name, String(formData.get(name) ?? "")])) as BacktestFormState["values"];
+  const errors = validateBacktestForm(values);
+  if (Object.keys(errors).length) return { values, errors, message: "İşaretli alanları kontrol edin." };
   const payload = {
-    start_date: String(formData.get("start_date") ?? ""),
-    end_date: String(formData.get("end_date") ?? ""),
-    initial_cash: numberValue(formData, "initial_cash"),
-    entry_score: numberValue(formData, "entry_score"),
-    exit_score: numberValue(formData, "exit_score"),
-    max_positions: numberValue(formData, "max_positions"),
-    max_position_weight: numberValue(formData, "max_position_weight") / 100,
-    fee_rate: numberValue(formData, "fee_rate") / 100,
-    slippage_rate: numberValue(formData, "slippage_rate") / 100,
+    start_date: values.start_date, end_date: values.end_date,
+    initial_cash: Number(values.initial_cash), entry_score: Number(values.entry_score), exit_score: Number(values.exit_score),
+    max_positions: Number(values.max_positions), max_position_weight: Number(values.max_position_weight) / 100,
+    fee_rate: Number(values.fee_rate) / 100, slippage_rate: Number(values.slippage_rate) / 100,
   };
-  let destination = "/backtest?result=error&message=API%20servisine%20ula%C5%9F%C4%B1lamad%C4%B1";
+  let runId: number;
   try {
-    const response = await fetch(`${apiBase()}/api/backtests`, {
-      method: "POST",
-      cache: "no-store",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Admin-Token": process.env.ADMIN_API_TOKEN ?? "",
-      },
+    const response = await fetch(`${process.env.API_INTERNAL_URL ?? "http://localhost:8000"}/api/backtests`, {
+      method: "POST", cache: "no-store",
+      headers: { "Content-Type": "application/json", "X-Admin-Token": process.env.ADMIN_API_TOKEN ?? "" },
       body: JSON.stringify(payload),
     });
-    const body = (await response.json().catch(() => null)) as { id?: number; detail?: unknown } | null;
-    if (response.ok && body?.id) {
-      revalidatePath("/backtest");
-      destination = `/backtest?run=${body.id}&result=ok&message=${encodeURIComponent("Backtest tamamlandı ve kaydedildi")}`;
-    } else {
-      const detail = typeof body?.detail === "string" ? body.detail : `İşlem başarısız (HTTP ${response.status})`;
-      destination = `/backtest?result=error&message=${encodeURIComponent(detail)}`;
+    const body = await response.json().catch(() => null) as { id?: number; detail?: unknown } | null;
+    if (!response.ok || !Number.isSafeInteger(body?.id) || !body?.id || body.id < 1) {
+      if (Array.isArray(body?.detail)) {
+        for (const detail of body.detail) {
+          const name = Array.isArray(detail?.loc) ? detail.loc.at(-1) : null;
+          if (typeof name === "string" && Object.hasOwn(backtestFields, name)) errors[name as BacktestField] = "Bu alan için geçerli bir değer girin.";
+        }
+      }
+      return { values, errors, message: response.status === 422 ? "Ayarları kontrol edin; seçilen aralık veya değerler kabul edilmedi." : "Koşu kaydedilemedi. Lütfen tekrar deneyin." };
     }
+    runId = body.id;
   } catch {
-    // Varsayilan baglanti hatasi mesaji kullanilir.
+    return { values, message: "Servise ulaşılamadı. Ayarlarınız korundu; tekrar deneyebilirsiniz." };
   }
-  redirect(destination);
+  revalidatePath("/backtest");
+  redirect(`/backtest?run=${runId}`);
 }
