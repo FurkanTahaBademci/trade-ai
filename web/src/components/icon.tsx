@@ -1,6 +1,6 @@
 import type { SVGProps } from "react";
 
-export type IconName = "home" | "markets" | "news" | "kap" | "ai" | "funds" | "search" | "bell" | "menu" | "close" | "arrow" | "trend" | "spark" | "building" | "file" | "clock" | "check" | "external" | "chevron" | "activity";
+export type IconName = "home" | "markets" | "news" | "kap" | "ai" | "funds" | "search" | "bell" | "menu" | "close" | "arrow" | "trend" | "spark" | "building" | "file" | "clock" | "check" | "external" | "chevron" | "activity" | "star";
 
 const paths: Record<IconName, React.ReactNode> = {
   home: <><path d="m3 10 9-7 9 7"/><path d="M5 9v11h14V9M9 20v-6h6v6"/></>,
@@ -18,6 +18,7 @@ const paths: Record<IconName, React.ReactNode> = {
   file: <><path d="M6 3h9l3 3v15H6z"/><path d="M15 3v4h4"/></>, clock: <><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></>,
   check: <path d="m5 12 4 4L19 6"/>, external: <><path d="M13 5h6v6M19 5l-8 8"/><path d="M17 13v6H5V7h6"/></>, chevron: <path d="m9 18 6-6-6-6"/>,
   activity: <path d="M3 12h4l2-7 4 14 2-7h6"/>,
+  star: <path d="m12 2.5 2.95 6.4 6.98.65-5.28 4.7 1.58 6.9L12 17.6l-6.23 3.55 1.58-6.9-5.28-4.7 6.98-.65z"/>,
 };
 
 export function Icon({ name, size = 18, ...props }: SVGProps<SVGSVGElement> & { name: IconName; size?: number }) {

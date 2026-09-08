@@ -418,6 +418,24 @@ Durumlar: ⬜ başlanmadı · 🔶 devam ediyor · ✅ tamamlandı ve doğruland
       ekranda birleştiriyor; uzun sayfa için bölüm kısayolları eklendi.
 - [x] Neon sarı ana vurgu, merkezi tema bloğunda sakin mavi (`#7fa6e8`)
       palete çevrildi; tüm sayfalar ek değişiklik olmadan yeni rengi kullanıyor.
+- [x] **2026-09-08 gerçek arama + izleme listesi:** Üst çubuktaki "Hisse ara"
+      kutusu ve zil ikonu daha önce tamamen dekoratifti (yalnız `/piyasalar`'a
+      link). Şimdi ⌘K/Ctrl+K ile her sayfadan açılan gerçek bir komut paleti
+      var — 807 hisseyi tek istekte (`GET /api/market-feed`, `/api/instruments`
+      + `/api/signals`'ı birleştiren same-origin proxy) fuzzy arar, ok
+      tuşlarıyla gezilir, Enter ile hisse sayfasına gider. İzleme listesi
+      bilinçli olarak yalnızca tarayıcı `localStorage`'ında tutulur (tek
+      kullanıcılı, kimlik doğrulamasız bir sistemde backend tablosu gereksiz
+      karmaşıklık olurdu) — `useWatchlist()` hook'u `useSyncExternalStore` ile
+      birden fazla bileşen arasında senkron kalır. Yıldız butonu hisse
+      listesine ve hisse detay başlığına eklendi; yeni `/izleme-listesi`
+      ekranı izlenen hisseleri güncel bileşik skorlarıyla gösterir.
+      Chrome DevTools Protocol üzerinden gerçek tıklama/yazma etkileşimiyle
+      uçtan uca doğrulandı: arama paletinde "THY" yazınca yalnız THYAO
+      eşleşti; yıldıza tıklayınca `localStorage`'a yazıldı ve
+      `/izleme-listesi` sayfası THYAO'yu doğru skorla gösterdi. **150/150
+      backend (değişmedi), 25/25 web testi** yeşil; `tsc --noEmit` ve
+      production build temiz.
 
 ## Faz 10 — Alarm + Gözlemlenebilirlik
 🔶 Çekirdek sağlık ve alarm katmanı tamam; genişletiliyor
