@@ -28,12 +28,48 @@ REDIS_KEY_PREFIX = "app_setting:"
 class SettingSpec:
     key: str
     label: str
-    kind: str  # "secret" | "url" | "boolean"
+    kind: str  # "secret" | "url" | "boolean" | "choice"
     field: str  # Settings uzerindeki karsilik gelen alan adi
+    choices: tuple[tuple[str, str], ...] = ()
+
+
+GEMINI_MODEL_CHOICES: tuple[tuple[str, str], ...] = (
+    ("gemini-3.8-flash", "Gemini 3.8 Flash · GA · önerilen"),
+    ("gemini-3.7-flash", "Gemini 3.7 Flash · GA"),
+    ("gemini-3.6-flash", "Gemini 3.6 Flash · GA"),
+    ("gemini-3.5-flash", "Gemini 3.5 Flash · GA"),
+    ("gemini-3.1-flash-lite", "Gemini 3.1 Flash-Lite · düşük maliyet"),
+    ("gemini-3.1-pro-preview", "Gemini 3.1 Pro · Preview · derin analiz"),
+)
+GEMINI_API_CHOICES: tuple[tuple[str, str], ...] = (
+    ("interactions", "Interactions API · SSE streaming · önerilen"),
+    ("generate_content", "GenerateContent API · uyumluluk modu"),
+)
 
 
 MANAGED_SETTINGS: tuple[SettingSpec, ...] = (
     SettingSpec("gemini_api_key", "Gemini API Anahtari", "secret", "gemini_api_key"),
+    SettingSpec(
+        "gemini_api_mode",
+        "Gemini İstek API'si",
+        "choice",
+        "gemini_api_mode",
+        GEMINI_API_CHOICES,
+    ),
+    SettingSpec(
+        "gemini_model_tier1",
+        "Gemini Tier 1 Modeli",
+        "choice",
+        "gemini_model_tier1",
+        GEMINI_MODEL_CHOICES,
+    ),
+    SettingSpec(
+        "gemini_model_tier2",
+        "Gemini Tier 2 Modeli",
+        "choice",
+        "gemini_model_tier2",
+        GEMINI_MODEL_CHOICES,
+    ),
     SettingSpec("llm_enabled", "LLM Degerlendirmesi Etkin", "boolean", "llm_enabled"),
     SettingSpec("n8n_webhook_url", "N8N Webhook URL", "url", "n8n_webhook_url"),
 )
@@ -72,7 +108,15 @@ async def get_setting_statuses(*, redis: Redis | None = None) -> list[dict[str, 
                 "kind": spec.kind,
                 "is_set": bool(value),
                 "source": source,
-                "preview": value if spec.kind == "boolean" else (_mask(value) if value else None),
+                "preview": (
+                    value
+                    if spec.kind in {"boolean", "choice"}
+                    else (_mask(value) if value else None)
+                ),
+                "choices": [
+                    {"value": choice_value, "label": choice_label}
+                    for choice_value, choice_label in spec.choices
+                ],
                 "updated_at": updated_at,
             }
         )
@@ -87,6 +131,8 @@ async def set_setting(key: str, value: str, *, redis: Redis | None = None) -> No
         raise ValueError("Deger bos olamaz — kaldirmak icin silme islemini kullanin")
     if spec.kind == "boolean" and value not in {"true", "false"}:
         raise ValueError("boolean ayar 'true' veya 'false' olmali")
+    if spec.kind == "choice" and value not in {item[0] for item in spec.choices}:
+        raise ValueError(f"Desteklenmeyen secim: {value!r}")
     redis = redis or get_redis()
     await redis.hset(
         f"{REDIS_KEY_PREFIX}{key}",

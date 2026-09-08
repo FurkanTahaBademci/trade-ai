@@ -106,6 +106,7 @@ def evaluation_key(
     *,
     tier: int,
     model: str,
+    api_mode: str = "generate_content",
     prompt_version: str = PROMPT_VERSION,
     parent_key: str | None = None,
 ) -> str:
@@ -116,6 +117,7 @@ def evaluation_key(
         "prompt_version": prompt_version,
         "tier": tier,
         "model": model,
+        "api_mode": api_mode,
         "parent_key": parent_key,
     }
     return hashlib.sha256(_stable_json(identity).encode()).hexdigest()
@@ -188,17 +190,102 @@ def build_user_content(document: SourceDocument, *, tier1_result: dict | None = 
 class GeminiGateway:
     """Google Gen AI SDK'nin testlerde kolayca degistirilebilen ince adaptoru."""
 
-    def __init__(self, api_key: str) -> None:
+    def __init__(self, api_key: str, *, api_mode: str = "interactions") -> None:
         if not api_key:
             raise ValueError("GEMINI_API_KEY bos")
+        if api_mode not in {"interactions", "generate_content"}:
+            raise ValueError(f"Desteklenmeyen Gemini API modu: {api_mode!r}")
         from google import genai
 
         self._client = genai.Client(api_key=api_key).aio
+        self._api_mode = api_mode
 
     async def aclose(self) -> None:
         await self._client.aclose()
 
     async def generate(
+        self,
+        *,
+        model: str,
+        system_instruction: str,
+        user_content: str,
+        response_model: type[BaseModel],
+        thinking_level: str,
+        max_output_tokens: int,
+    ) -> GatewayResponse:
+        if self._api_mode == "interactions":
+            return await self._generate_interaction(
+                model=model,
+                system_instruction=system_instruction,
+                user_content=user_content,
+                response_model=response_model,
+                thinking_level=thinking_level,
+                max_output_tokens=max_output_tokens,
+            )
+        return await self._generate_content(
+            model=model,
+            system_instruction=system_instruction,
+            user_content=user_content,
+            response_model=response_model,
+            thinking_level=thinking_level,
+            max_output_tokens=max_output_tokens,
+        )
+
+    async def _generate_interaction(
+        self,
+        *,
+        model: str,
+        system_instruction: str,
+        user_content: str,
+        response_model: type[BaseModel],
+        thinking_level: str,
+        max_output_tokens: int,
+    ) -> GatewayResponse:
+        stream = await self._client.interactions.create(
+            model=model,
+            input=user_content,
+            system_instruction=system_instruction,
+            generation_config={
+                "thinking_level": thinking_level,
+                "max_output_tokens": max_output_tokens,
+            },
+            response_format={
+                "type": "text",
+                "mime_type": "application/json",
+                "schema": response_model.model_json_schema(),
+            },
+            store=False,
+            stream=True,
+        )
+        text_parts: list[str] = []
+        usage = None
+        async for event in stream:
+            event_type = getattr(event, "event_type", None)
+            if event_type == "step.delta":
+                delta = getattr(event, "delta", None)
+                if getattr(delta, "type", None) == "text":
+                    text_parts.append(delta.text)
+            elif event_type == "interaction.completed":
+                usage = getattr(getattr(event, "interaction", None), "usage", None)
+            elif event_type == "error":
+                raise RuntimeError(f"Gemini interaction stream hatasi: {event.error}")
+
+        raw_text = "".join(text_parts)
+        if not raw_text:
+            raise RuntimeError("Gemini interaction stream metin cikisi dondurmedi")
+        parsed = response_model.model_validate_json(raw_text)
+        output_tokens = (getattr(usage, "total_output_tokens", None) or 0) + (
+            getattr(usage, "total_thought_tokens", None) or 0
+        )
+        return GatewayResponse(
+            data=parsed.model_dump(mode="json"),
+            raw_text=raw_text,
+            input_tokens=getattr(usage, "total_input_tokens", None),
+            output_tokens=output_tokens or None,
+            total_tokens=getattr(usage, "total_tokens", None),
+        )
+
+    async def _generate_content(
         self,
         *,
         model: str,
@@ -224,11 +311,14 @@ class GeminiGateway:
         raw_text = response.text or ""
         parsed = response_model.model_validate_json(raw_text)
         usage = response.usage_metadata
+        output_tokens = (getattr(usage, "candidates_token_count", None) or 0) + (
+            getattr(usage, "thoughts_token_count", None) or 0
+        )
         return GatewayResponse(
             data=parsed.model_dump(mode="json"),
             raw_text=raw_text,
             input_tokens=getattr(usage, "prompt_token_count", None),
-            output_tokens=getattr(usage, "candidates_token_count", None),
+            output_tokens=output_tokens or None,
             total_tokens=getattr(usage, "total_token_count", None),
         )
 
@@ -277,6 +367,7 @@ class LlmEvaluationService:
     async def _tier1_documents(self) -> list[SourceDocument]:
         scan_limit = max(self._settings.llm_batch_size * 5, 100)
         model = self._settings.gemini_model_tier1
+        api_mode = self._settings.gemini_api_mode
         news_evaluated = (
             select(LlmEvaluation.id)
             .where(
@@ -285,6 +376,7 @@ class LlmEvaluationService:
                 LlmEvaluation.tier == 1,
                 LlmEvaluation.prompt_version == PROMPT_VERSION,
                 LlmEvaluation.model == model,
+                LlmEvaluation.api_mode == api_mode,
             )
             .exists()
         )
@@ -296,6 +388,7 @@ class LlmEvaluationService:
                 LlmEvaluation.tier == 1,
                 LlmEvaluation.prompt_version == PROMPT_VERSION,
                 LlmEvaluation.model == model,
+                LlmEvaluation.api_mode == api_mode,
             )
             .exists()
         )
@@ -335,6 +428,7 @@ class LlmEvaluationService:
                     LlmEvaluation.tier == 1,
                     LlmEvaluation.prompt_version == PROMPT_VERSION,
                     LlmEvaluation.model == model,
+                    LlmEvaluation.api_mode == api_mode,
                     LlmEvaluation.attempt_count < self._settings.llm_max_attempts,
                     or_(
                         LlmEvaluation.status == "failed",
@@ -382,9 +476,15 @@ class LlmEvaluationService:
 
     async def _tier2_parents(self) -> Sequence[LlmEvaluation]:
         child = aliased(LlmEvaluation)
+        api_mode = self._settings.gemini_api_mode
+        tier2_model = self._settings.gemini_model_tier2
         child_exists = (
             select(child.id)
-            .where(child.parent_evaluation_key == LlmEvaluation.evaluation_key)
+            .where(
+                child.parent_evaluation_key == LlmEvaluation.evaluation_key,
+                child.api_mode == api_mode,
+                child.model == tier2_model,
+            )
             .exists()
         )
         stale_before = datetime.now(UTC) - timedelta(minutes=30)
@@ -392,6 +492,8 @@ class LlmEvaluationService:
             select(child.id)
             .where(
                 child.parent_evaluation_key == LlmEvaluation.evaluation_key,
+                child.api_mode == api_mode,
+                child.model == tier2_model,
                 child.attempt_count < self._settings.llm_max_attempts,
                 or_(
                     child.status == "failed",
@@ -405,6 +507,8 @@ class LlmEvaluationService:
                 select(LlmEvaluation)
                 .where(
                     LlmEvaluation.tier == 1,
+                    LlmEvaluation.api_mode == api_mode,
+                    LlmEvaluation.model == self._settings.gemini_model_tier1,
                     LlmEvaluation.status == "succeeded",
                     LlmEvaluation.requires_tier2.is_(True),
                     or_(~child_exists, retryable_child_exists),
@@ -457,6 +561,7 @@ class LlmEvaluationService:
                 prompt_version=PROMPT_VERSION,
                 tier=tier,
                 provider="google",
+                api_mode=self._settings.gemini_api_mode,
                 model=model,
                 status="running",
                 attempt_count=1,
@@ -494,7 +599,13 @@ class LlmEvaluationService:
             else self._settings.gemini_model_tier2
         )
         parent_key = parent.evaluation_key if parent else None
-        key = evaluation_key(document, tier=tier, model=model, parent_key=parent_key)
+        key = evaluation_key(
+            document,
+            tier=tier,
+            model=model,
+            api_mode=self._settings.gemini_api_mode,
+            parent_key=parent_key,
+        )
         tier1_result = parent.result if parent else None
         input_document = {"source_document": document.payload}
         if tier1_result is not None:
@@ -641,7 +752,10 @@ async def run_llm_evaluations(session: AsyncSession, *, settings: Settings | Non
     if not active_settings.gemini_api_key:
         raise RuntimeError("LLM_ENABLED=true fakat GEMINI_API_KEY bos")
 
-    gateway = GeminiGateway(active_settings.gemini_api_key)
+    gateway = GeminiGateway(
+        active_settings.gemini_api_key,
+        api_mode=active_settings.gemini_api_mode,
+    )
     try:
         result = await LlmEvaluationService(
             session,

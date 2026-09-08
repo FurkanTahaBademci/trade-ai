@@ -2,8 +2,8 @@
 
 Polymorphic kaynak (`news`/`kap`) bilincli olarak fiziksel foreign key
 kullanmaz. `source_type + source_id` girdiyi isaret eder; `content_hash`,
-prompt/model/tier ile birlikte ayni girdi surumunun tekrar ucretli cagrilmasini
-engelleyen deterministik `evaluation_key` degerine katilir.
+prompt/model/API yolu/tier ile birlikte ayni girdi surumunun tekrar ucretli
+cagrilmasini engelleyen deterministik `evaluation_key` degerine katilir.
 """
 
 from datetime import datetime
@@ -41,6 +41,10 @@ class LlmEvaluation(Base):
             name="ck_llm_evaluation_status",
         ),
         CheckConstraint(
+            "api_mode IN ('interactions', 'generate_content')",
+            name="ck_llm_evaluation_api_mode",
+        ),
+        CheckConstraint(
             "relevance_score IS NULL OR relevance_score BETWEEN 0 AND 100",
             name="ck_llm_evaluation_relevance_score",
         ),
@@ -70,6 +74,7 @@ class LlmEvaluation(Base):
     prompt_version: Mapped[str] = mapped_column(String(16))
     tier: Mapped[int] = mapped_column(SmallInteger)
     provider: Mapped[str] = mapped_column(String(32), default="google")
+    api_mode: Mapped[str] = mapped_column(String(32), default="interactions")
     model: Mapped[str] = mapped_column(String(128))
     status: Mapped[str] = mapped_column(String(16))
     attempt_count: Mapped[int] = mapped_column(Integer, default=1)

@@ -82,6 +82,26 @@ async def test_boolean_setting_only_accepts_true_or_false():
     assert llm["source"] == "database"
 
 
+async def test_gemini_api_and_model_choices_are_exposed_and_validated():
+    redis = FakeRedis()
+    statuses = await get_setting_statuses(redis=redis)
+    api_mode = next(item for item in statuses if item["key"] == "gemini_api_mode")
+    tier1 = next(item for item in statuses if item["key"] == "gemini_model_tier1")
+
+    assert api_mode["preview"] == "interactions"
+    assert {item["value"] for item in api_mode["choices"]} == {
+        "interactions",
+        "generate_content",
+    }
+    assert tier1["preview"] == "gemini-3.8-flash"
+    assert any(item["value"] == "gemini-3.1-pro-preview" for item in tier1["choices"])
+
+    with pytest.raises(ValueError, match="Desteklenmeyen secim"):
+        await set_setting("gemini_api_mode", "openai", redis=redis)
+    with pytest.raises(ValueError, match="Desteklenmeyen secim"):
+        await set_setting("gemini_model_tier1", "uydurma-model", redis=redis)
+
+
 async def test_clear_setting_reverts_to_env_default():
     redis = FakeRedis()
     await set_setting("gemini_api_key", "sk-override1234", redis=redis)
@@ -96,12 +116,16 @@ async def test_resolve_settings_merges_database_override_over_env():
     redis = FakeRedis()
     await set_setting("gemini_api_key", "sk-override1234", redis=redis)
     await set_setting("llm_enabled", "true", redis=redis)
+    await set_setting("gemini_api_mode", "generate_content", redis=redis)
+    await set_setting("gemini_model_tier1", "gemini-3.7-flash", redis=redis)
     base = _base_settings(gemini_api_key="sk-env-default")
 
     resolved = await resolve_settings(base, redis=redis)
 
     assert resolved.gemini_api_key == "sk-override1234"
     assert resolved.llm_enabled is True
+    assert resolved.gemini_api_mode == "generate_content"
+    assert resolved.gemini_model_tier1 == "gemini-3.7-flash"
     assert resolved.n8n_webhook_url == ""
 
 

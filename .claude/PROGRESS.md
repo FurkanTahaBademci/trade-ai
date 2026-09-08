@@ -222,15 +222,30 @@ Durumlar: ⬜ başlanmadı · 🔶 devam ediyor · ✅ tamamlandı ve doğruland
 🔶 Kod ve Docker entegrasyonu tamam; canlı Gemini çağrısı API anahtarı bekliyor
 
 - [x] `LlmEvaluation` modeli + `f47a1c8d6b20` migration'ı: haber/KAP kaynak
-      kimliği, içerik hash'i, prompt/model/tier bazlı deterministik anahtar,
+      kimliği, içerik hash'i, prompt/model/API yolu/tier bazlı deterministik anahtar,
       Tier 1→Tier 2 parent zinciri, skorlar, yapılandırılmış/ham çıktı, hata,
       deneme sayısı, latency ve token kullanımı saklanıyor.
 - [x] Promptlar repo içinde sürümlü `app/llm/prompts/v1.md` dosyasında; kaynak
       metni güvenilmeyen veri kabul ediliyor, delimiter enjeksiyonu kaçışlanıyor
       ve çıktı yatırım tavsiyesi/al-sat emri üretmeyecek şekilde sınırlandırılıyor.
-- [x] Resmi `google-genai` SDK eklendi. Tier 1 `gemini-3.7-flash` + düşük
-      thinking, Tier 2 geçerli endpoint `gemini-3.1-pro-preview` + orta thinking;
-      Pydantic/JSON Schema ile yapılandırılmış çıktı kullanılıyor.
+- [x] Resmi `google-genai` SDK eklendi. Tier 1 `gemini-3.8-flash` + düşük
+      thinking, Tier 2 `gemini-3.1-pro-preview` + orta thinking; Pydantic/JSON
+      Schema ile yapılandırılmış çıktı kullanılıyor.
+- [x] **2026-09-08 Interactions API geçişi:** Varsayılan istek yolu Google'ın
+      yeni `client.aio.interactions.create(..., stream=True)` SSE akışına
+      geçirildi; JSON metin parçaları birleştirilip Pydantic ile doğrulanıyor.
+      `store=False`, sistem talimatı, thinking seviyesi, çıktı sınırı ve
+      yapılandırılmış `response_format` istek üzerinde açıkça gönderiliyor.
+      Eski `models.generate_content` yolu seçilebilir uyumluluk modu olarak
+      korundu. `/sistem` ekranından API yolu ile Tier 1/Tier 2 modeli ayrı ayrı
+      seçilebiliyor; desteklenmeyen değerler backend'de reddediliyor. Model
+      listesi Gemini 3.8/3.7/3.6/3.5 Flash, 3.1 Flash-Lite ve 3.1 Pro Preview.
+      `7a6e9c4f2b10` migration'ı her değerlendirmenin `api_mode` değerini saklıyor;
+      eski satırlar `generate_content`, yeniler `interactions` olarak işaretlenir.
+      Thinking tokenları günlük maliyet kapısına dahil edildi. Sahte SSE akışı,
+      model/API seçimleri ve migration DDL dahil **153/153 backend**, **28/28 web
+      testi**, Ruff, TypeScript ve production build temiz. Yerel anahtar boş
+      olduğundan ücretli canlı çağrı bilinçli olarak yapılmadı.
 - [x] Maliyet kapıları: `LLM_ENABLED=false` güvenli varsayılanı, günlük input /
       output token limitleri, batch sınırı ve kaynak metni boyut sınırı.
 - [x] Tier 2 yalnız Tier 1'in ilgili (>=60), yüksek etkili (varsayılan >=70),

@@ -23,7 +23,8 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
 
     gemini_api_key: str = ""
-    gemini_model_tier1: str = "gemini-3.7-flash"
+    gemini_api_mode: str = "interactions"
+    gemini_model_tier1: str = "gemini-3.8-flash"
     gemini_model_tier2: str = "gemini-3.1-pro-preview"
     llm_enabled: bool = False
     llm_batch_size: int = 20

@@ -8,6 +8,31 @@ gereken ürün kararları `CLAUDE.md` içindedir. Aşağıdaki 2026-09-07 (Claud
 girişi Codex değil, Claude tarafından yazıldı — paylaşılan tek devir
 günlüğünü bölmemek için burada tutuluyor, başlıkta ajan belirtildi.
 
+## 2026-09-08 — Gemini 3.8 Flash + Interactions API
+
+- Google'ın 4 Eylül 2026 güncel resmî rehberi doğrulandı: `gemini-3.8-flash`
+  GA; Interactions API `stream=True` ile `step.delta` SSE olayları ve
+  yapılandırılmış JSON `response_format` destekliyor. Yerelde kurulu
+  `google-genai 2.22.0` imzası da aynı API'yi içeriyor; bağımlılık alt sınırı
+  bu sürüme yükseltildi.
+- `GeminiGateway` varsayılan olarak async
+  `client.aio.interactions.create(..., stream=True)` çağırıyor. Sistem talimatı,
+  düşük/orta thinking, token sınırı, `store=False` ve Pydantic JSON Schema
+  gönderiliyor; metin deltaları birleştirilip tekrar Pydantic doğrulamasından
+  geçiyor. `models.generate_content` seçilebilir fallback olarak kaldı.
+- `/sistem` ayarlarına API yolu, Tier 1 ve Tier 2 model seçimleri eklendi.
+  Varsayılan Tier 1 `gemini-3.8-flash`; seçenekler 3.8/3.7/3.6/3.5 Flash,
+  3.1 Flash-Lite ve 3.1 Pro Preview. Seçimler Redis override'ıyla restart
+  olmadan uygulanıyor ve backend allowlist dışı değerleri reddediyor.
+- `llm_evaluation.api_mode` alanı `7a6e9c4f2b10` migration'ıyla eklendi; eski
+  kayıtlar `generate_content`, yeni kayıtlar `interactions`. API modu
+  deterministik evaluation key'e katıldığı için mod değişimi idempotency'yi
+  bozmadan ayrı değerlendirme üretir. Detay ekranı kullanılan API'yi gösterir.
+- Thinking tokenları da output maliyet kotasına dahil edildi. Sahte async SSE
+  testleri ve seçim doğrulamalarıyla backend **153/153**, web **28/28**; Ruff,
+  offline PostgreSQL DDL, TypeScript ve Next.js build temiz. `GEMINI_API_KEY`
+  bu ortamda boş ve `LLM_ENABLED=false`; ücretli canlı çağrı yapılmadı.
+
 ## 2026-09-08 — Arama ve izleme listesi sağlamlaştırması
 
 - Komut paletinin yalnız masaüstünde görünen tetikleyicisi mobil üst çubuğa da

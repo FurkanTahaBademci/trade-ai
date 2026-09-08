@@ -72,6 +72,7 @@ class LlmEvaluationListOut(BaseModel):
     prompt_version: str
     tier: int
     provider: str
+    api_mode: str
     model: str
     status: str
     attempt_count: int

@@ -18,7 +18,9 @@ entegrasyonu doğrulandı (807 ticker; örnek fiyat akışı x2 idempotent).
 
 ✅ **Faz 2-7 — Piyasa İstihbaratı + Bileşik Sinyal**: KAP, haber, Gemini
 değerlendirmesi, temel analiz, analist konsensüsü, TEFAS fon akımı ve bunları
-birleştiren sürümlü 0-100 skor motoru tamamlandı.
+birleştiren sürümlü 0-100 skor motoru tamamlandı. Gemini 3.8 Flash,
+Interactions API üzerinden yapılandırılmış SSE akışıyla kullanılabilir; API
+yolu ve Tier 1/Tier 2 modelleri `/sistem` ekranından seçilir.
 
 ✅ **Faz 8 — Paper Portföy**: canlı emir göndermeyen, komisyon/kayma içeren,
 risk sınırları ve mükerrer işlem koruması olan sanal portföy motoru tamamlandı.
@@ -39,7 +41,7 @@ Ayarlar PostgreSQL'de kalır; Redis kilidi mükerrer worker tetiklemesini önler
 rotasyonu, salt-okunur dosya sistemi ve yetkisiz kullanıcılarla sertleştirildi.
 PostgreSQL/Redis kalıcılığı ile yedekleme, geri yükleme ve üretim smoke komutları hazır.
 
-Toplam **150 backend + 28 web ağsız test** geçiyor. Docker ile yapılan canlı
+Toplam **153 backend + 28 web ağsız test** geçiyor. Docker ile yapılan canlı
 doğrulamaların sayısal sonuçları `.claude/CODEX_NOTES.md` içinde.
 
 ## Hızlı başlangıç (yerel geliştirme)
