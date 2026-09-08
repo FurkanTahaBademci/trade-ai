@@ -1,0 +1,85 @@
+const { test } = require("node:test");
+const assert = require("node:assert/strict");
+const { readFileSync } = require("node:fs");
+const path = require("node:path");
+const Module = require("node:module");
+const ts = require("typescript");
+
+const file = path.resolve(__dirname, "../src/lib/chart-data.ts");
+const compiled = ts.transpileModule(readFileSync(file, "utf8"), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+});
+const loaded = new Module(file, module);
+loaded._compile(compiled.outputText, file);
+const { movingAverage, wilderRsi, chartDomain, chartPath, normalizePrices, rangeStart, performanceSeries, validChartDate } = loaded.exports;
+const price = (date, close, extra = {}) => ({ date, close, low: null, high: null, avg_price: null, volume_try: null, close_usd: null, market_cap_try: null, ...extra });
+const near = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-8, `${actual} != ${expected}`);
+
+test("moving averages warm up on full history before the visible range is sliced", () => {
+  const values = Array.from({ length: 80 }, (_, i) => i + 1);
+  const ma = movingAverage(values, 50);
+  assert.equal(ma[48], null);
+  near(ma[49], 25.5);
+  near(ma.slice(60)[0], 36.5);
+  assert.deepEqual(movingAverage([], 20), []);
+  assert.throws(() => movingAverage(values, 0));
+});
+
+test("RSI uses a Wilder recurrence after the seed, not a rolling simple average", () => {
+  const values = [1, 2, 3, 2, 4, 3];
+  const result = wilderRsi(values, 3);
+  assert.deepEqual(result.slice(0, 3), [null, null, null]);
+  near(result[3], 100 - 100 / 3);
+  near(result[4], 100 - 100 / 6);
+  near(result[5], 100 - 100 / (1 + 20 / 13));
+});
+
+test("RSI handles rising, falling, flat and insufficient history explicitly", () => {
+  near(wilderRsi(Array.from({ length: 20 }, (_, i) => i + 1)).at(-1), 100);
+  near(wilderRsi(Array.from({ length: 20 }, (_, i) => 20 - i)).at(-1), 0);
+  near(wilderRsi(Array(20).fill(10)).at(-1), 50);
+  assert.deepEqual(wilderRsi([10, 12]), [null, null]);
+  assert.throws(() => wilderRsi([10], 1.5));
+});
+
+test("price data is sorted, deduplicated and invalid values never reach the SVG", () => {
+  const result = normalizePrices([
+    price("2026-01-03", 100, { low: 110, high: 90, volume_try: -5, avg_price: NaN }),
+    price("2026-01-01", 10), price("2026-01-01", 12),
+    price("2026-01-02", 30, { low: 20, volume_try: 0 }),
+    price("2026-02-30", 10), price("2026-01-04", NaN), price("2026-01-05", 0),
+  ]);
+  assert.deepEqual(result.map((row) => row.close), [12, 30, 100]);
+  assert.equal(result[1].low, 20); assert.equal(result[1].high, null);
+  assert.equal(result[1].volume_try, 0);
+  for (const key of ["low", "high", "volume_try", "avg_price"]) assert.equal(result[2][key], null);
+});
+
+test("empty and flat chart domains stay finite and center the series", () => {
+  assert.deepEqual(chartDomain([NaN, Infinity]), [0, 1]);
+  const [min, max] = chartDomain([100, 100]);
+  assert.ok(min < 100 && max > 100);
+  near((100 - min) / (max - min), .5);
+  assert.deepEqual(chartDomain([0]), [-1, 1]);
+});
+
+test("missing chart samples break paths rather than inventing connecting values", () => {
+  assert.equal(chartPath([null, 10, 20, null, 30, NaN, 40], (i) => i, (v) => v).trim(), "M1,10 L2,20  M4,30  M6,40");
+});
+
+test("date ranges use UTC calendar dates and handle leap years", () => {
+  assert.equal(rangeStart("2024-03-01", 1), "2024-02-29");
+  assert.equal(rangeStart("2026-01-01", 30), "2025-12-02");
+  assert.equal(validChartDate("2025-02-29"), false);
+  assert.equal(validChartDate("2024-02-29"), true);
+});
+
+test("drawdown retains the historical peak when the displayed period is narrowed", () => {
+  const rows = performanceSeries([
+    { date: "2026-01-03", value: 90 }, { date: "2026-01-01", value: 100 },
+    { date: "2026-01-02", value: 120 }, { date: "2026-01-04", value: 126 },
+  ]);
+  assert.deepEqual(rows.map((row) => row.drawdown), [0, 0, -25, 0]);
+  assert.equal(rows.slice(2)[0].drawdown, -25);
+  assert.deepEqual(performanceSeries([{ date: "bad", value: 100 }, { date: "2026-01-01", value: -1 }]), []);
+});

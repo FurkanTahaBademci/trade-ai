@@ -1,90 +1,121 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import type { PointerEvent, ReactNode } from "react";
-import { formatMoney, formatNumber, formatPercent } from "@/lib/format";
+import { useId, useMemo, useState } from "react";
+import type { KeyboardEvent, PointerEvent, ReactNode } from "react";
+import { formatDate, formatMoney, formatNumber, formatPercent } from "@/lib/format";
+import { chartDomain, chartPath, movingAverage, normalizePrices, rangeStart, wilderRsi } from "@/lib/chart-data";
 import type { Price } from "@/lib/types";
+import { chartButton, useChartWidth } from "./chart-frame";
 
-const WIDTH = 900, PRICE_HEIGHT = 265, VOLUME_TOP = 292, VOLUME_HEIGHT = 70;
-const RSI_TOP = 390, RSI_HEIGHT = 70, PAD_X = 36;
+const TOP = 16, BOTTOM = 246, VOLUME_TOP = 278, VOLUME_BOTTOM = 338, RSI_TOP = 376, RSI_BOTTOM = 446;
 const ranges = [{ label: "1A", days: 30 }, { label: "3A", days: 90 }, { label: "6A", days: 180 }, { label: "1Y", days: 365 }, { label: "3Y", days: 1095 }, { label: "Tümü", days: 0 }];
 
-function movingAverage(rows: Price[], period: number) {
-  return rows.map((_, index) => index < period - 1 ? null : rows.slice(index - period + 1, index + 1).reduce((sum, row) => sum + row.close, 0) / period);
-}
-
-function rsi(rows: Price[], period = 14) {
-  const output: Array<number | null> = Array(rows.length).fill(null);
-  for (let index = period; index < rows.length; index++) {
-    let gains = 0, losses = 0;
-    for (let cursor = index - period + 1; cursor <= index; cursor++) {
-      const change = rows[cursor].close - rows[cursor - 1].close;
-      if (change >= 0) gains += change; else losses -= change;
-    }
-    output[index] = losses === 0 ? 100 : 100 - (100 / (1 + gains / losses));
-  }
-  return output;
-}
-
-function linePoints(values: Array<number | null>, x: (index: number) => number, y: (value: number) => number) {
-  return values.map((value, index) => value == null ? null : `${x(index)},${y(value)}`).filter(Boolean).join(" ");
-}
-
-export function PriceChart({ prices }: { prices: Price[] }) {
-  const [rangeDays, setRangeDays] = useState(90);
+export function PriceChart({ prices, error = false }: { prices: Price[]; error?: boolean }) {
+  const { ref, width } = useChartWidth();
+  const id = useId();
+  const [rangeDays, setRangeDays] = useState<number | null>(90);
+  const [custom, setCustom] = useState({ start: "", end: "" });
+  const [mode, setMode] = useState<"line" | "hlc">("line");
   const [showMa20, setShowMa20] = useState(true);
   const [showMa50, setShowMa50] = useState(false);
   const [showAverage, setShowAverage] = useState(false);
   const [showRsi, setShowRsi] = useState(false);
-  const [hovered, setHovered] = useState<number | null>(null);
-  const rows = useMemo(() => {
-    if (!prices.length || rangeDays === 0) return prices;
-    const end = new Date(`${prices.at(-1)?.date}T00:00:00`).getTime();
-    const start = end - rangeDays * 86_400_000;
-    return prices.filter((row) => new Date(`${row.date}T00:00:00`).getTime() >= start);
-  }, [prices, rangeDays]);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const all = useMemo(() => {
+    const normalized = normalizePrices(prices), closes = normalized.map((row) => row.close);
+    const ma20 = movingAverage(closes, 20), ma50 = movingAverage(closes, 50), rsi = wilderRsi(closes);
+    return normalized.map((row, i) => ({ ...row, ma20: ma20[i], ma50: ma50[i], rsi: rsi[i] }));
+  }, [prices]);
+  const start = rangeDays === null ? custom.start : rangeDays && all.length ? rangeStart(all.at(-1)!.date, rangeDays) : all[0]?.date ?? "";
+  const end = rangeDays === null ? custom.end : all.at(-1)?.date ?? "";
+  const invalidRange = !!start && !!end && start > end;
+  const rows = useMemo(() => invalidRange ? [] : all.filter((row) => (!start || row.date >= start) && (!end || row.date <= end)), [all, start, end, invalidRange]);
+  const foundIndex = selectedDate == null ? -1 : rows.findIndex((row) => row.date === selectedDate);
+  const index = foundIndex < 0 ? Math.max(0, rows.length - 1) : foundIndex;
+  const selected = rows[index], first = rows[0], last = rows.at(-1);
+  const left = 60, right = width - 14;
+  const x = (i: number) => rows.length === 1 ? (left + right) / 2 : left + i * (right - left) / Math.max(1, rows.length - 1);
+  const visibleValues = rows.flatMap((row) => [row.close, row.low, row.high, showAverage ? row.avg_price : null, showMa20 ? row.ma20 : null, showMa50 ? row.ma50 : null]).filter((value): value is number => value != null);
+  const [min, max] = chartDomain(visibleValues);
+  const y = (value: number) => BOTTOM - (value - min) / (max - min) * (BOTTOM - TOP);
+  const volumeMax = rows.reduce((peak, row) => Math.max(peak, row.volume_try ?? 0), 0);
+  const hasVolume = rows.some((row) => row.volume_try != null);
+  const path = chartPath(rows.map((row) => row.close), x, y);
+  const change = first && last && rows.length > 1 ? (last.close / first.close - 1) * 100 : null;
+  const height = showRsi ? 468 : 360;
 
-  if (prices.length < 2 || rows.length < 2) return <div className="grid h-64 place-items-center text-xs text-[var(--text-muted)]">Grafik için yeterli fiyat verisi yok.</div>;
-
-  const ma20 = movingAverage(rows, 20), ma50 = movingAverage(rows, 50), rsiValues = rsi(rows);
-  const visibleValues = rows.flatMap((row) => [row.close, row.low, row.high, showAverage ? row.avg_price : null]).filter((value): value is number => value != null);
-  if (showMa20) visibleValues.push(...ma20.filter((value): value is number => value != null));
-  if (showMa50) visibleValues.push(...ma50.filter((value): value is number => value != null));
-  const min = Math.min(...visibleValues), max = Math.max(...visibleValues), spread = max - min || 1;
-  const x = (index: number) => PAD_X + index * ((WIDTH - PAD_X * 2) / Math.max(1, rows.length - 1));
-  const y = (value: number) => PRICE_HEIGHT - 18 - ((value - min) / spread) * (PRICE_HEIGHT - 36);
-  const volumeMax = Math.max(...rows.map((row) => row.volume_try ?? 0), 1);
-  const closePoints = linePoints(rows.map((row) => row.close), x, y);
-  const bandPoints = [...rows.map((row, index) => row.low == null ? null : `${x(index)},${y(row.low)}`).filter(Boolean), ...rows.map((row, index) => row.high == null ? null : `${x(index)},${y(row.high)}`).filter(Boolean).reverse()].join(" ");
-  const first = rows[0], last = rows.at(-1) ?? first;
-  const change = ((last.close / first.close) - 1) * 100;
-  const selectedIndex = hovered == null ? rows.length - 1 : hovered;
-  const selected = rows[selectedIndex];
-  const chartHeight = showRsi ? 480 : 375;
-
+  function selectPreset(days: number) { setRangeDays(days); setSelectedDate(null); }
+  function selectCustom(name: "start" | "end", value: string) {
+    setCustom({ start, end, [name]: value }); setRangeDays(null); setSelectedDate(null);
+  }
+  function zoom(factor: number) {
+    if (rows.length < 2) return;
+    const lastIndex = all.findIndex((row) => row.date === last!.date);
+    const count = Math.min(all.length, Math.max(2, Math.round(rows.length * factor)));
+    const firstIndex = Math.max(0, lastIndex - count + 1);
+    setCustom({ start: all[firstIndex].date, end: all[Math.min(all.length - 1, firstIndex + count - 1)].date });
+    setRangeDays(null); setSelectedDate(null);
+  }
+  function moveWindow(direction: number) {
+    if (!rows.length) return;
+    const offset = Math.max(1, Math.floor(rows.length / 2)) * direction;
+    const firstIndex = Math.max(0, Math.min(all.length - rows.length, all.findIndex((row) => row.date === first.date) + offset));
+    setCustom({ start: all[firstIndex].date, end: all[firstIndex + rows.length - 1].date }); setRangeDays(null); setSelectedDate(null);
+  }
   function handlePointer(event: PointerEvent<SVGSVGElement>) {
     const bounds = event.currentTarget.getBoundingClientRect();
-    const svgX = ((event.clientX - bounds.left) / bounds.width) * WIDTH;
-    const index = Math.round(((svgX - PAD_X) / (WIDTH - PAD_X * 2)) * (rows.length - 1));
-    setHovered(Math.max(0, Math.min(rows.length - 1, index)));
+    const svgX = (event.clientX - bounds.left) * width / bounds.width;
+    const i = Math.max(0, Math.min(rows.length - 1, Math.round((svgX - left) / (right - left) * (rows.length - 1))));
+    setSelectedDate(rows[i]?.date ?? null);
+  }
+  function handleKey(event: KeyboardEvent<SVGSVGElement>) {
+    const next = { ArrowLeft: index - 1, ArrowRight: index + 1, Home: 0, End: rows.length - 1 }[event.key];
+    if (next == null) return;
+    event.preventDefault(); setSelectedDate(rows[Math.max(0, Math.min(rows.length - 1, next))]?.date ?? null);
   }
 
-  return <div>
-    <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between"><div className="flex gap-1 overflow-x-auto">{ranges.map((item) => <button key={item.label} onClick={() => { setRangeDays(item.days); setHovered(null); }} className={`rounded-[8px] px-2.5 py-1.5 text-[11px] font-semibold transition ${rangeDays === item.days ? "bg-[var(--primary-soft)] text-[var(--primary)]" : "text-[var(--text-muted)] hover:bg-[var(--surface-hover)]"}`}>{item.label}</button>)}</div><div className="flex flex-wrap gap-1.5"><Toggle active={showMa20} onClick={() => setShowMa20(!showMa20)}>MA20</Toggle><Toggle active={showMa50} onClick={() => setShowMa50(!showMa50)}>MA50</Toggle><Toggle active={showAverage} onClick={() => setShowAverage(!showAverage)}>AOF</Toggle><Toggle active={showRsi} onClick={() => setShowRsi(!showRsi)}>RSI</Toggle></div></div>
-    <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4"><MiniMetric label="Seçili kapanış" value={formatMoney(selected.close)}/><MiniMetric label="Dönem değişimi" value={formatPercent(change, true)} tone={change >= 0}/><MiniMetric label="Dönem düşük" value={formatMoney(Math.min(...rows.map((row) => row.low ?? row.close)))}/><MiniMetric label="Dönem yüksek" value={formatMoney(Math.max(...rows.map((row) => row.high ?? row.close)))}/></div>
-    <div className="relative"><svg className="h-auto w-full touch-none" viewBox={`0 0 ${WIDTH} ${chartHeight}`} role="img" aria-label={`${rows.length} günlük etkileşimli fiyat ve hacim grafiği`} onPointerMove={handlePointer} onPointerLeave={() => setHovered(null)}>
-      <defs><linearGradient id="advancedPriceArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="var(--primary)" stopOpacity=".2"/><stop offset="1" stopColor="var(--primary)" stopOpacity="0"/></linearGradient></defs>
-      {[0,.25,.5,.75,1].map((ratio) => <g key={ratio}><line x1={PAD_X} x2={WIDTH-PAD_X} y1={18+ratio*(PRICE_HEIGHT-36)} y2={18+ratio*(PRICE_HEIGHT-36)} stroke="var(--chart-grid)" strokeDasharray="4 5"/><text x={4} y={22+ratio*(PRICE_HEIGHT-36)} fill="var(--text-muted)" fontSize="10">{formatNumber(max-ratio*spread, 1)}</text></g>)}
-      {bandPoints && <polygon points={bandPoints} fill="var(--primary-soft)" opacity=".7"/>}<polygon points={`${PAD_X},${PRICE_HEIGHT-18} ${closePoints} ${WIDTH-PAD_X},${PRICE_HEIGHT-18}`} fill="url(#advancedPriceArea)"/>
-      {showAverage && <polyline points={linePoints(rows.map((row) => row.avg_price), x, y)} fill="none" stroke="var(--warning)" strokeWidth="1.4" strokeDasharray="5 4"/>}{showMa50 && <polyline points={linePoints(ma50, x, y)} fill="none" stroke="var(--negative)" strokeWidth="1.5"/>}{showMa20 && <polyline points={linePoints(ma20, x, y)} fill="none" stroke="var(--positive)" strokeWidth="1.5"/>}<polyline points={closePoints} fill="none" stroke="var(--primary)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-      {rows.map((row, index) => { const height = ((row.volume_try ?? 0) / volumeMax) * VOLUME_HEIGHT; const barWidth = Math.max(.6, 320 / rows.length); return <rect key={row.date} x={x(index)-barWidth/2} y={VOLUME_TOP+VOLUME_HEIGHT-height} width={barWidth} height={height} rx=".7" fill={index && row.close < rows[index-1].close ? "var(--negative)" : "var(--positive)"} opacity=".55"/>; })}<text x={PAD_X} y={VOLUME_TOP-8} fill="var(--text-muted)" fontSize="10">HACİM · tepe {formatMoney(volumeMax, true)}</text>
-      {showRsi && <g><line x1={PAD_X} x2={WIDTH-PAD_X} y1={RSI_TOP+RSI_HEIGHT*.3} y2={RSI_TOP+RSI_HEIGHT*.3} stroke="var(--negative)" strokeDasharray="4 5" opacity=".5"/><line x1={PAD_X} x2={WIDTH-PAD_X} y1={RSI_TOP+RSI_HEIGHT*.7} y2={RSI_TOP+RSI_HEIGHT*.7} stroke="var(--positive)" strokeDasharray="4 5" opacity=".5"/><polyline points={linePoints(rsiValues, x, (value) => RSI_TOP+RSI_HEIGHT-(value/100)*RSI_HEIGHT)} fill="none" stroke="var(--warning)" strokeWidth="1.7"/><text x={PAD_X} y={RSI_TOP-8} fill="var(--text-muted)" fontSize="10">RSI (14)</text></g>}
-      <line x1={x(selectedIndex)} x2={x(selectedIndex)} y1={14} y2={VOLUME_TOP+VOLUME_HEIGHT} stroke="var(--text-muted)" strokeDasharray="3 4" opacity=".8"/><circle cx={x(selectedIndex)} cy={y(selected.close)} r="4" fill="var(--surface)" stroke="var(--primary)" strokeWidth="2"/><text x={PAD_X} y={chartHeight-3} fill="var(--text-muted)" fontSize="10">{first.date}</text><text x={WIDTH-PAD_X} y={chartHeight-3} textAnchor="end" fill="var(--text-muted)" fontSize="10">{last.date}</text>
-    </svg><div className="pointer-events-none absolute right-2 top-2 rounded-[10px] border px-3 py-2 text-[10px] leading-5 shadow-lg" style={{ borderColor: "var(--border)", background: "color-mix(in srgb, var(--surface) 92%, transparent)" }}><p className="font-semibold text-[var(--text)]">{selected.date}</p><p>Kapanış {formatMoney(selected.close)}</p><p>Min / Maks {formatMoney(selected.low)} / {formatMoney(selected.high)}</p><p>AOF {formatMoney(selected.avg_price)}</p><p>Hacim {formatMoney(selected.volume_try, true)}</p></div></div>
-    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-[var(--text-muted)]"><Legend color="var(--primary)">Kapanış</Legend><Legend color="var(--primary-soft)">Min–maks bant</Legend>{showMa20 && <Legend color="var(--positive)">MA20</Legend>}{showMa50 && <Legend color="var(--negative)">MA50</Legend>}{showAverage && <Legend color="var(--warning)">AOF</Legend>}<span>{rows.length} işlem günü</span></div>
+  return <div ref={ref} className="min-w-0" data-testid="price-chart">
+    <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap gap-1" role="group" aria-label="Grafik dönemi">{ranges.map((item) => <Toggle key={item.label} active={rangeDays === item.days} onClick={() => selectPreset(item.days)}>{item.label}</Toggle>)}</div>
+      <div className="flex gap-1" role="group" aria-label="Grafik türü"><Toggle active={mode === "line"} onClick={() => setMode("line")}>Çizgi</Toggle><Toggle active={mode === "hlc"} onClick={() => setMode("hlc")}>Düşük–yüksek–kapanış</Toggle></div>
+    </div>
+    <div className="mb-3 grid grid-cols-2 items-end gap-2 sm:flex sm:flex-wrap">
+      <label className="min-w-0 flex-1 text-xs text-[var(--text-muted)]">Başlangıç<input aria-label="Grafik başlangıcı" className="input mt-1 min-w-0" type="date" value={start} onChange={(event) => selectCustom("start", event.target.value)}/></label>
+      <label className="min-w-0 flex-1 text-xs text-[var(--text-muted)]">Bitiş<input aria-label="Grafik bitişi" className="input mt-1 min-w-0" type="date" value={end} onChange={(event) => selectCustom("end", event.target.value)}/></label>
+      <div className="col-span-2 flex gap-1"><button type="button" className={chartButton} aria-label="Önceki dönem" disabled={!first || first.date === all[0]?.date} onClick={() => moveWindow(-1)}>←</button><button type="button" className={chartButton} aria-label="Yakınlaştır" disabled={rows.length <= 2} onClick={() => zoom(.5)}>+</button><button type="button" className={chartButton} aria-label="Uzaklaştır" disabled={rows.length < 2 || rows.length === all.length} onClick={() => zoom(2)}>−</button><button type="button" className={chartButton} aria-label="Sonraki dönem" disabled={!last || last.date === all.at(-1)?.date} onClick={() => moveWindow(1)}>→</button></div>
+    </div>
+    <div className="mb-4 flex flex-wrap gap-1.5"><Toggle active={showMa20} onClick={() => setShowMa20(!showMa20)}>MA20</Toggle><Toggle active={showMa50} onClick={() => setShowMa50(!showMa50)}>MA50</Toggle><Toggle active={showAverage} onClick={() => setShowAverage(!showAverage)}>AOF</Toggle><Toggle active={showRsi} onClick={() => setShowRsi(!showRsi)}>RSI (14)</Toggle></div>
+    {!selected ? <p role="status" className="grid h-52 place-items-center text-center text-sm text-[var(--text-muted)]">{error ? "Fiyat servisine ulaşılamadı. Sayfayı yenileyerek tekrar deneyin." : invalidRange ? "Bitiş tarihi başlangıçtan önce olamaz." : all.length ? "Bu tarih aralığında fiyat yok. Başka bir aralık seçin." : "Grafik için fiyat verisi bekleniyor."}</p> : <>
+      <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4"><MiniMetric label="Seçili kapanış" value={formatMoney(selected.close)}/><MiniMetric label="Dönem değişimi" value={formatPercent(change, true)}/><MiniMetric label="Dönem düşük" value={formatMoney(Math.min(...rows.map((row) => row.low ?? row.close)))}/><MiniMetric label="Dönem yüksek" value={formatMoney(Math.max(...rows.map((row) => row.high ?? row.close)))}/></div>
+      <svg className="w-full touch-pan-y rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--primary)]" style={{ height }} viewBox={`0 0 ${width} ${height}`} role="img" tabIndex={0} aria-label="Etkileşimli hisse fiyat ve hacim grafiği" aria-describedby={`${id}-help`} onPointerMove={handlePointer} onPointerDown={handlePointer} onPointerLeave={() => setSelectedDate(null)} onKeyDown={handleKey}>
+        <defs><linearGradient id={`${id}-area`} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="var(--primary)" stopOpacity=".18"/><stop offset="1" stopColor="var(--primary)" stopOpacity="0"/></linearGradient></defs>
+        {[0,.25,.5,.75,1].map((ratio) => <g key={ratio}><line x1={left} x2={right} y1={TOP+ratio*(BOTTOM-TOP)} y2={TOP+ratio*(BOTTOM-TOP)} stroke="var(--chart-grid)" strokeDasharray="4 5"/><text x={left-8} textAnchor="end" y={TOP+4+ratio*(BOTTOM-TOP)} fill="var(--text-muted)" fontSize="10">{formatNumber(max-ratio*(max-min), 2)}</text></g>)}
+        {mode === "line" ? <><path d={`${path} L${x(rows.length-1)},${BOTTOM} L${x(0)},${BOTTOM} Z`} fill={`url(#${id}-area)`}/><path d={path} fill="none" stroke="var(--primary)" strokeWidth="2"/></> : rows.map((row, i) => <g key={row.date} stroke={i > 0 && row.close < rows[i-1].close ? "var(--negative)" : "var(--positive)"} strokeWidth="1.5">
+          {row.low != null && row.high != null && <line x1={x(i)} x2={x(i)} y1={y(row.low)} y2={y(row.high)}/>}
+          <line x1={x(i)} x2={x(i)+Math.max(1, Math.min(6,(right-left)/rows.length*.35))} y1={y(row.close)} y2={y(row.close)}/>
+        </g>)}
+        {[[showMa20, "ma20", "var(--positive)"], [showMa50, "ma50", "var(--negative)"], [showAverage, "avg_price", "var(--warning)"]].map(([show, key, color]) => show && <path key={String(key)} data-series={String(key)} d={chartPath(rows.map((row) => row[key as "ma20" | "ma50" | "avg_price"]), x, y)} fill="none" stroke={String(color)} strokeWidth="1.4" strokeDasharray={key === "avg_price" ? "5 4" : undefined}/>)}
+        <text x={left} y={VOLUME_TOP-9} fill="var(--text-muted)" fontSize="10">{hasVolume ? `HACİM (TL) · tepe ${formatMoney(volumeMax, true)}` : "HACİM VERİSİ YOK"}</text>
+        {rows.map((row, i) => row.volume_try != null && <rect key={row.date} x={x(i)-Math.max(1,(right-left)/rows.length*.55)/2} y={VOLUME_BOTTOM-(volumeMax ? row.volume_try/volumeMax : 0)*(VOLUME_BOTTOM-VOLUME_TOP)} width={Math.max(1,(right-left)/rows.length*.55)} height={(volumeMax ? row.volume_try/volumeMax : 0)*(VOLUME_BOTTOM-VOLUME_TOP)} fill={i > 0 && row.close < rows[i-1].close ? "var(--negative)" : "var(--positive)"} opacity=".55"/>)}
+        {showRsi && <g><text x={left} y={RSI_TOP-10} fill="var(--text-muted)" fontSize="10">RSI (14) · Wilder</text>{[30,70].map((level) => <g key={level}><line x1={left} x2={right} y1={RSI_BOTTOM-level/100*(RSI_BOTTOM-RSI_TOP)} y2={RSI_BOTTOM-level/100*(RSI_BOTTOM-RSI_TOP)} stroke="var(--chart-grid)" strokeDasharray="4 5"/><text x={left-8} textAnchor="end" y={RSI_BOTTOM-level/100*(RSI_BOTTOM-RSI_TOP)+4} fill="var(--text-muted)" fontSize="10">{level}</text></g>)}<path data-series="rsi" d={chartPath(rows.map((row) => row.rsi), x, (value) => RSI_BOTTOM-value/100*(RSI_BOTTOM-RSI_TOP))} fill="none" stroke="var(--warning)" strokeWidth="1.5"/></g>}
+        <line x1={x(index)} x2={x(index)} y1={TOP} y2={showRsi ? RSI_BOTTOM : VOLUME_BOTTOM} stroke="var(--text-muted)" strokeDasharray="3 4"/><circle cx={x(index)} cy={y(selected.close)} r="3.5" fill="var(--surface)" stroke="var(--primary)" strokeWidth="2"/>
+        <text x={left} y={height-3} fill="var(--text-muted)" fontSize="10">{first.date}</text><text x={right} y={height-3} textAnchor="end" fill="var(--text-muted)" fontSize="10">{last?.date}</text>
+      </svg>
+      <label className="mt-2 block text-xs text-[var(--text-muted)]">İşlem günü seç<input aria-label="İşlem günü seç" className="mt-1 block w-full accent-[var(--primary)]" type="range" min={0} max={Math.max(0, rows.length-1)} value={index} disabled={rows.length < 2} aria-valuetext={`${formatDate(selected.date)} · ${formatMoney(selected.close)}`} onChange={(event) => setSelectedDate(rows[Number(event.target.value)].date)}/></label>
+      <div className="mt-3 rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-3" data-testid="price-selection">
+        <p className="mb-2 text-xs font-semibold">{formatDate(selected.date)}</p><dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs sm:grid-cols-3"><Detail label="Kapanış" value={formatMoney(selected.close)}/><Detail label="Düşük / Yüksek" value={`${formatMoney(selected.low)} / ${formatMoney(selected.high)}`}/><Detail label="Hacim (TL)" value={formatMoney(selected.volume_try, true)}/>{showMa20 && <Detail label="MA20" value={formatMoney(selected.ma20)}/>} {showMa50 && <Detail label="MA50" value={formatMoney(selected.ma50)}/>} {showAverage && <Detail label="AOF" value={formatMoney(selected.avg_price)}/>} {showRsi && <Detail label="RSI (14)" value={formatNumber(selected.rsi, 2)}/>}</dl>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-3 text-[11px] text-[var(--text-muted)]" aria-label="Gösterge renkleri"><span className="text-[var(--primary)]">● Kapanış</span>{showMa20 && <span className="text-[var(--positive)]">● MA20</span>}{showMa50 && <span className="text-[var(--negative)]">● MA50</span>}{showAverage && <span className="text-[var(--warning)]">┄ AOF</span>}{showRsi && <span className="text-[var(--warning)]">● RSI (alt panel)</span>}</div>
+      {mode === "hlc" && <p className="mt-2 text-xs text-[var(--text-muted)]">Dikey çubuk düşük–yüksek, sağ çizgi kapanıştır. Açılış verisi bulunmadığından mum grafik değildir.</p>}
+      {((showMa20 && rows.some((row) => row.ma20 == null)) || (showMa50 && rows.some((row) => row.ma50 == null)) || (showRsi && rows.some((row) => row.rsi == null))) && <p className="mt-2 text-xs text-[var(--text-muted)]">Yeterli geçmiş olmayan günlerde gösterge çizilmez. MA20/MA50 için 20/50, RSI için 15 kapanış gerekir.</p>}
+      <p className="mt-2 text-xs text-[var(--text-muted)]">{rows.length} işlem günü · Son kayıt {all.at(-1)?.date} · Gün sonu verisi, canlı fiyat değildir.</p>
+    </>}
+    <p id={`${id}-help`} className="mt-2 text-[11px] leading-5 text-[var(--text-muted)]">Grafikte dokunarak veya ← → tuşlarıyla gün seçin; Home/End ilk/son güne gider. Tarihler ve +/− ile yakınlaştırın. Göstergeler seçili aralıktan önceki mevcut geçmişi de kullanır.</p>
   </div>;
 }
 
-function Toggle({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) { return <button onClick={onClick} aria-pressed={active} className={`rounded-[8px] border px-2.5 py-1.5 text-[10px] font-semibold transition ${active ? "border-transparent bg-[var(--primary-soft)] text-[var(--primary)]" : "text-[var(--text-muted)]"}`} style={active ? undefined : { borderColor: "var(--border)" }}>{children}</button>; }
-function MiniMetric({ label, value, tone }: { label: string; value: string; tone?: boolean }) { return <div className="rounded-[9px] bg-[var(--surface-raised)] px-3 py-2"><p className="text-[9px] uppercase tracking-wider text-[var(--text-muted)]">{label}</p><p className={`mt-1 text-xs font-semibold ${tone === true ? "text-[var(--positive)]" : tone === false ? "text-[var(--negative)]" : ""}`}>{value}</p></div>; }
-function Legend({ color, children }: { color: string; children: ReactNode }) { return <span className="flex items-center gap-1.5"><span className="h-1.5 w-3 rounded-full" style={{ background: color }}/>{children}</span>; }
+function Toggle({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
+  return <button type="button" onClick={onClick} aria-pressed={active} className={`${chartButton} ${active ? "border-transparent bg-[var(--primary-soft)] !text-[var(--primary)]" : ""}`}>{children}</button>;
+}
+function MiniMetric({ label, value }: { label: string; value: string }) { return <div className="rounded-lg bg-[var(--surface-raised)] px-3 py-2"><p className="text-[10px] text-[var(--text-muted)]">{label}</p><p className="mt-1 text-xs font-semibold">{value}</p></div>; }
+function Detail({ label, value }: { label: string; value: string }) { return <div><dt className="text-[var(--text-muted)]">{label}</dt><dd className="mt-1 font-medium">{value}</dd></div>; }

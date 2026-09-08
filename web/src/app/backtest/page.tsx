@@ -45,7 +45,7 @@ export default async function BacktestPage({ searchParams }: { searchParams: Pro
           <BacktestResult run={run}/>
           <section id="islemler" className="mt-6 scroll-mt-24">
             <SectionTitle title="İşlem geçmişi" subtitle="Hisse ve işlem yönüne göre inceleyin"/>
-            <form key={`${run.id}-${ticker}-${side}`} method="get" action="/backtest#islemler" className="mb-4 flex flex-wrap items-end gap-3">
+            <form key={`filters-${run.id}-${ticker}-${side}`} method="get" action="/backtest#islemler" className="mb-4 flex flex-wrap items-end gap-3">
               <input type="hidden" name="run" value={run.id}/>
               <label className="min-w-0 flex-1"><span className="mb-1 block text-xs text-[var(--text-muted)]">Hisse kodu</span><input className="input" name="ticker" maxLength={16} placeholder="Örn. THYAO" defaultValue={ticker}/></label>
               <label><span className="mb-1 block text-xs text-[var(--text-muted)]">İşlem yönü</span><select name="side" className="input" defaultValue={side ?? ""}><option value="">Tümü</option><option value="BUY">Alış</option><option value="SELL">Satış</option></select></label>
