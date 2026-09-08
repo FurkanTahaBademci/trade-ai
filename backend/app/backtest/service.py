@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import noload, selectinload
 
 from app.backtest.engine import (
     BacktestConfig,
@@ -168,9 +168,14 @@ async def create_backtest_run(session: AsyncSession, request: BacktestCreate) ->
     return await get_backtest_run(session, run.id)
 
 
-async def get_backtest_run(session: AsyncSession, run_id: int) -> BacktestRun | None:
+async def get_backtest_run(
+    session: AsyncSession, run_id: int, *, include_trades: bool = True
+) -> BacktestRun | None:
     return await session.scalar(
         select(BacktestRun)
-        .options(selectinload(BacktestRun.points), selectinload(BacktestRun.trades))
+        .options(
+            selectinload(BacktestRun.points),
+            selectinload(BacktestRun.trades) if include_trades else noload(BacktestRun.trades),
+        )
         .where(BacktestRun.id == run_id)
     )
