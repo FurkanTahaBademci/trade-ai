@@ -45,6 +45,11 @@ GEMINI_API_CHOICES: tuple[tuple[str, str], ...] = (
     ("interactions", "Interactions API · SSE streaming · önerilen"),
     ("generate_content", "GenerateContent API · uyumluluk modu"),
 )
+TIER1_GROUP_SIZE_CHOICES: tuple[tuple[str, str], ...] = (
+    ("1", "Tekli · en kolay izolasyon"),
+    ("3", "3 kayıt / istek"),
+    ("5", "5 kayıt / istek · önerilen"),
+)
 
 
 MANAGED_SETTINGS: tuple[SettingSpec, ...] = (
@@ -69,6 +74,13 @@ MANAGED_SETTINGS: tuple[SettingSpec, ...] = (
         "choice",
         "gemini_model_tier2",
         GEMINI_MODEL_CHOICES,
+    ),
+    SettingSpec(
+        "llm_tier1_group_size",
+        "Tier 1 İstek Grup Boyutu",
+        "choice",
+        "llm_tier1_group_size",
+        TIER1_GROUP_SIZE_CHOICES,
     ),
     SettingSpec("llm_enabled", "LLM Degerlendirmesi Etkin", "boolean", "llm_enabled"),
     SettingSpec("n8n_webhook_url", "N8N Webhook URL", "url", "n8n_webhook_url"),
@@ -157,5 +169,10 @@ async def resolve_settings(base: Settings | None = None, *, redis: Redis | None 
         if not stored:
             continue
         raw = stored["value"]
-        updates[spec.field] = (raw == "true") if spec.kind == "boolean" else raw
+        if spec.kind == "boolean":
+            updates[spec.field] = raw == "true"
+        elif spec.field == "llm_tier1_group_size":
+            updates[spec.field] = int(raw)
+        else:
+            updates[spec.field] = raw
     return base.model_copy(update=updates) if updates else base

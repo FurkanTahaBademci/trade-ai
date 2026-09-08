@@ -41,7 +41,7 @@ Ayarlar PostgreSQL'de kalır; Redis kilidi mükerrer worker tetiklemesini önler
 rotasyonu, salt-okunur dosya sistemi ve yetkisiz kullanıcılarla sertleştirildi.
 PostgreSQL/Redis kalıcılığı ile yedekleme, geri yükleme ve üretim smoke komutları hazır.
 
-Toplam **158 backend + 28 web ağsız test** geçiyor. Docker ile yapılan canlı
+Toplam **161 backend + 28 web ağsız test** geçiyor. Docker ile yapılan canlı
 doğrulamaların sayısal sonuçları `.claude/CODEX_NOTES.md` içinde.
 
 ## Hızlı başlangıç (yerel geliştirme)

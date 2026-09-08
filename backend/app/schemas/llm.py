@@ -56,6 +56,16 @@ class LlmTier1Result(_AnalysisBase):
     requires_deep_analysis: bool
 
 
+class LlmTier1BatchItem(LlmTier1Result):
+    document_id: str = Field(min_length=1, max_length=128)
+
+
+class LlmTier1BatchResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    results: list[LlmTier1BatchItem] = Field(min_length=1, max_length=5)
+
+
 class LlmTier2Result(_AnalysisBase):
     expected_direction: ExpectedDirection
     thesis: str = Field(min_length=1, max_length=1600)

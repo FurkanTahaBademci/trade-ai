@@ -29,7 +29,11 @@ from sqlalchemy.orm import aliased
 from app.core.config import Settings, get_settings
 from app.core.dynamic_settings import resolve_settings
 from app.models import Instrument, KapDisclosure, LlmEvaluation, NewsArticle
-from app.schemas.llm import LlmTier1Result, LlmTier2Result
+from app.schemas.llm import (
+    LlmTier1BatchResult,
+    LlmTier1Result,
+    LlmTier2Result,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -65,6 +69,16 @@ class GatewayResponse:
     input_tokens: int | None = None
     output_tokens: int | None = None
     total_tokens: int | None = None
+
+
+@dataclass(frozen=True)
+class BatchEvaluationOutcome:
+    attempted: int
+    succeeded: int
+    failed: int
+    skipped: int
+    input_tokens: int = 0
+    output_tokens: int = 0
 
 
 class LlmGateway(Protocol):
@@ -191,6 +205,39 @@ def build_user_content(document: SourceDocument, *, tier1_result: dict | None = 
     return "\n".join(parts)
 
 
+def batch_document_id(document: SourceDocument) -> str:
+    return f"{document.source_type}:{document.source_id}:{document.content_hash[:16]}"
+
+
+def build_batch_user_content(documents: list[SourceDocument]) -> str:
+    payload = [
+        {
+            "document_id": batch_document_id(document),
+            "source_document": document.payload,
+        }
+        for document in documents
+    ]
+    return "\n".join(
+        [
+            "<BATCH_DOCUMENTS>",
+            _prompt_json(payload),
+            "</BATCH_DOCUMENTS>",
+            (
+                "Her belge icin document_id degerini degistirmeden, ayni sirada ve "
+                "tam bir sonuc dondur."
+            ),
+        ]
+    )
+
+
+def _allocate_tokens(total: int | None, count: int) -> list[int | None]:
+    """Grup tokenlarini toplami koruyacak bicimde kayitlara esit dagit."""
+    if total is None:
+        return [None] * count
+    quotient, remainder = divmod(total, count)
+    return [quotient + (1 if index < remainder else 0) for index in range(count)]
+
+
 def _is_retryable_gemini_error(exc: Exception) -> bool:
     """Yalniz gecici ag/saglayici ve yarim JSON akislarini yeniden dene."""
     if isinstance(exc, ValidationError):
@@ -228,6 +275,13 @@ def _friendly_gemini_error(exc: Exception) -> str:
     if "connection error" in lowered or "timed out" in lowered or "timeout" in lowered:
         return "Gemini API baglantisi zaman asimina ugradi veya kesildi"
     return message[:4000]
+
+
+def _is_batch_response_error(exc: Exception) -> bool:
+    return isinstance(exc, ValidationError) or (
+        isinstance(exc, ValueError)
+        and str(exc).startswith("Gemini batch document_id sirasi/girdileriyle eslesmedi")
+    )
 
 
 def _prioritize_documents(
@@ -668,6 +722,225 @@ class LlmEvaluationService:
             return None
         return record
 
+    def _complete_record(
+        self,
+        record: LlmEvaluation,
+        validated: dict,
+        *,
+        tier: int,
+        known_tickers: set[str],
+        raw_response: str,
+        input_tokens: int | None,
+        output_tokens: int | None,
+        total_tokens: int | None,
+        latency_ms: int,
+        batch_metadata: dict | None = None,
+    ) -> None:
+        validated = dict(validated)
+        validated["ticker_codes"] = sorted(
+            set(validated.get("ticker_codes", [])) & known_tickers
+        )
+        requires_tier2 = bool(
+            tier == 1
+            and validated.get("requires_deep_analysis")
+            and validated["relevant"]
+            and validated["relevance_score"] >= 60
+            and validated["impact_score"] >= self._settings.llm_tier2_min_impact
+            and validated["ticker_codes"]
+        )
+        if batch_metadata:
+            validated["_batch"] = batch_metadata
+
+        record.status = "succeeded"
+        record.ticker_codes = validated["ticker_codes"]
+        record.relevance_score = validated["relevance_score"]
+        record.sentiment_score = validated["sentiment_score"]
+        record.impact_score = validated["impact_score"]
+        record.confidence = validated["confidence"]
+        record.event_type = validated["event_type"]
+        record.time_horizon = validated["time_horizon"]
+        record.summary = validated["summary"]
+        record.rationale = validated["rationale"]
+        record.requires_tier2 = requires_tier2
+        record.result = validated
+        record.raw_response = raw_response
+        record.input_tokens = input_tokens
+        record.output_tokens = output_tokens
+        record.total_tokens = total_tokens
+        record.latency_ms = latency_ms
+        record.completed_at = datetime.now(UTC)
+        record.error_text = None
+
+    async def _evaluate_tier1_batch(
+        self,
+        documents: list[SourceDocument],
+        *,
+        known_tickers: set[str],
+    ) -> BatchEvaluationOutcome:
+        model = self._settings.gemini_model_tier1
+        prepared: list[tuple[SourceDocument, str, LlmEvaluation]] = []
+        skipped = 0
+        for document in documents:
+            key = evaluation_key(
+                document,
+                tier=1,
+                model=model,
+                api_mode=self._settings.gemini_api_mode,
+            )
+            record = await self._start_record(
+                document,
+                key=key,
+                tier=1,
+                model=model,
+                input_document={"source_document": document.payload},
+                parent_key=None,
+            )
+            if record is None:
+                skipped += 1
+            else:
+                prepared.append((document, key, record))
+        if not prepared:
+            return BatchEvaluationOutcome(0, 0, 0, skipped)
+
+        started = time.monotonic()
+        try:
+            active_documents = [item[0] for item in prepared]
+            response = await self._gateway.generate(
+                model=model,
+                system_instruction=self._prompts.tier1_system,
+                user_content=build_batch_user_content(active_documents),
+                response_model=LlmTier1BatchResult,
+                thinking_level="low",
+                max_output_tokens=max(2_400, len(prepared) * 1_200),
+            )
+            batch = LlmTier1BatchResult.model_validate(response.data)
+            expected_ids = [batch_document_id(document) for document in active_documents]
+            actual_ids = [item.document_id for item in batch.results]
+            if actual_ids != expected_ids:
+                raise ValueError(
+                    "Gemini batch document_id sirasi/girdileriyle eslesmedi: "
+                    f"expected={expected_ids!r}, actual={actual_ids!r}"
+                )
+
+            latency_ms = round((time.monotonic() - started) * 1000)
+            input_allocations = _allocate_tokens(response.input_tokens, len(prepared))
+            output_allocations = _allocate_tokens(response.output_tokens, len(prepared))
+            total_allocations = _allocate_tokens(response.total_tokens, len(prepared))
+            for index, ((_, _, record), item) in enumerate(zip(prepared, batch.results, strict=True)):
+                validated = item.model_dump(mode="json", exclude={"document_id"})
+                self._complete_record(
+                    record,
+                    validated,
+                    tier=1,
+                    known_tickers=known_tickers,
+                    raw_response=_stable_json(item.model_dump(mode="json")),
+                    input_tokens=input_allocations[index],
+                    output_tokens=output_allocations[index],
+                    total_tokens=total_allocations[index],
+                    latency_ms=latency_ms,
+                    batch_metadata={
+                        "size": len(prepared),
+                        "position": index + 1,
+                        "usage_allocation": "even",
+                    },
+                )
+            await self._session.commit()
+            return BatchEvaluationOutcome(
+                attempted=len(prepared),
+                succeeded=len(prepared),
+                failed=0,
+                skipped=skipped,
+                input_tokens=response.input_tokens or 0,
+                output_tokens=response.output_tokens or 0,
+            )
+        except Exception as exc:  # noqa: BLE001 - grup hatasi batch'i durdurmasin
+            await self._session.rollback()
+            if len(prepared) > 1 and _is_batch_response_error(exc):
+                succeeded = failed = input_tokens = output_tokens = 0
+                for document, key, _ in prepared:
+                    status, response = await self._evaluate_running_tier1(
+                        document,
+                        key=key,
+                        known_tickers=known_tickers,
+                    )
+                    if status == "succeeded":
+                        succeeded += 1
+                    else:
+                        failed += 1
+                    if response:
+                        input_tokens += response.input_tokens or 0
+                        output_tokens += response.output_tokens or 0
+                return BatchEvaluationOutcome(
+                    attempted=len(prepared),
+                    succeeded=succeeded,
+                    failed=failed,
+                    skipped=skipped,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                )
+            latency_ms = round((time.monotonic() - started) * 1000)
+            for _, key, _ in prepared:
+                record = await self._existing(key)
+                if record is not None:
+                    record.status = "failed"
+                    record.error_text = _friendly_gemini_error(exc)
+                    record.latency_ms = latency_ms
+                    record.completed_at = datetime.now(UTC)
+            await self._session.commit()
+            return BatchEvaluationOutcome(
+                attempted=len(prepared),
+                succeeded=0,
+                failed=len(prepared),
+                skipped=skipped,
+            )
+
+    async def _evaluate_running_tier1(
+        self,
+        document: SourceDocument,
+        *,
+        key: str,
+        known_tickers: set[str],
+    ) -> tuple[str, GatewayResponse | None]:
+        """Basarisiz grup semasindaki tek kaydi yeni attempt acmadan izole et."""
+        started = time.monotonic()
+        try:
+            response = await self._gateway.generate(
+                model=self._settings.gemini_model_tier1,
+                system_instruction=self._prompts.tier1_system,
+                user_content=build_user_content(document),
+                response_model=LlmTier1Result,
+                thinking_level="low",
+                max_output_tokens=2_400,
+            )
+            validated = LlmTier1Result.model_validate(response.data).model_dump(mode="json")
+            record = await self._existing(key)
+            if record is None:
+                return "failed", None
+            self._complete_record(
+                record,
+                validated,
+                tier=1,
+                known_tickers=known_tickers,
+                raw_response=response.raw_text,
+                input_tokens=response.input_tokens,
+                output_tokens=response.output_tokens,
+                total_tokens=response.total_tokens,
+                latency_ms=round((time.monotonic() - started) * 1000),
+                batch_metadata={"size": 1, "position": 1, "fallback": "group_isolation"},
+            )
+            await self._session.commit()
+            return "succeeded", response
+        except Exception as exc:  # noqa: BLE001 - tek oge digerlerini etkilemesin
+            await self._session.rollback()
+            record = await self._existing(key)
+            if record is not None:
+                record.status = "failed"
+                record.error_text = _friendly_gemini_error(exc)
+                record.latency_ms = round((time.monotonic() - started) * 1000)
+                record.completed_at = datetime.now(UTC)
+                await self._session.commit()
+            return "failed", None
+
     async def _evaluate(
         self,
         document: SourceDocument,
@@ -718,37 +991,17 @@ class LlmEvaluationService:
                 max_output_tokens=2_400 if tier == 1 else 4_096,
             )
             validated = response_model.model_validate(response.data).model_dump(mode="json")
-            validated["ticker_codes"] = sorted(
-                set(validated.get("ticker_codes", [])) & known_tickers
+            self._complete_record(
+                record,
+                validated,
+                tier=tier,
+                known_tickers=known_tickers,
+                raw_response=response.raw_text,
+                input_tokens=response.input_tokens,
+                output_tokens=response.output_tokens,
+                total_tokens=response.total_tokens,
+                latency_ms=round((time.monotonic() - started) * 1000),
             )
-            requires_tier2 = bool(
-                tier == 1
-                and validated.get("requires_deep_analysis")
-                and validated["relevant"]
-                and validated["relevance_score"] >= 60
-                and validated["impact_score"] >= self._settings.llm_tier2_min_impact
-                and validated["ticker_codes"]
-            )
-
-            record.status = "succeeded"
-            record.ticker_codes = validated["ticker_codes"]
-            record.relevance_score = validated["relevance_score"]
-            record.sentiment_score = validated["sentiment_score"]
-            record.impact_score = validated["impact_score"]
-            record.confidence = validated["confidence"]
-            record.event_type = validated["event_type"]
-            record.time_horizon = validated["time_horizon"]
-            record.summary = validated["summary"]
-            record.rationale = validated["rationale"]
-            record.requires_tier2 = requires_tier2
-            record.result = validated
-            record.raw_response = response.raw_text
-            record.input_tokens = response.input_tokens
-            record.output_tokens = response.output_tokens
-            record.total_tokens = response.total_tokens
-            record.latency_ms = round((time.monotonic() - started) * 1000)
-            record.completed_at = datetime.now(UTC)
-            record.error_text = None
             await self._session.commit()
             return "succeeded", response
         except Exception as exc:  # noqa: BLE001 - tek model hatasi batch'i durdurmasin
@@ -775,25 +1028,29 @@ class LlmEvaluationService:
         }
 
         tier1_attempted = 0
-        for document in await self._tier1_documents():
-            if tier1_attempted >= self._settings.llm_batch_size:
-                break
+        tier1_documents = await self._tier1_documents()
+        tier1_cursor = 0
+        group_size = max(1, min(self._settings.llm_tier1_group_size, 5))
+        while tier1_cursor < len(tier1_documents):
             if not self._budget_available(input_tokens, output_tokens):
                 result["budget_exhausted"] = True
                 break
-            status, response = await self._evaluate(
-                document,
-                tier=1,
+            remaining_capacity = self._settings.llm_batch_size - tier1_attempted
+            if remaining_capacity <= 0:
+                break
+            current_group_size = min(group_size, remaining_capacity)
+            documents = tier1_documents[tier1_cursor : tier1_cursor + current_group_size]
+            tier1_cursor += len(documents)
+            outcome = await self._evaluate_tier1_batch(
+                documents,
                 known_tickers=known_tickers,
             )
-            if status == "skipped":
-                result["skipped"] += 1
-                continue
-            tier1_attempted += 1
-            result[f"tier1_{status}"] += 1
-            if response:
-                input_tokens += response.input_tokens or 0
-                output_tokens += response.output_tokens or 0
+            tier1_attempted += outcome.attempted
+            result["tier1_succeeded"] += outcome.succeeded
+            result["tier1_failed"] += outcome.failed
+            result["skipped"] += outcome.skipped
+            input_tokens += outcome.input_tokens
+            output_tokens += outcome.output_tokens
 
         tier2_attempted = 0
         tier2_batch_size = max(1, self._settings.llm_batch_size // 4)

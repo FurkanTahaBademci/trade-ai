@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     gemini_model_tier2: str = "gemini-3.1-pro-preview"
     llm_enabled: bool = False
     llm_batch_size: int = 20
+    llm_tier1_group_size: int = 5
     llm_max_attempts: int = 3
     llm_tier2_min_impact: int = 70
     llm_daily_input_token_limit: int = 500_000
