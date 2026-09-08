@@ -66,6 +66,16 @@ def test_foreks_fixture_maps_all_entries_and_keeps_author():
     assert rows[0]["canonical_url"].startswith("https://www.foreks.com/")
 
 
+def test_trthaber_fixture_maps_all_entries_with_explicit_offset():
+    parsed = feedparser.parse((FIXTURES / "trthaber_sample.xml").read_bytes())
+
+    rows = [map_news_entry("trthaber", entry, set()) for entry in parsed.entries]
+
+    assert len(rows) == 15
+    assert rows[0]["published_at"] == datetime(2026, 9, 8, 6, 54, 0, tzinfo=UTC)
+    assert rows[0]["canonical_url"].startswith("https://www.trthaber.com/")
+
+
 def test_canonical_url_removes_tracking_fragment_and_sorts_query():
     first = canonicalize_url(
         "HTTPS://Example.COM:443/path/?z=2&utm_source=rss&a=1&fbclid=abc#section"

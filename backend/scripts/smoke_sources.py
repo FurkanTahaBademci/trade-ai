@@ -202,6 +202,7 @@ RSS_FEEDS = {
     "aa_ekonomi": "https://www.aa.com.tr/tr/rss/default?cat=ekonomi",
     "dunya": "https://www.dunya.com/rss?sfid=1",
     "foreks": "https://www.foreks.com/rss",
+    "trthaber": "https://www.trthaber.com/ekonomi_articles.rss",
 }
 
 

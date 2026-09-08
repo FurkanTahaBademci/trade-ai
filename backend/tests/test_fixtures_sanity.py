@@ -43,7 +43,7 @@ def test_tefas_dagilim_shape():
 
 
 def test_rss_feeds_parse():
-    for name in ("bloomberght", "investing_tr", "aa_ekonomi", "dunya", "foreks"):
+    for name in ("bloomberght", "investing_tr", "aa_ekonomi", "dunya", "foreks", "trthaber"):
         xml_bytes = (FIXTURES / "rss" / f"{name}_sample.xml").read_bytes()
         parsed = feedparser.parse(xml_bytes)
         assert len(parsed.entries) > 0, f"{name} feed'inde entry bulunamadi"

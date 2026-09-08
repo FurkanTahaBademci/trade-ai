@@ -37,11 +37,12 @@ NEWS_FEEDS = (
     # Bu feed offset yazmiyor. Resmi makale sayfasindaki TRT saati RSS'ten
     # uc saat ileride oldugu icin naive deger UTC olarak yorumlanir.
     NewsFeed("investing_tr", "https://tr.investing.com/rss/news.rss"),
-    # Asagidaki uc kaynak da pubDate'te acik UTC offset'i tasiyor (+0300/+0000),
+    # Asagidaki dort kaynak da pubDate'te acik UTC offset'i tasiyor (+0300/+0000),
     # naive_timezone fallback'i hicbir zaman kullanilmiyor.
     NewsFeed("aa_ekonomi", "https://www.aa.com.tr/tr/rss/default?cat=ekonomi"),
     NewsFeed("dunya", "https://www.dunya.com/rss?sfid=1"),
     NewsFeed("foreks", "https://www.foreks.com/rss"),
+    NewsFeed("trthaber", "https://www.trthaber.com/ekonomi_articles.rss"),
 )
 
 _TRACKING_QUERY_KEYS = {
