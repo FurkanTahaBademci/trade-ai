@@ -8,6 +8,20 @@ gereken ürün kararları `CLAUDE.md` içindedir. Aşağıdaki 2026-09-07 (Claud
 girişi Codex değil, Claude tarafından yazıldı — paylaşılan tek devir
 günlüğünü bölmemek için burada tutuluyor, başlıkta ajan belirtildi.
 
+## 2026-09-08 — Gemini kontrollü bağlantı testi
+
+- `POST /api/settings/gemini/test` yönetim anahtarıyla korundu; Tier 1 veya Tier 2
+  seçimiyle, aktif Redis/`.env` API modu ve modelini kullanarak tek küçük,
+  yapılandırılmış Gemini isteği gönderiyor.
+- Test `LLM_ENABLED` değerinden bağımsız; toplu değerlendirmeyi başlatmıyor.
+  Başarı yanıtı model, API modu, gecikme ve token kullanımını içeriyor; API
+  anahtarı hata metinlerinden maskeleniyor.
+- `/sistem` Ayarlar bölümüne iki test düğmesi eklendi. Gerçek ücretli çağrı bu
+  oturumda anahtar bulunmadığı için yapılmadı; birim testlerde ağsız geçitle
+  katman seçimi ve anahtar eksikliği doğrulandı. Tüm kontroller sonunda backend
+  **155/155**, web **28/28**; Ruff, TypeScript, production build, Alembic offline
+  DDL ve Compose yapılandırması temiz.
+
 ## 2026-09-08 — Gemini 3.8 Flash + Interactions API
 
 - Google'ın 4 Eylül 2026 güncel resmî rehberi doğrulandı: `gemini-3.8-flash`
@@ -29,7 +43,7 @@ günlüğünü bölmemek için burada tutuluyor, başlıkta ajan belirtildi.
   deterministik evaluation key'e katıldığı için mod değişimi idempotency'yi
   bozmadan ayrı değerlendirme üretir. Detay ekranı kullanılan API'yi gösterir.
 - Thinking tokenları da output maliyet kotasına dahil edildi. Sahte async SSE
-  testleri ve seçim doğrulamalarıyla backend **153/153**, web **28/28**; Ruff,
+  testleri ve seçim doğrulamalarıyla backend **155/155**, web **28/28**; Ruff,
   offline PostgreSQL DDL, TypeScript ve Next.js build temiz. `GEMINI_API_KEY`
   bu ortamda boş ve `LLM_ENABLED=false`; ücretli canlı çağrı yapılmadı.
 

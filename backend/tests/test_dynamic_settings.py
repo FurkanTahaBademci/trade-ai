@@ -16,6 +16,7 @@ def test_settings_and_storage_routes_are_registered():
     paths = set(app.openapi()["paths"])
     assert "/api/settings" in paths
     assert "/api/settings/{key}" in paths
+    assert "/api/settings/gemini/test" in paths
     assert "/api/system/storage" in paths
 
 

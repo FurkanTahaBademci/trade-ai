@@ -18,8 +18,8 @@ async function mutate(path: string, init: RequestInit): Promise<{ ok: boolean; m
         ...init.headers,
       },
     });
-    if (response.ok) return { ok: true, message: "Takvim güncellendi" };
-    const payload = (await response.json().catch(() => null)) as { detail?: string } | null;
+    const payload = (await response.json().catch(() => null)) as { detail?: string; message?: string } | null;
+    if (response.ok) return { ok: true, message: payload?.message ?? "İşlem tamamlandı" };
     return { ok: false, message: payload?.detail ?? `İşlem başarısız (HTTP ${response.status})` };
   } catch {
     return { ok: false, message: "API servisine ulaşılamadı" };
@@ -73,4 +73,19 @@ export async function clearSettingAction(formData: FormData) {
   const key = String(formData.get("key") ?? "");
   const result = await mutate(`/api/settings/${encodeURIComponent(key)}`, { method: "DELETE" });
   finish({ ...result, message: result.ok ? "Ayar .env varsayılanına döndürüldü" : result.message });
+}
+
+export async function testGeminiAction(formData: FormData) {
+  const tier = Number(formData.get("tier"));
+  if (tier !== 1 && tier !== 2) {
+    finish({ ok: false, message: "Geçersiz Gemini katmanı" });
+  }
+  const result = await mutate("/api/settings/gemini/test", {
+    method: "POST",
+    body: JSON.stringify({ tier }),
+  });
+  finish({
+    ...result,
+    message: result.ok ? `Tier ${tier} bağlantısı başarılı: ${result.message}` : result.message,
+  });
 }

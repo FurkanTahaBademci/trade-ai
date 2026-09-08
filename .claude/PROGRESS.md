@@ -243,7 +243,7 @@ Durumlar: ⬜ başlanmadı · 🔶 devam ediyor · ✅ tamamlandı ve doğruland
       `7a6e9c4f2b10` migration'ı her değerlendirmenin `api_mode` değerini saklıyor;
       eski satırlar `generate_content`, yeniler `interactions` olarak işaretlenir.
       Thinking tokenları günlük maliyet kapısına dahil edildi. Sahte SSE akışı,
-      model/API seçimleri ve migration DDL dahil **153/153 backend**, **28/28 web
+      model/API seçimleri, bağlantı tanılaması ve migration DDL dahil **155/155 backend**, **28/28 web
       testi**, Ruff, TypeScript ve production build temiz. Yerel anahtar boş
       olduğundan ücretli canlı çağrı bilinçli olarak yapılmadı.
 - [x] Maliyet kapıları: `LLM_ENABLED=false` güvenli varsayılanı, günlük input /
@@ -261,6 +261,9 @@ Durumlar: ⬜ başlanmadı · 🔶 devam ediyor · ✅ tamamlandı ve doğruland
 - [x] Gerçek PostgreSQL + sahte Gemini geçidi: Tier 1 ve Tier 2 ilk çağrıda iki
       bağlı satır oluşturdu, ikinci çağrılar `skipped`; tokenlar kaydedildi,
       ticker filtresi çalıştı ve geçici test satırları temizlendi.
+- [x] `/sistem` ekranındaki Gemini bağlantı testi, `LLM_ENABLED` açılmadan seçili
+      Tier 1/Tier 2 modeli ve API moduyla tek küçük istek gönderebiliyor; model,
+      API, gecikme ve token kullanımını sonuç bildirimiyle gösteriyor.
 - [x] Docker içinde **45/45 test geçti**; Ruff, OpenAPI, Alembic head/check,
       API liste/404 ve worker cron kaydı doğrulandı.
 - [ ] `GEMINI_API_KEY` sağlanıp kontrollü küçük batch ile gerçek Gemini çağrısı

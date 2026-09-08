@@ -41,7 +41,7 @@ Ayarlar PostgreSQL'de kalır; Redis kilidi mükerrer worker tetiklemesini önler
 rotasyonu, salt-okunur dosya sistemi ve yetkisiz kullanıcılarla sertleştirildi.
 PostgreSQL/Redis kalıcılığı ile yedekleme, geri yükleme ve üretim smoke komutları hazır.
 
-Toplam **153 backend + 28 web ağsız test** geçiyor. Docker ile yapılan canlı
+Toplam **155 backend + 28 web ağsız test** geçiyor. Docker ile yapılan canlı
 doğrulamaların sayısal sonuçları `.claude/CODEX_NOTES.md` içinde.
 
 ## Hızlı başlangıç (yerel geliştirme)
@@ -110,6 +110,9 @@ Production değişkenlerini girdikten sonra secret değerlerini göstermeyen yay
 3. ✅ **Coolify üretim kapısı (kod):** Kalıcı PostgreSQL/Redis volume, yedekleme,
    private ağ, health check, migration, restart kalıcılığı ve temiz kurulum smoke
    testi doğrulandı. Gerçek domain/TLS bağlantısı Coolify erişimiyle yapılacak.
+4. ✅ **Gemini kontrollü bağlantı testi:** `/sistem` ekranından seçili Tier 1 veya
+   Tier 2 modeli, Interactions/GenerateContent modu ve token kullanımı batch
+   değerlendirmesi açılmadan tek küçük istekle doğrulanabiliyor.
 
 Ayrıntılı ve kanonik uygulama sırası `.claude/PROGRESS.md` dosyasındadır.
 
