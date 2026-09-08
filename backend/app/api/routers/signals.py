@@ -10,8 +10,14 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
-from app.models import CompositeSignalSnapshot
-from app.schemas.signal import CompositeSignalOut
+from app.models import CompositeSignalSnapshot, PriceDaily
+from app.schemas.signal import CompositeSignalOut, SignalHorizonStatOut
+from app.signals.accuracy import (
+    DEFAULT_HORIZONS,
+    PricePoint,
+    SignalObservation,
+    compute_signal_accuracy,
+)
 
 router = APIRouter(prefix="/api/signals", tags=["signals"])
 
@@ -79,6 +85,49 @@ async def list_latest_signals(
         CompositeSignalSnapshot.id.desc(),
     ).limit(limit)
     return list((await db.scalars(stmt)).all())
+
+
+@router.get("/accuracy", response_model=list[SignalHorizonStatOut])
+async def signal_accuracy_report(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    model_version: Annotated[str, Query()] = "v1",
+) -> list[SignalHorizonStatOut]:
+    """Gecmis sinyallerin gercek ileri getirisiyle karsilastirilmasi.
+
+    Not: bu bir /{ticker} yol parametresi degildir — literal "/accuracy"
+    segmenti oldugundan asagidaki /{ticker} route'undan ONCE tanimlanmali,
+    aksi halde "accuracy" bir ticker kodu sanilip yakalanir.
+    """
+    signal_rows = list(
+        (
+            await db.scalars(
+                select(CompositeSignalSnapshot).where(
+                    CompositeSignalSnapshot.model_version == model_version
+                )
+            )
+        ).all()
+    )
+    tickers = {row.ticker for row in signal_rows}
+    price_rows: list[PriceDaily] = []
+    if tickers:
+        price_rows = list(
+            (
+                await db.scalars(
+                    select(PriceDaily)
+                    .where(PriceDaily.ticker.in_(tickers))
+                    .order_by(PriceDaily.ticker, PriceDaily.date)
+                )
+            ).all()
+        )
+    stats = compute_signal_accuracy(
+        [
+            SignalObservation(row.ticker, row.as_of_date, row.composite_score, row.signal_label)
+            for row in signal_rows
+        ],
+        [PricePoint(row.ticker, row.date, row.close) for row in price_rows],
+        horizons=DEFAULT_HORIZONS,
+    )
+    return [SignalHorizonStatOut.model_validate(item) for item in stats]
 
 
 @router.get("/{ticker}", response_model=list[CompositeSignalOut])

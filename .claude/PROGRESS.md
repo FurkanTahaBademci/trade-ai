@@ -358,6 +358,19 @@ Durumlar: ⬜ başlanmadı · 🔶 devam ediyor · ✅ tamamlandı ve doğruland
 - [x] API: `GET /api/signals` (tarih/ticker/etiket/minimum skor filtreleri) ve
       `GET /api/signals/{ticker}` geçmişi. CLI: `python -m scripts.run_once signals`.
       Worker LLM işinden sonra her 10 dakikada bir skorları tazeliyor.
+- [x] **2026-09-08 sinyal doğruluk takibi:** `GET /api/signals/accuracy` —
+      backtest'ten farklı olarak portföy simülasyonu yapmadan, geçmiş
+      sinyallerin etiketinin (VERY_POSITIVE..VERY_NEGATIVE) kendisinden
+      SONRAKİ ilk mevcut kapanıştan başlayarak 5/10/20 işlem günü sonraki
+      gerçek getiriyle karşılaştırılması. Yönlü etiketler için isabet oranı
+      (getiri işaretinin beklenen yönle eşleşmesi), NÖTR için yalnız ortalama
+      getiri hesaplanır. `app/signals/accuracy.py` saf fonksiyonu 7 testle
+      doğrulandı (isabet/kaçırma, bakış-önyargısı önleme, kısmi vade verisi,
+      çoklu sinyal ortalaması). `/sinyaller` ekranına "Sinyal doğruluğu"
+      tablosu eklendi; veri birikene kadar açık "henüz yeterli veri yok"
+      durumu gösteriliyor (uydurma yok). Route sıralaması `/{ticker}`
+      yakalayıcısından önce test edildi. **150/150 backend, 25/25 web
+      testi** yeşil.
 - [x] Saf skor/esik/eksik veri/Tier 2/regresyon testleri dahil **72/72 test geçti**;
       Ruff, production web build ve offline PostgreSQL DDL üretimi temiz.
 - [x] Gerçek PostgreSQL koşusu: 91 adaydan 88 snapshot, 3 düşük kapsam nedeniyle

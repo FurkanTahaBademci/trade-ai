@@ -20,3 +20,13 @@ class CompositeSignalOut(BaseModel):
     component_weights: dict
     evidence: dict
     computed_at: datetime
+
+
+class SignalHorizonStatOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    horizon: int
+    label: str
+    observation_count: int
+    average_return_pct: float | None
+    hit_rate_pct: float | None

@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 
 from app.core.db import get_db
 from app.main import app
+from app.signals.accuracy import DEFAULT_HORIZONS, SIGNAL_LABELS
 from app.signals.service import (
     ComponentResult,
     build_composite_signal,
@@ -117,6 +118,37 @@ def test_signal_routes_are_registered():
     paths = set(app.openapi()["paths"])
     assert "/api/signals" in paths
     assert "/api/signals/{ticker}" in paths
+    assert "/api/signals/accuracy" in paths
+
+
+def test_accuracy_endpoint_executes_query_path_and_returns_horizon_shape():
+    """"/accuracy" literal segmenti /{ticker} route'undan once eslesmeli."""
+
+    class _Rows:
+        def all(self):
+            return []
+
+    class _Session:
+        async def scalars(self, statement):
+            return _Rows()
+
+    async def override_db():
+        yield _Session()
+
+    app.dependency_overrides[get_db] = override_db
+    try:
+        response = TestClient(app).get("/api/signals/accuracy")
+    finally:
+        app.dependency_overrides.clear()
+    assert response.status_code == 200
+    # Bos girdiyle bile her (vade, etiket) kombinasyonu icin bir satir doner
+    # (compute_signal_accuracy hep tam matris uretir) — bu, yanitin
+    # CompositeSignalOut degil SignalHorizonStatOut sekli oldugunu kanitlar.
+    payload = response.json()
+    assert len(payload) == len(DEFAULT_HORIZONS) * len(SIGNAL_LABELS)
+    assert {"horizon", "label", "observation_count", "average_return_pct", "hit_rate_pct"} <= set(
+        payload[0]
+    )
 
 
 def test_signal_list_endpoint_executes_query_path():
