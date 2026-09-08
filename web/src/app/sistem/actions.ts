@@ -58,3 +58,19 @@ export async function runScheduleAction(formData: FormData) {
   });
   finish({ ...result, message: result.ok ? "İş Redis kuyruğuna eklendi" : result.message });
 }
+
+export async function updateSettingAction(formData: FormData) {
+  const key = String(formData.get("key") ?? "");
+  const value = String(formData.get("value") ?? "").trim();
+  const result = await mutate(`/api/settings/${encodeURIComponent(key)}`, {
+    method: "PUT",
+    body: JSON.stringify({ value }),
+  });
+  finish({ ...result, message: result.ok ? "Ayar güncellendi" : result.message });
+}
+
+export async function clearSettingAction(formData: FormData) {
+  const key = String(formData.get("key") ?? "");
+  const result = await mutate(`/api/settings/${encodeURIComponent(key)}`, { method: "DELETE" });
+  finish({ ...result, message: result.ok ? "Ayar .env varsayılanına döndürüldü" : result.message });
+}

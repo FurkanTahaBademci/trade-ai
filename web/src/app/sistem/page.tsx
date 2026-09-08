@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { apiGet } from "@/lib/api";
-import type { CollectorSchedule, ComponentHealth, SystemHealth } from "@/lib/types";
-import { formatDate, relativeTime } from "@/lib/format";
+import type { CollectorSchedule, ComponentHealth, SettingStatus, StorageReport, SystemHealth } from "@/lib/types";
+import { formatBytes, formatDate, relativeTime } from "@/lib/format";
 import { EmptyState, PageHeader, ServiceNotice, SectionTitle } from "@/components/ui";
-import { runScheduleAction, toggleScheduleAction, updateScheduleAction } from "./actions";
+import { clearSettingAction, runScheduleAction, toggleScheduleAction, updateScheduleAction, updateSettingAction } from "./actions";
 
 export const metadata: Metadata = { title: "Sistem Sağlığı" };
 
@@ -26,7 +26,7 @@ function ComponentRow({ item }: { item: ComponentHealth }) {
 }
 
 export default async function SystemPage({ searchParams }: { searchParams: Promise<{ result?: string; message?: string }> }) {
-  const [health, schedules] = await Promise.all([apiGet<SystemHealth | null>("/health/detailed", null), apiGet<CollectorSchedule[]>("/api/schedules", [])]);
+  const [health, schedules, settings, storage] = await Promise.all([apiGet<SystemHealth | null>("/health/detailed", null), apiGet<CollectorSchedule[]>("/api/schedules", []), apiGet<SettingStatus[]>("/api/settings", []), apiGet<StorageReport | null>("/api/system/storage", null)]);
   const notice = await searchParams;
   const report = health.data?.monitoring;
   const components = report ? [report.worker, ...Object.values(report.collectors)] : [];
@@ -37,6 +37,8 @@ export default async function SystemPage({ searchParams }: { searchParams: Promi
     {!report ? <div className="panel-flat"><EmptyState title="Sağlık verisi alınamadı" description="API ve Redis bağlantısı kurulduğunda bileşen durumları burada görünecek."/></div> : <><div className="mb-6 grid gap-3 sm:grid-cols-3"><Metric label="Sağlıklı bileşen" value={`${healthy}/${components.length}`}/><Metric label="Sorun" value={String(report.problem_count)} tone={report.problem_count === 0}/><Metric label="İlk çalışma bekleyen" value={String(report.pending_count)} tone={report.pending_count === 0}/></div>
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(300px,.6fr)]"><section><SectionTitle title="Veri hatları" subtitle="Kaynak bazında tazelik ve hata durumu"/><div className="panel-flat overflow-hidden">{components.map((item) => <ComponentRow key={item.name} item={item}/>)}</div></section><aside><SectionTitle title="Altyapı" subtitle="Bağlantı kontrolleri"/><div className="panel-flat overflow-hidden"><Infrastructure label="PostgreSQL" state={health.data?.db}/><Infrastructure label="Redis" state={health.data?.redis}/><div className="border-t p-4 text-[11px] leading-5 text-[var(--text-muted)]" style={{ borderColor: "var(--border)" }}>Gecikmiş veya hatalı bileşenler, <code>N8N_WEBHOOK_URL</code> tanımlıysa saatlik tekrar sınırıyla webhook'a bildirilir.</div></div></aside></div></>}
     <section className="mt-8"><SectionTitle title="Tarama takvimleri" subtitle="Europe/Istanbul · Ayarlar PostgreSQL'de kalıcıdır"/>{schedules.data.length ? <div className="grid gap-3 lg:grid-cols-2">{[...schedules.data].sort((a, b) => scheduleOrder.indexOf(a.name) - scheduleOrder.indexOf(b.name)).map((item) => <ScheduleCard key={item.name} item={item}/>)}</div> : <div className="panel-flat"><EmptyState title="Takvim bilgisi alınamadı"/></div>}</section>
+    <section className="mt-8"><SectionTitle title="Ayarlar" subtitle="Gemini/N8N gibi degerler; container yeniden baslatmadan Redis'te saklanir"/>{settings.data.length ? <div className="grid gap-3 lg:grid-cols-2">{settings.data.map((item) => <SettingCard key={item.key} item={item}/>)}</div> : <div className="panel-flat"><EmptyState title="Ayar bilgisi alınamadı"/></div>}</section>
+    <section className="mt-8"><SectionTitle title="Depolama" subtitle="PostgreSQL tablo boyutları — en büyükler önce"/>{!storage.data ? <div className="panel-flat"><EmptyState title="Depolama bilgisi alınamadı"/></div> : <div className="panel-flat p-5 sm:p-6"><p className="mb-4 text-sm"><span className="text-[var(--text-muted)]">Toplam veritabanı boyutu: </span><span className="font-semibold">{formatBytes(storage.data.database_size_bytes)}</span></p><div className="space-y-2">{storage.data.tables.map((item) => <StorageRow key={item.table} item={item} max={storage.data!.tables[0]?.size_bytes || 1}/>)}</div></div>}</section>
   </>;
 }
 
@@ -45,3 +47,18 @@ function Infrastructure({ label, state }: { label: string; state?: string }) { c
 
 function intervalText(minutes: number) { if (minutes % 1440 === 0) return `${minutes / 1440} günde bir`; if (minutes % 60 === 0) return `${minutes / 60} saatte bir`; return `${minutes} dakikada bir`; }
 function ScheduleCard({ item }: { item: CollectorSchedule }) { return <article className="panel-flat p-5"><div className="flex items-start justify-between gap-4"><div><div className="flex flex-wrap items-center gap-2"><h3 className="text-sm font-semibold">{item.label}</h3><span className={`pill ${item.enabled ? "pill-positive" : ""}`}>{item.enabled ? "Etkin" : "Duraklatıldı"}</span></div><p className="mt-2 text-xs text-[var(--text-muted)]">{intervalText(item.interval_minutes)} · minimum {item.minimum_interval_minutes} dk</p></div><form action={toggleScheduleAction}><input type="hidden" name="name" value={item.name}/><input type="hidden" name="enabled" value={String(!item.enabled)}/><button className="rounded-[9px] border px-3 py-2 text-xs font-medium transition hover:bg-[var(--surface-hover)]" style={{ borderColor: "var(--border)" }}>{item.enabled ? "Duraklat" : "Etkinleştir"}</button></form></div><div className="mt-4 grid gap-2 text-[11px] text-[var(--text-muted)] sm:grid-cols-2"><p>Son kuyruğa ekleme<br/><span className="text-[var(--text-secondary)]">{item.last_enqueued_at ? formatDate(item.last_enqueued_at, true) : "Henüz yok"}</span></p><p>Sonraki çalışma<br/><span className="text-[var(--text-secondary)]">{item.next_run_at ? `${formatDate(item.next_run_at, true)} (${relativeTime(item.next_run_at)})` : "Duraklatıldı"}</span></p></div><div className="mt-4 flex flex-col gap-2 border-t pt-4 sm:flex-row" style={{ borderColor: "var(--border)" }}><form action={updateScheduleAction} className="flex min-w-0 flex-1 gap-2"><input type="hidden" name="name" value={item.name}/><input className="input min-w-0" aria-label={`${item.label} tarama aralığı`} type="number" name="interval_minutes" defaultValue={item.interval_minutes} min={item.minimum_interval_minutes} max={43200} required/><button className="shrink-0 rounded-[10px] bg-[var(--primary)] px-3 text-xs font-semibold text-[var(--primary-contrast)]">Dakika kaydet</button></form><form action={runScheduleAction}><input type="hidden" name="name" value={item.name}/><button className="h-10 w-full rounded-[10px] border px-3 text-xs font-semibold transition hover:bg-[var(--surface-hover)]" style={{ borderColor: "var(--border)" }}>Şimdi çalıştır</button></form></div></article>; }
+
+function sourceText(source: SettingStatus["source"]) { return source === "database" ? "Özel değer (Redis)" : source === "env" ? ".env varsayılanı" : "Ayarlanmadı"; }
+function SettingCard({ item }: { item: SettingStatus }) {
+  const meta = <p className="mt-2 text-xs text-[var(--text-muted)]">{sourceText(item.source)}{item.updated_at && ` · ${formatDate(item.updated_at, true)}`}</p>;
+  if (item.kind === "boolean") {
+    const enabled = item.preview === "true";
+    return <article className="panel-flat p-5"><div className="flex items-start justify-between gap-4"><div><div className="flex flex-wrap items-center gap-2"><h3 className="text-sm font-semibold">{item.label}</h3><span className={`pill ${enabled ? "pill-positive" : ""}`}>{enabled ? "Etkin" : "Kapalı"}</span></div>{meta}</div><form action={updateSettingAction}><input type="hidden" name="key" value={item.key}/><input type="hidden" name="value" value={String(!enabled)}/><button className="rounded-[9px] border px-3 py-2 text-xs font-medium transition hover:bg-[var(--surface-hover)]" style={{ borderColor: "var(--border)" }}>{enabled ? "Kapat" : "Etkinleştir"}</button></form></div></article>;
+  }
+  return <article className="panel-flat p-5"><h3 className="text-sm font-semibold">{item.label}</h3>{meta}<p className="mt-2 truncate font-mono text-xs text-[var(--text-secondary)]">{item.preview ?? "Ayarlanmadı"}</p><form action={updateSettingAction} className="mt-3 flex gap-2"><input type="hidden" name="key" value={item.key}/><input className="input min-w-0 flex-1" type="password" name="value" placeholder={item.kind === "url" ? "https://..." : "Yeni değer"} autoComplete="off" required/><button className="shrink-0 rounded-[10px] bg-[var(--primary)] px-3 text-xs font-semibold text-[var(--primary-contrast)]">Kaydet</button></form>{item.source === "database" && <form action={clearSettingAction} className="mt-2"><input type="hidden" name="key" value={item.key}/><button className="text-[11px] text-[var(--text-muted)] underline">.env varsayılanına dön</button></form>}</article>;
+}
+
+function StorageRow({ item, max }: { item: StorageReport["tables"][number]; max: number }) {
+  const pct = Math.max(2, Math.round((item.size_bytes / max) * 100));
+  return <div><div className="flex items-baseline justify-between gap-2 text-xs"><span className="font-medium">{item.table}</span><span className="text-[var(--text-muted)]">{formatBytes(item.size_bytes)} · ~{item.row_estimate.toLocaleString("tr-TR")} satır</span></div><div className="mt-1 h-1.5 overflow-hidden rounded-full bg-[var(--surface-raised)]"><div className="h-full rounded-full bg-[var(--primary)]" style={{ width: `${pct}%` }}/></div></div>;
+}

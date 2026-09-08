@@ -10,7 +10,7 @@ import httpx
 import structlog
 from redis.asyncio import Redis
 
-from app.core.config import get_settings
+from app.core.dynamic_settings import resolve_settings
 from app.core.redis import get_redis
 
 logger = structlog.get_logger(__name__)
@@ -133,11 +133,11 @@ async def send_webhook_alert(
     redis: Redis | None = None,
     client: httpx.AsyncClient | None = None,
 ) -> dict[str, Any]:
-    settings = get_settings()
+    redis_client = redis or get_redis()
+    settings = await resolve_settings(redis=redis_client)
     if not settings.n8n_webhook_url:
         return {"enabled": False, "delivered": False, "reason": "N8N_WEBHOOK_URL bos"}
 
-    redis_client = redis or get_redis()
     fingerprint = dedupe_key or f"{event_type}|{title}|{message}"
     digest = hashlib.sha256(fingerprint.encode()).hexdigest()
     cooldown_key = f"alert:cooldown:{digest}"

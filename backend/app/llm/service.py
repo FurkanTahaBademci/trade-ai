@@ -24,6 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.core.config import Settings, get_settings
+from app.core.dynamic_settings import resolve_settings
 from app.models import Instrument, KapDisclosure, LlmEvaluation, NewsArticle
 from app.schemas.llm import LlmTier1Result, LlmTier2Result
 
@@ -634,7 +635,7 @@ class LlmEvaluationService:
 
 
 async def run_llm_evaluations(session: AsyncSession, *, settings: Settings | None = None) -> dict:
-    active_settings = settings or get_settings()
+    active_settings = settings or await resolve_settings()
     if not active_settings.llm_enabled:
         return {"enabled": False, "reason": "LLM_ENABLED=false"}
     if not active_settings.gemini_api_key:

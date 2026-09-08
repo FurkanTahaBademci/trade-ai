@@ -23,6 +23,10 @@ from app.api.routers import (
     paper,
     schedules,
     signals,
+    system,
+)
+from app.api.routers import (
+    settings as settings_router,
 )
 from app.core.config import get_settings
 from app.core.logging import configure_logging
@@ -68,6 +72,8 @@ app.include_router(backtests.router)
 app.include_router(paper.router)
 app.include_router(macro.router)
 app.include_router(schedules.router)
+app.include_router(settings_router.router)
+app.include_router(system.router)
 
 
 @app.get("/")

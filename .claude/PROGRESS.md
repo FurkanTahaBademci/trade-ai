@@ -583,6 +583,39 @@ Durumlar: ⬜ başlanmadı · 🔶 devam ediyor · ✅ tamamlandı ve doğruland
       geçilmeden ekran görüntüsüyle doğrudan görülemedi — alttaki saf
       fonksiyon (`benchmarkChangeSeries`) ayrı ayrı 3 senaryoyla test edildi.
 
+## Ek Özellik — Çalışma Zamanı Ayarları + Depolama İzleme
+✅ Redis tabanlı ayar override'ı, depolama raporu API'si ve `/sistem` arayüzü tamamlandı
+
+- [x] `GEMINI_API_KEY`, `LLM_ENABLED`, `N8N_WEBHOOK_URL` artık container
+      yeniden başlatılmadan `/sistem` ekranından değiştirilip denenebiliyor.
+      `.env` varsayılan kalır; `app/core/dynamic_settings.py` Redis'te
+      (AOF ile kalıcı) bir override varsa onu kullanır, yoksa `.env`'e döner
+      — Redis boşalsa bile sistem kilitlenmez. `ADMIN_API_TOKEN` bilinçli
+      olarak bu mekanizmanın dışında tutuldu (dairesel kilitlenme riski).
+- [x] `GET/PUT/DELETE /api/settings/{key}`: liste herkese açık (yalnızca
+      maskelenmiş önizleme — `••••1234` — döner, tam değer asla API
+      yanıtında görünmez), yazma/silme `X-Admin-Token` ile korunur (schedules
+      ile aynı desen). `llm/service.py` ve `monitoring/service.py` artık
+      `get_settings()` yerine `resolve_settings()` kullanıyor.
+- [x] `GET /api/system/storage`: `pg_stat_user_tables` üzerinden en büyük 15
+      tablonun boyutu + tahmini satır sayısı ve toplam veritabanı boyutu.
+      Kimlik doğrulama gerektirmez (health-benzeri operasyonel veri).
+- [x] `/sistem` ekranına "Ayarlar" (maskelenmiş önizleme, kaynak etiketi
+      database/env/ayarlanmadı, kaydet/`.env`'e dön formları) ve "Depolama"
+      (toplam boyut + orantılı çubuklu tablo listesi) bölümleri eklendi.
+- [x] 8 saf fonksiyon testi (maskeleme, kaynak önceliği, boolean doğrulama,
+      bilinmeyen anahtar reddi, override temizleme) + route kaydı testi;
+      **142/142 backend, 25/25 web testi** yeşil; Ruff/`tsc --noEmit` temiz.
+      Webhook testleri `get_settings` yerine `resolve_settings` mock'una
+      güncellendi.
+- [x] Canlı Docker doğrulaması: `PUT`/`GET`/`DELETE` tam döngüsü gerçek
+      Redis'e karşı çalıştı (maskeleme, kaynak geçişi doğru). Depolama
+      raporu gerçek DB'de **`kap_attachment` toplam boyutun %83'ünü
+      kaplıyor** (322,9 MB / 390,2 MB) — önceki oturumda flaglenen depolama
+      riskini somut sayılarla doğruladı, S3/retention kararı artık bu
+      ekrandan takip edilebilir. `/sistem` ekranı headless Chrome ile
+      görsel olarak doğrulandı.
+
 ---
 
 ## Bilinen riskler / açık sorular
@@ -594,7 +627,10 @@ Durumlar: ⬜ başlanmadı · 🔶 devam ediyor · ✅ tamamlandı ve doğruland
   ekin 6'sı, sonraki 5 dakikalık cron'da kalan 18'in tamamı indirildi.
 - KAP ekleri şimdilik PostgreSQL `BYTEA` içinde saklanıyor. İlk kullanım için
   basit ve yedeklenebilir; veri büyüdüğünde Faz 10 öncesi retention veya S3
-  uyumlu nesne depolama kararı verilmeli.
+  uyumlu nesne depolama kararı verilmeli. **2026-09-08 itibarıyla `/sistem`
+  ekranındaki Depolama bölümünden takip edilebiliyor** — dev DB'de zaten
+  toplam boyutun %83'ü (322,9 MB / 390,2 MB), üretimde büyüme hızı bu
+  ekrandan izlenip karar zamanı belirlenebilir.
 - ~~KAP'ın günlük 2000 kayıt sınırı dolarsa collector sessiz veri kaybetmek
   yerine hata verir.~~ **2026-09-08 düzeltildi:** bir günün sorgusu limite
   çarparsa collector artık hata vermeden önce aktif `instrument.kap_member_oid`

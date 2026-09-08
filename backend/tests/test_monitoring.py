@@ -94,14 +94,13 @@ async def test_monitoring_report_counts_stale_and_pending_components():
 
 
 async def test_webhook_alert_is_delivered_with_structured_payload(monkeypatch):
-    monkeypatch.setattr(
-        service,
-        "get_settings",
-        lambda: SimpleNamespace(
+    async def fake_resolve_settings(*args, **kwargs):
+        return SimpleNamespace(
             n8n_webhook_url="https://n8n.example/webhook/trade-ai",
             monitoring_alert_cooldown_seconds=3600,
-        ),
-    )
+        )
+
+    monkeypatch.setattr(service, "resolve_settings", fake_resolve_settings)
     redis = FakeRedis()
     client = FakeHttpClient()
 
@@ -120,14 +119,13 @@ async def test_webhook_alert_is_delivered_with_structured_payload(monkeypatch):
 
 
 async def test_webhook_alert_respects_cooldown(monkeypatch):
-    monkeypatch.setattr(
-        service,
-        "get_settings",
-        lambda: SimpleNamespace(
+    async def fake_resolve_settings(*args, **kwargs):
+        return SimpleNamespace(
             n8n_webhook_url="https://n8n.example/webhook/trade-ai",
             monitoring_alert_cooldown_seconds=3600,
-        ),
-    )
+        )
+
+    monkeypatch.setattr(service, "resolve_settings", fake_resolve_settings)
     client = FakeHttpClient()
 
     result = await service.send_webhook_alert(

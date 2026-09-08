@@ -17,6 +17,7 @@ const {
   formatNumber,
   formatMoney,
   formatPercent,
+  formatBytes,
   sourceName,
   eventName,
   signalName,
@@ -89,6 +90,16 @@ test("formatPercent falls back to em dash and prefixes only positive signed valu
   assert.equal(formatPercent(5.2), "5,2%");
   assert.equal(formatPercent(5.2, true), "+5,2%");
   assert.equal(formatPercent(-5.2, true), "-5,2%");
+});
+
+test("formatBytes falls back to em dash and picks the right unit", () => {
+  assert.equal(formatBytes(null), "—");
+  assert.equal(formatBytes(-1), "—");
+  assert.equal(formatBytes(0), "0 B");
+  assert.equal(formatBytes(512), "512 B");
+  assert.equal(formatBytes(1536), "1,5 KB");
+  assert.equal(formatBytes(1024 ** 2 * 3.2), "3,2 MB");
+  assert.equal(formatBytes(1024 ** 3 * 1.1), "1,1 GB");
 });
 
 test("lookup helpers translate known keys and pass through unknown ones", () => {
