@@ -39,6 +39,21 @@ async def collect_prices(ctx: dict) -> dict:
         return await collector.run_tracked()
 
 
+async def collect_index_prices(ctx: dict) -> dict:
+    from app.collectors.index_prices import IndexPriceCollector
+
+    # prices.py ile ayni desen: cron her calistiginda tum tarihceyi degil,
+    # son birkac gunu gunceller (duzeltilmis kapanislar icin pay birakildi).
+    async with (
+        session_factory() as session,
+        IndexPriceCollector(
+            session,
+            start_date=datetime.now(ZoneInfo("Europe/Istanbul")).date() - timedelta(days=5),
+        ) as collector,
+    ):
+        return await collector.run_tracked()
+
+
 async def collect_kap(ctx: dict) -> dict:
     from app.collectors.kap import KapCollector
 

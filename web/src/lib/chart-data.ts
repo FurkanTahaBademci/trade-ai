@@ -67,6 +67,27 @@ export function rangeStart(end: string, days: number) {
   return new Date(Date.parse(`${end}T00:00:00Z`) - days * 86400000).toISOString().slice(0, 10);
 }
 
+// Bir gostergeyi (orn. BIST100) baska bir serinin (orn. portfoy) tarihlerine
+// hizalar ve ilk eslesen gunden itibaren yuzdesel degisim serisi uretir.
+// Eslesmeyen tarihler icin en son mevcut gostergeye bakilir (haftasonu/tatil
+// gibi portfoy gununun endeks gununden az kaydigi durumlarda kopuk olmasin).
+export function benchmarkChangeSeries(
+  dates: string[],
+  benchmark: Array<{ date: string; value: number }>,
+): Array<number | null> {
+  const sorted = [...benchmark]
+    .filter((row) => validChartDate(row.date) && Number.isFinite(row.value) && row.value > 0)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  let cursor = 0, base: number | null = null;
+  return dates.map((date) => {
+    while (cursor < sorted.length && sorted[cursor].date <= date) cursor++;
+    const latest = cursor > 0 ? sorted[cursor - 1].value : null;
+    if (latest == null) return null;
+    base ??= latest;
+    return (latest / base - 1) * 100;
+  });
+}
+
 export type ValuePoint = { date: string; value: number };
 export function performanceSeries(source: ValuePoint[]) {
   const dates = new Map<string, ValuePoint>();

@@ -7,6 +7,7 @@ onu görsün (bkz. alembic/env.py -> target_metadata).
 from app.core.db import Base
 from app.models.backtest import BacktestRun, BacktestRunPoint, BacktestRunTrade
 from app.models.fundamental import FinancialFact, FundamentalSnapshot
+from app.models.index_price import IndexDaily
 from app.models.institutional import (
     AnalystConsensus,
     AnalystRecommendation,
@@ -36,6 +37,7 @@ __all__ = [
     "FundFlowAggregate",
     "FundSnapshot",
     "FundamentalSnapshot",
+    "IndexDaily",
     "Instrument",
     "KapAttachment",
     "KapDisclosure",

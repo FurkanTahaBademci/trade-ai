@@ -1,5 +1,6 @@
 export type Instrument = { ticker: string; name: string; city: string | null; is_active: boolean; updated_at: string };
 export type Price = { date: string; close: number; high: number | null; low: number | null; avg_price: number | null; volume_try: number | null; close_usd: number | null; market_cap_try: number | null };
+export type IndexPrice = { date: string; value: number };
 export type NewsArticle = { id: number; source: string; canonical_url: string; title: string; summary: string | null; author: string | null; image_url: string | null; published_at: string; ticker_codes: string[]; source_guid?: string | null; raw_entry?: Record<string, unknown>; fetched_at?: string; updated_at?: string };
 export type Attachment = { obj_id: string; file_name: string; file_extension: string | null; size_bytes: number | null; sha256: string | null; downloaded_at: string | null; download_error: string | null };
 export type Disclosure = { disclosure_index: number; published_at: string; kap_title: string; subject: string | null; summary: string | null; disclosure_class: string | null; disclosure_type: string | null; disclosure_category: string | null; ticker_codes: string[]; is_late: boolean; attachment_count: number; body_html?: string | null; body_text?: string | null; attachments?: Attachment[] };
