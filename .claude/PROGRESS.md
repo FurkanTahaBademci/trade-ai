@@ -191,6 +191,17 @@ Durumlar: ⬜ başlanmadı · 🔶 devam ediyor · ✅ tamamlandı ve doğruland
       Investing 10). API liste/kaynak filtresi ve 404 davranışı doğrulandı.
 - [x] Fixture tabanlı URL/tarih/ticker/RSS testleri dahil Docker içinde
       **34/34 test geçti**; Ruff ve PostgreSQL migration DDL kontrolü temiz.
+- [x] **2026-09-08 kaynak genişletmesi:** AA Ekonomi (resmi Anadolu Ajansı),
+      Dünya Gazetesi ve Foreks/ForInvest (özel finans/piyasa telgrafı) eklendi
+      — toplam 5 RSS kaynağı. Üçü de pubDate'te açık UTC offset taşıyor,
+      naive_timezone fallback'i gerekmiyor. Gerçek yanıtlar fixture'a
+      kaydedildi (Foreks 100 gerçek satırdan ilk 15'ine küçültüldü), 3 yeni
+      mapping testiyle doğrulandı (**123/123 test** yeşil). `/haberler`
+      ekranındaki kaynak filtreleri ve `sourceName()` etiketleri güncellendi.
+      Canlı Docker koşusu x2: ilk koşu 5/5 kaynak başarılı, 185 listelendi,
+      156 yeni; ikinci koşu `new=0`. Her 5 kaynaktan da en az bir satır
+      `GET /api/news?source=...` ile doğrulandı; `/haberler?source=foreks`
+      HTTP 200 ve doğru filtre etiketleriyle render edildi.
 
 ## Faz 4 — LLM Değerlendirme Katmanı
 🔶 Kod ve Docker entegrasyonu tamam; canlı Gemini çağrısı API anahtarı bekliyor

@@ -35,6 +35,37 @@ def test_investing_fixture_extracts_image_author_and_explicit_ticker():
     assert rows[-1]["ticker_codes"] == ["TMPOL"]
 
 
+def test_aa_ekonomi_fixture_maps_all_entries_with_explicit_offset():
+    parsed = feedparser.parse((FIXTURES / "aa_ekonomi_sample.xml").read_bytes())
+
+    rows = [map_news_entry("aa_ekonomi", entry, set()) for entry in parsed.entries]
+
+    assert len(rows) == 30
+    assert rows[0]["published_at"] == datetime(2026, 9, 7, 20, 54, 26, tzinfo=UTC)
+    assert rows[0]["canonical_url"].startswith("https://www.aa.com.tr/")
+
+
+def test_dunya_fixture_maps_all_entries_with_explicit_offset():
+    parsed = feedparser.parse((FIXTURES / "dunya_sample.xml").read_bytes())
+
+    rows = [map_news_entry("dunya", entry, set()) for entry in parsed.entries]
+
+    assert len(rows) == 25
+    assert rows[0]["published_at"] == datetime(2026, 9, 8, 5, 27, 0, tzinfo=UTC)
+    assert rows[0]["canonical_url"].startswith("https://www.dunya.com/")
+
+
+def test_foreks_fixture_maps_all_entries_and_keeps_author():
+    parsed = feedparser.parse((FIXTURES / "foreks_sample.xml").read_bytes())
+
+    rows = [map_news_entry("foreks", entry, set()) for entry in parsed.entries]
+
+    assert len(rows) == 15
+    assert rows[0]["published_at"] == datetime(2026, 9, 8, 5, 31, 1, tzinfo=UTC)
+    assert rows[0]["author"] == "ForInvest"
+    assert rows[0]["canonical_url"].startswith("https://www.foreks.com/")
+
+
 def test_canonical_url_removes_tracking_fragment_and_sorts_query():
     first = canonicalize_url(
         "HTTPS://Example.COM:443/path/?z=2&utm_source=rss&a=1&fbclid=abc#section"

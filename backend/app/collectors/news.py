@@ -1,4 +1,4 @@
-"""Bloomberg HT ve Investing.com.tr RSS haber toplayicisi.
+"""Coklu RSS kaynagindan haber toplayicisi (bkz. NEWS_FEEDS).
 
 Idempotency anahtari, takip parametrelerinden arindirilmis URL'nin SHA-256
 ozetidir. Ticker eslemesi yalnizca aktif instrument evrenindeki acik kodlari
@@ -37,6 +37,11 @@ NEWS_FEEDS = (
     # Bu feed offset yazmiyor. Resmi makale sayfasindaki TRT saati RSS'ten
     # uc saat ileride oldugu icin naive deger UTC olarak yorumlanir.
     NewsFeed("investing_tr", "https://tr.investing.com/rss/news.rss"),
+    # Asagidaki uc kaynak da pubDate'te acik UTC offset'i tasiyor (+0300/+0000),
+    # naive_timezone fallback'i hicbir zaman kullanilmiyor.
+    NewsFeed("aa_ekonomi", "https://www.aa.com.tr/tr/rss/default?cat=ekonomi"),
+    NewsFeed("dunya", "https://www.dunya.com/rss?sfid=1"),
+    NewsFeed("foreks", "https://www.foreks.com/rss"),
 )
 
 _TRACKING_QUERY_KEYS = {

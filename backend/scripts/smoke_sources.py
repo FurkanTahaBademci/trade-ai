@@ -199,6 +199,9 @@ async def check_isyatirimhisse() -> SourceCheck:
 RSS_FEEDS = {
     "bloomberght": "https://www.bloomberght.com/rss",
     "investing_tr": "https://tr.investing.com/rss/news.rss",
+    "aa_ekonomi": "https://www.aa.com.tr/tr/rss/default?cat=ekonomi",
+    "dunya": "https://www.dunya.com/rss?sfid=1",
+    "foreks": "https://www.foreks.com/rss",
 }
 
 

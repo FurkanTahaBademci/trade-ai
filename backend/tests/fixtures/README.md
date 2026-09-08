@@ -12,6 +12,9 @@ agdaki servislere baglanmadan, gercekci veriyle calisabilsin (bkz. proje
 | `tefas/dagilim_sample.json` | `POST /api/funds/dagilimSiraliGetirT` (10 satir) | 2026-09-06 |
 | `rss/bloomberght_sample.xml` | `bloomberght.com/rss` (ham XML) | 2026-09-06 |
 | `rss/investing_tr_sample.xml` | `tr.investing.com/rss/news.rss` (ham XML) | 2026-09-06 |
+| `rss/aa_ekonomi_sample.xml` | `aa.com.tr/tr/rss/default?cat=ekonomi` (ham XML) | 2026-09-08 |
+| `rss/dunya_sample.xml` | `dunya.com/rss?sfid=1` (ham XML) | 2026-09-08 |
+| `rss/foreks_sample.xml` | `foreks.com/rss` (ham XML, 100 gercek satirdan ilk 15'i) | 2026-09-08 |
 | `financials/thyao_2025_sample.json` | İş Yatırım `MaliTablo` (147 satırdan analizde kullanılan 14 gerçek kalem) | 2026-09-07 |
 | `analysts/isyatirim_tracking_sample.html` | İş Yatırım takip listesi (3 gerçek satıra küçültülmüş) | 2026-09-07 |
 | `analysts/halkaarz_targets_sample.html` | Halka Arz Takvimi hedef fiyat listesi (4 gerçek satıra küçültülmüş) | 2026-09-07 |
