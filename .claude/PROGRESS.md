@@ -243,9 +243,14 @@ Durumlar: ⬜ başlanmadı · 🔶 devam ediyor · ✅ tamamlandı ve doğruland
       `7a6e9c4f2b10` migration'ı her değerlendirmenin `api_mode` değerini saklıyor;
       eski satırlar `generate_content`, yeniler `interactions` olarak işaretlenir.
       Thinking tokenları günlük maliyet kapısına dahil edildi. Sahte SSE akışı,
-      model/API seçimleri, bağlantı tanılaması ve migration DDL dahil **155/155 backend**, **28/28 web
+      model/API seçimleri, bağlantı tanılaması ve migration DDL dahil **158/158 backend**, **28/28 web
       testi**, Ruff, TypeScript ve production build temiz. Yerel anahtar boş
       olduğundan ücretli canlı çağrı bilinçli olarak yapılmadı.
+- [x] Canlı hata dayanıklılığı: geçici bağlantı/yük/HTML 403 ve yarım JSON
+      yanıtları aynı kayıt içinde geri çekilmeli olarak en fazla üç kez deneniyor;
+      başarısız kayıtlar yeni backlog'un önüne alınıyor. Tier 1/2 çıktı tavanları
+      düşünme tokenlarının JSON'u yarıda kesmemesi için 2400/4096'ya çıkarıldı.
+      Kalıcı/kota hataları çağrı içinde körlemesine yeniden denenmiyor.
 - [x] Maliyet kapıları: `LLM_ENABLED=false` güvenli varsayılanı, günlük input /
       output token limitleri, batch sınırı ve kaynak metni boyut sınırı.
 - [x] Tier 2 yalnız Tier 1'in ilgili (>=60), yüksek etkili (varsayılan >=70),

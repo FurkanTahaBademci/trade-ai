@@ -8,6 +8,7 @@ hata ve token kullanimi ayni kayitta denetlenebilir kalir.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import re
@@ -17,7 +18,9 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
-from pydantic import BaseModel
+import httpx
+import structlog
+from pydantic import BaseModel, ValidationError
 from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -37,6 +40,7 @@ _PROMPT_SECTION_RE = re.compile(
     r"<!-- (?P<name>TIER[12]_SYSTEM) -->\s*(?P<body>.*?)\s*<!-- END_(?P=name) -->",
     re.DOTALL,
 )
+logger = structlog.get_logger(__name__)
 
 
 @dataclass(frozen=True)
@@ -187,8 +191,72 @@ def build_user_content(document: SourceDocument, *, tier1_result: dict | None = 
     return "\n".join(parts)
 
 
+def _is_retryable_gemini_error(exc: Exception) -> bool:
+    """Yalniz gecici ag/saglayici ve yarim JSON akislarini yeniden dene."""
+    if isinstance(exc, ValidationError):
+        return any(item["type"] == "json_invalid" for item in exc.errors())
+    if isinstance(exc, (ConnectionError, TimeoutError, httpx.TransportError)):
+        return True
+    code = getattr(exc, "code", None)
+    if isinstance(code, int) and (code in {408, 425} or code >= 500):
+        return True
+    message = str(exc).lower().lstrip()
+    if message.startswith("<!doctype html>") and "error 403" in message:
+        return True
+    return any(
+        marker in message
+        for marker in (
+            "high demand",
+            "connection error",
+            "connection reset",
+            "temporarily unavailable",
+            "timed out",
+            "timeout",
+        )
+    )
+
+
+def _friendly_gemini_error(exc: Exception) -> str:
+    message = str(exc).strip()
+    lowered = message.lower()
+    if lowered.startswith("<!doctype html>") and "error 403" in lowered:
+        return "Gemini API gecici olarak HTTP 403 HTML yaniti dondurdu"
+    if isinstance(exc, ValidationError) and any(
+        item["type"] == "json_invalid" for item in exc.errors()
+    ):
+        return "Gemini yapilandirilmis yaniti eksik veya gecersiz JSON dondurdu"
+    if "connection error" in lowered or "timed out" in lowered or "timeout" in lowered:
+        return "Gemini API baglantisi zaman asimina ugradi veya kesildi"
+    return message[:4000]
+
+
+def _prioritize_documents(
+    documents: dict[tuple[str, int, str], SourceDocument],
+    retry_keys: set[tuple[str, int, str]],
+) -> list[SourceDocument]:
+    """Basarisiz kayitlari yeni backlog tarafindan ac birakmadan basa al."""
+
+    def newest_first(item: SourceDocument) -> tuple[datetime, str, int]:
+        return item.published_at, item.source_type, item.source_id
+
+    retries = sorted(
+        (document for key, document in documents.items() if key in retry_keys),
+        key=newest_first,
+        reverse=True,
+    )
+    remaining = sorted(
+        (document for key, document in documents.items() if key not in retry_keys),
+        key=newest_first,
+        reverse=True,
+    )
+    return [*retries, *remaining]
+
+
 class GeminiGateway:
     """Google Gen AI SDK'nin testlerde kolayca degistirilebilen ince adaptoru."""
+
+    _max_attempts = 3
+    _retry_delays = (2.0, 8.0)
 
     def __init__(self, api_key: str, *, api_mode: str = "interactions") -> None:
         if not api_key:
@@ -213,23 +281,39 @@ class GeminiGateway:
         thinking_level: str,
         max_output_tokens: int,
     ) -> GatewayResponse:
-        if self._api_mode == "interactions":
-            return await self._generate_interaction(
-                model=model,
-                system_instruction=system_instruction,
-                user_content=user_content,
-                response_model=response_model,
-                thinking_level=thinking_level,
-                max_output_tokens=max_output_tokens,
-            )
-        return await self._generate_content(
-            model=model,
-            system_instruction=system_instruction,
-            user_content=user_content,
-            response_model=response_model,
-            thinking_level=thinking_level,
-            max_output_tokens=max_output_tokens,
-        )
+        for attempt in range(1, self._max_attempts + 1):
+            try:
+                if self._api_mode == "interactions":
+                    return await self._generate_interaction(
+                        model=model,
+                        system_instruction=system_instruction,
+                        user_content=user_content,
+                        response_model=response_model,
+                        thinking_level=thinking_level,
+                        max_output_tokens=max_output_tokens,
+                    )
+                return await self._generate_content(
+                    model=model,
+                    system_instruction=system_instruction,
+                    user_content=user_content,
+                    response_model=response_model,
+                    thinking_level=thinking_level,
+                    max_output_tokens=max_output_tokens,
+                )
+            except Exception as exc:
+                if attempt >= self._max_attempts or not _is_retryable_gemini_error(exc):
+                    raise
+                delay = self._retry_delays[min(attempt - 1, len(self._retry_delays) - 1)]
+                logger.warning(
+                    "gemini_request_retry",
+                    api_mode=self._api_mode,
+                    model=model,
+                    attempt=attempt,
+                    retry_in_seconds=delay,
+                    error=_friendly_gemini_error(exc),
+                )
+                await asyncio.sleep(delay)
+        raise RuntimeError("Gemini retry dongusu beklenmedik bicimde sonlandi")
 
     async def _generate_interaction(
         self,
@@ -448,16 +532,15 @@ class LlmEvaluationService:
         for row in [*recent_disclosures, *backlog_disclosures]:
             document = document_from_kap(row, max_chars=self._settings.llm_max_source_chars)
             documents[(document.source_type, document.source_id, document.content_hash)] = document
+        retry_keys: set[tuple[str, int, str]] = set()
         for record in retry_records:
             document = await self._load_document(record.source_type, record.source_id)
             if document is not None and document.content_hash == record.content_hash:
-                documents[(document.source_type, document.source_id, document.content_hash)] = document
+                key = (document.source_type, document.source_id, document.content_hash)
+                documents[key] = document
+                retry_keys.add(key)
 
-        return sorted(
-            documents.values(),
-            key=lambda item: (item.published_at, item.source_type, item.source_id),
-            reverse=True,
-        )
+        return _prioritize_documents(documents, retry_keys)
 
     async def _load_document(self, source_type: str, source_id: int) -> SourceDocument | None:
         if source_type == "news":
@@ -632,7 +715,7 @@ class LlmEvaluationService:
                 user_content=build_user_content(document, tier1_result=tier1_result),
                 response_model=response_model,
                 thinking_level="low" if tier == 1 else "medium",
-                max_output_tokens=1_200 if tier == 1 else 2_400,
+                max_output_tokens=2_400 if tier == 1 else 4_096,
             )
             validated = response_model.model_validate(response.data).model_dump(mode="json")
             validated["ticker_codes"] = sorted(
@@ -673,7 +756,7 @@ class LlmEvaluationService:
             record = await self._existing(key)
             if record is not None:
                 record.status = "failed"
-                record.error_text = str(exc)[:4000]
+                record.error_text = _friendly_gemini_error(exc)
                 record.latency_ms = round((time.monotonic() - started) * 1000)
                 record.completed_at = datetime.now(UTC)
                 await self._session.commit()

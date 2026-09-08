@@ -39,7 +39,7 @@ async def test_connection_uses_selected_tier_without_enabling_batch():
     assert result.total_tokens == 20
     assert "20 token" in result.message
     assert gateway.request["model"] == "pro-model"
-    assert gateway.request["max_output_tokens"] == 256
+    assert gateway.request["max_output_tokens"] == 512
 
 
 async def test_connection_rejects_missing_api_key_before_call():

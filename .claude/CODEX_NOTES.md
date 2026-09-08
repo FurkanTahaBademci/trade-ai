@@ -8,6 +8,24 @@ gereken ürün kararları `CLAUDE.md` içindedir. Aşağıdaki 2026-09-07 (Claud
 girişi Codex değil, Claude tarafından yazıldı — paylaşılan tek devir
 günlüğünü bölmemek için burada tutuluyor, başlıkta ajan belirtildi.
 
+## 2026-09-08 — Canlı Gemini hata incelemesi ve retry sağlamlaştırması
+
+- Üretim PostgreSQL'i ve worker logları salt-okunur incelendi. Aktif
+  `gemini-3.1-flash-lite / interactions` hattında 160 başarılı, üç başarısız
+  kayıt vardı: iki Google HTML 403 yanıtı ve bir yarıda kesilmiş JSON. Önceki
+  model/API denemelerindeki 279 hata ücretsiz `gemini-3.7-flash` kotası; dört
+  `gemini-3.8-flash` hatası ise yüksek talep/bağlantı kesintisiydi.
+- `GeminiGateway` yalnız geçici bağlantı, yüksek talep, HTML 403 ve geçersiz JSON
+  akışlarını 2/8 saniye geri çekilmeyle en fazla üç kez deniyor. 429 kota ve
+  kalıcı istemci hataları çağrı içi retry'a alınmıyor. Son hata metinleri büyük
+  HTML gövdeleri yerine güvenli ve okunur biçimde saklanıyor.
+- Başarısız kayıtların retry listesine alınmasına rağmen yayın tarihine göre yeni
+  backlog'un arkasında kalabildiği starvation hatası düzeltildi; retry kayıtları
+  artık batch'in başında. Tier 1/2 çıktı tavanları 2400/4096 token oldu.
+- Liste API şemasına `error_text` eklendi ve analiz detay ekranı hata nedeni ile
+  deneme sayısını gösteriyor. Ağsız test toplamı backend **158/158**, web
+  **28/28**.
+
 ## 2026-09-08 — Gemini kontrollü bağlantı testi
 
 - `POST /api/settings/gemini/test` yönetim anahtarıyla korundu; Tier 1 veya Tier 2
@@ -19,7 +37,7 @@ günlüğünü bölmemek için burada tutuluyor, başlıkta ajan belirtildi.
 - `/sistem` Ayarlar bölümüne iki test düğmesi eklendi. Gerçek ücretli çağrı bu
   oturumda anahtar bulunmadığı için yapılmadı; birim testlerde ağsız geçitle
   katman seçimi ve anahtar eksikliği doğrulandı. Tüm kontroller sonunda backend
-  **155/155**, web **28/28**; Ruff, TypeScript, production build, Alembic offline
+  **158/158**, web **28/28**; Ruff, TypeScript, production build, Alembic offline
   DDL ve Compose yapılandırması temiz.
 
 ## 2026-09-08 — Gemini 3.8 Flash + Interactions API
@@ -43,7 +61,7 @@ günlüğünü bölmemek için burada tutuluyor, başlıkta ajan belirtildi.
   deterministik evaluation key'e katıldığı için mod değişimi idempotency'yi
   bozmadan ayrı değerlendirme üretir. Detay ekranı kullanılan API'yi gösterir.
 - Thinking tokenları da output maliyet kotasına dahil edildi. Sahte async SSE
-  testleri ve seçim doğrulamalarıyla backend **155/155**, web **28/28**; Ruff,
+  testleri ve seçim doğrulamalarıyla backend **158/158**, web **28/28**; Ruff,
   offline PostgreSQL DDL, TypeScript ve Next.js build temiz. `GEMINI_API_KEY`
   bu ortamda boş ve `LLM_ENABLED=false`; ücretli canlı çağrı yapılmadı.
 

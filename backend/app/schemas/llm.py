@@ -89,6 +89,7 @@ class LlmEvaluationListOut(BaseModel):
     output_tokens: int | None
     total_tokens: int | None
     latency_ms: int | None
+    error_text: str | None
     completed_at: datetime | None
     created_at: datetime
 

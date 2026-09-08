@@ -1,7 +1,7 @@
 """LLM sema, prompt ve deterministik kimlik testleri (ag/model cagrisi yok)."""
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
@@ -10,6 +10,9 @@ from pydantic import ValidationError
 from app.llm.service import (
     GeminiGateway,
     SourceDocument,
+    _friendly_gemini_error,
+    _is_retryable_gemini_error,
+    _prioritize_documents,
     build_user_content,
     content_hash,
     document_from_kap,
@@ -71,6 +74,16 @@ class FakeInteractions:
     async def create(self, **kwargs):
         self.request = kwargs
         return FakeInteractionStream(self.events)
+
+
+class SequencedInteractions:
+    def __init__(self, event_sequences):
+        self.event_sequences = list(event_sequences)
+        self.requests = []
+
+    async def create(self, **kwargs):
+        self.requests.append(kwargs)
+        return FakeInteractionStream(self.event_sequences.pop(0))
 
 
 class FakeModels:
@@ -144,6 +157,74 @@ async def test_interactions_gateway_streams_structured_output_and_usage():
         "thinking_level": "low",
         "max_output_tokens": 1_200,
     }
+
+
+async def test_interactions_gateway_retries_incomplete_json_stream():
+    payload = {
+        "relevant": False,
+        "relevance_score": 5,
+        "sentiment_score": 0,
+        "impact_score": 2,
+        "confidence": 0.9,
+        "event_type": "other",
+        "time_horizon": "unclear",
+        "summary": "BIST ile ilgili degil.",
+        "rationale": "Aktif bir ticker bulunmuyor.",
+        "ticker_codes": [],
+        "requires_deep_analysis": False,
+    }
+    interactions = SequencedInteractions(
+        [
+            [SimpleNamespace(event_type="step.delta", delta=SimpleNamespace(type="text", text='{\"relevant\":'))],
+            [
+                SimpleNamespace(
+                    event_type="step.delta",
+                    delta=SimpleNamespace(type="text", text=json.dumps(payload)),
+                )
+            ],
+        ]
+    )
+    gateway = object.__new__(GeminiGateway)
+    gateway._client = SimpleNamespace(interactions=interactions)
+    gateway._api_mode = "interactions"
+    gateway._retry_delays = (0, 0)
+
+    response = await gateway.generate(
+        model="gemini-3.1-flash-lite",
+        system_instruction="Sistem",
+        user_content="Belge",
+        response_model=LlmTier1Result,
+        thinking_level="low",
+        max_output_tokens=2_400,
+    )
+
+    assert response.data == payload
+    assert len(interactions.requests) == 2
+
+
+def test_retry_classification_excludes_quota_and_formats_provider_failures():
+    assert _is_retryable_gemini_error(ConnectionError("Connection error.")) is True
+    assert _is_retryable_gemini_error(RuntimeError("model is experiencing high demand")) is True
+    assert _is_retryable_gemini_error(RuntimeError("429 RESOURCE_EXHAUSTED")) is False
+    html_error = RuntimeError("<!DOCTYPE html><title>Error 403 (Forbidden)!!1</title>")
+    assert _is_retryable_gemini_error(html_error) is True
+    assert _friendly_gemini_error(html_error) == (
+        "Gemini API gecici olarak HTTP 403 HTML yaniti dondurdu"
+    )
+
+
+def test_failed_documents_are_prioritized_ahead_of_newer_backlog():
+    now = datetime(2026, 9, 8, tzinfo=UTC)
+    failed = SourceDocument("news", 1, now - timedelta(days=2), "a", {})
+    fresh = SourceDocument("news", 2, now, "b", {})
+    documents = {
+        (failed.source_type, failed.source_id, failed.content_hash): failed,
+        (fresh.source_type, fresh.source_id, fresh.content_hash): fresh,
+    }
+
+    ordered = _prioritize_documents(documents, {("news", 1, "a")})
+
+    assert [item.source_id for item in ordered] == [1, 2]
 
 
 async def test_generate_content_gateway_remains_available_as_fallback():

@@ -59,7 +59,7 @@ async def test_gemini_connection(
             user_content="Baglanti calisiyorsa status alanini ok olarak dondur.",
             response_model=GeminiHealthPayload,
             thinking_level="low",
-            max_output_tokens=256,
+            max_output_tokens=512,
         )
         payload = GeminiHealthPayload.model_validate(response.data)
         latency_ms = round((time.monotonic() - started) * 1000)
