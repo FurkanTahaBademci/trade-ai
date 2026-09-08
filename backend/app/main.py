@@ -14,6 +14,7 @@ from app.api.routers import (
     evaluations,
     fundamentals,
     health,
+    index_prices,
     institutional,
     instruments,
     kap,
@@ -55,6 +56,7 @@ app.add_middleware(
 
 app.include_router(health.router)
 app.include_router(instruments.router)
+app.include_router(index_prices.router)
 app.include_router(kap.router)
 app.include_router(news.router)
 app.include_router(evaluations.router)

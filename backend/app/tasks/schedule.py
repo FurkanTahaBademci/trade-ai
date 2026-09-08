@@ -22,6 +22,7 @@ from app.tasks.jobs import (
     collect_analysts,
     collect_fund_flows,
     collect_fundamentals,
+    collect_index_prices,
     collect_institutional_reports,
     collect_instruments,
     collect_kap,
@@ -59,6 +60,7 @@ class WorkerSettings:
     functions: ClassVar[list] = [
         collect_instruments,
         collect_prices,
+        collect_index_prices,
         collect_kap,
         collect_news,
         collect_fundamentals,

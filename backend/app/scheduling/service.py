@@ -39,6 +39,9 @@ SCHEDULE_DEFINITIONS: tuple[ScheduleDefinition, ...] = (
         "institutional_reports", "Kurum raporlari", "collect_institutional_reports", 1440, 60, 7, 45
     ),
     ScheduleDefinition("prices", "EOD fiyatlari", "collect_prices", 1440, 60, 18, 30),
+    ScheduleDefinition(
+        "index_prices", "BIST100 endeksi", "collect_index_prices", 1440, 60, 18, 35
+    ),
     ScheduleDefinition("paper_portfolio", "Paper portfoy", "run_paper_portfolio", 1440, 60, 18, 46),
     ScheduleDefinition("fund_flows", "TEFAS fon akimi", "collect_fund_flows", 1440, 60, 20),
 )

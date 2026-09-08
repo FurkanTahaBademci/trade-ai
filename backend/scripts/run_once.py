@@ -16,6 +16,8 @@ Kullanim:
     python -m scripts.run_once tcmb-policy --years 2025,2026
     python -m scripts.run_once prices --tickers THYAO,ASELS,GARAN --days 30
     python -m scripts.run_once prices                    # tum aktif hisseler, 3 yil backfill
+    python -m scripts.run_once index-prices --days 30
+    python -m scripts.run_once index-prices               # XU100, 3 yil backfill
 
 Idempotency dogrulamasi (plan Bolum 7):
     python -m scripts.run_once instruments   # 1. calistirma
@@ -55,6 +57,20 @@ async def run_prices(tickers: list[str] | None, days: int | None) -> dict:
     async with (
         session_factory() as session,
         PriceCollector(session, tickers=tickers, start_date=start_date) as collector,
+    ):
+        return await collector.run_tracked()
+
+
+async def run_index_prices(days: int | None) -> dict:
+    from app.collectors.index_prices import IndexPriceCollector
+
+    start_date = (
+        datetime.now(ZoneInfo("Europe/Istanbul")).date() - timedelta(days=days) if days else None
+    )
+
+    async with (
+        session_factory() as session,
+        IndexPriceCollector(session, start_date=start_date) as collector,
     ):
         return await collector.run_tracked()
 
@@ -175,6 +191,7 @@ COLLECTORS = {
         start_year=args.start_year,
         end_year=args.end_year,
     ),
+    "index-prices": lambda args: run_index_prices(args.days),
     "instruments": lambda args: run_instruments(),
     "kap": lambda args: run_kap(args.days, not args.no_attachments),
     "llm": lambda args: run_llm(),

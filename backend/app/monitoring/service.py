@@ -22,6 +22,7 @@ COLLECTOR_POLICIES: dict[str, tuple[str, int]] = {
     "news": ("Haber akisi", 20 * 60),
     "instruments": ("Hisse evreni", 72 * 60 * 60),
     "prices": ("EOD fiyatlari", 80 * 60 * 60),
+    "index_prices": ("BIST100 endeksi", 80 * 60 * 60),
     "fundamentals": ("Temel analiz", 80 * 60 * 60),
     "analysts": ("Analist gorusleri", 80 * 60 * 60),
     "institutional_reports": ("Kurum raporlari", 80 * 60 * 60),

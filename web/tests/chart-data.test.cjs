@@ -11,7 +11,7 @@ const compiled = ts.transpileModule(readFileSync(file, "utf8"), {
 });
 const loaded = new Module(file, module);
 loaded._compile(compiled.outputText, file);
-const { movingAverage, wilderRsi, chartDomain, chartPath, normalizePrices, rangeStart, performanceSeries, validChartDate } = loaded.exports;
+const { movingAverage, wilderRsi, chartDomain, chartPath, normalizePrices, rangeStart, performanceSeries, validChartDate, benchmarkChangeSeries } = loaded.exports;
 const price = (date, close, extra = {}) => ({ date, close, low: null, high: null, avg_price: null, volume_try: null, close_usd: null, market_cap_try: null, ...extra });
 const near = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-8, `${actual} != ${expected}`);
 
@@ -82,4 +82,24 @@ test("drawdown retains the historical peak when the displayed period is narrowed
   assert.deepEqual(rows.map((row) => row.drawdown), [0, 0, -25, 0]);
   assert.equal(rows.slice(2)[0].drawdown, -25);
   assert.deepEqual(performanceSeries([{ date: "bad", value: 100 }, { date: "2026-01-01", value: -1 }]), []);
+});
+
+test("benchmarkChangeSeries bases the percentage on the first matched trading day", () => {
+  const benchmark = [
+    { date: "2026-01-01", value: 100 }, { date: "2026-01-02", value: 110 }, { date: "2026-01-05", value: 121 },
+  ];
+  const result = benchmarkChangeSeries(["2026-01-01", "2026-01-02", "2026-01-05"], benchmark);
+  result.forEach((value, i) => near(value, [0, 10, 21][i]));
+});
+
+test("benchmarkChangeSeries carries the last known value across a gap (e.g. weekend)", () => {
+  const benchmark = [{ date: "2026-01-01", value: 100 }, { date: "2026-01-05", value: 105 }];
+  const result = benchmarkChangeSeries(["2026-01-01", "2026-01-03", "2026-01-05"], benchmark);
+  result.forEach((value, i) => near(value, [0, 0, 5][i]));
+});
+
+test("benchmarkChangeSeries returns null before any benchmark data exists and ignores invalid rows", () => {
+  const benchmark = [{ date: "bad-date", value: 50 }, { date: "2026-01-03", value: -5 }, { date: "2026-01-05", value: 200 }];
+  const result = benchmarkChangeSeries(["2026-01-01", "2026-01-03", "2026-01-05"], benchmark);
+  assert.deepEqual(result, [null, null, 0]);
 });

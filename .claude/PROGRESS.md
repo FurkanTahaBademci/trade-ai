@@ -547,6 +547,42 @@ Durumlar: ⬜ başlanmadı · 🔶 devam ediyor · ✅ tamamlandı ve doğruland
       id icin 404 canli API'de dogrulandi; `/backtest` ekrani gercek calisan
       web container'inda HTTP 200 ve kosunun tarih/metrik verisiyle rendered.
 
+## Ek Özellik — BIST100 (XU100) Endeks Karşılaştırması
+✅ Gerçek endeks verisi, toplayıcı, API ve grafik overlay'i tamamlandı
+
+- [x] `isyatirimhisse.fetch_index_data` (fiyat kutuphanesinden ayrı, bu oturumda
+      keşfedilen bir endeks uç noktası) ile BIST100 (XU100) günlük kapanış
+      değeri çekiliyor. `IndexDaily` modeli/tablosu `price_daily`'den ayrı
+      tutuluyor — bir endeks `instrument` FK'sine uymayan farklı bir varlık.
+      Migration `4bd6dc234c85`.
+- [x] `collectors/index_prices.py`: `prices.py` ile aynı desen (senkron
+      kütüphane çağrısı `asyncio.to_thread` ile sarmalanır), `(index_code,
+      date)` doğal anahtarıyla upsert. ARQ günlük 18:35 (fiyat toplayıcısından
+      hemen sonra), manuel CLI `python -m scripts.run_once index-prices`.
+- [x] `GET /api/index/{code}/prices?start=&end=`; `/health/detailed` ve
+      `/sistem` ekranına `index_prices` collector'ı otomatik eklendi (Faz 11
+      dinamik takvim self-heal mekanizmasıyla — kod değişikliği yeterli oldu).
+- [x] `chart-data.ts`'e saf `benchmarkChangeSeries()` fonksiyonu: portföy/backtest
+      tarihlerini endeks tarihlerine hizalar (hafta sonu/tatil farkında en son
+      bilinen değeri taşır), ilk eşleşen günden başlayan yüzdesel getiri serisi
+      üretir. `PerformanceChart`in "Dönem değişimi" görünümünde BIST100 kesikli
+      çizgi olarak overlay ediliyor; `/portfoy` ve `/backtest` ekranlarına
+      bağlandı. Bu, backtest ekranındaki önceki "gerçek endeks verisi olmadan
+      temsili benchmark gösterilmez" kısıtını kaldırdı.
+- [x] Saf fonksiyon testleri (mapping + benchmark hizalama, hafta sonu atlama,
+      geçersiz satır reddi) dahil **132/132 backend, 24/24 web testi** yeşil;
+      Ruff ve `tsc --noEmit` temiz.
+- [x] Canlı Docker/PostgreSQL: 3 yıllık backfill 751 satır, ikinci koşuda
+      idempotent upsert; `GET /api/index/XU100/prices` gerçek değerlerle
+      doğrulandı (`14.151,59` gibi bilinen BIST100 kapanışlarıyla eşleşti).
+      `/portfoy` ve `/backtest` sayfaları gerçek çalışan web container'inda
+      HTTP 200, sayfa payload'ında gerçek endeks değerleri (headless Chrome
+      ekran görüntüsüyle) doğrulandı. Not: bu oturumdaki dev DB'de paper
+      portföyün henüz tek günlük snapshot'ı olduğundan overlay'in görsel
+      render'ı interaktif tıklama gerektiren "Dönem değişimi" moduna
+      geçilmeden ekran görüntüsüyle doğrudan görülemedi — alttaki saf
+      fonksiyon (`benchmarkChangeSeries`) ayrı ayrı 3 senaryoyla test edildi.
+
 ---
 
 ## Bilinen riskler / açık sorular
