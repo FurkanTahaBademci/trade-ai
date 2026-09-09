@@ -89,3 +89,14 @@ export async function testGeminiAction(formData: FormData) {
     message: result.ok ? `Tier ${tier} bağlantısı başarılı: ${result.message}` : result.message,
   });
 }
+
+export async function vacuumStorageAction() {
+  const result = await mutate("/api/system/storage/vacuum", {
+    method: "POST",
+  });
+  finish({
+    ...result,
+    message: result.ok ? (result.message || "Depolama vakumlandı ve disk alanı temizlendi") : result.message,
+  });
+}
+

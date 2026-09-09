@@ -15,8 +15,9 @@ from sqlalchemy import and_, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
+from app.api.routers.schedules import require_admin_token
 from app.core.config import Settings
-from app.core.db import get_db
+from app.core.db import engine, get_db
 from app.core.dynamic_settings import resolve_settings
 from app.llm.service import PROMPT_VERSION
 from app.models import KapDisclosure, LlmEvaluation, NewsArticle
@@ -219,3 +220,43 @@ async def get_storage_report(db: Annotated[AsyncSession, Depends(get_db)]) -> di
         for row in result
     ]
     return {"database_size_bytes": int(database_size or 0), "tables": tables}
+
+
+@router.post("/storage/vacuum")
+async def vacuum_storage_endpoint(
+    _admin: Annotated[str, Depends(require_admin_token)],
+) -> dict:
+    """Eski ve silinen binary/TOAST verilerini diskten temizler (VACUUM FULL kap_attachment)."""
+    async with engine.connect() as conn:
+        autocommit_conn = await conn.execution_options(isolation_level="AUTOCOMMIT")
+        dialect = engine.dialect.name
+        if dialect == "postgresql":
+            size_before = int(
+                await autocommit_conn.scalar(text("SELECT pg_database_size(current_database())"))
+                or 0
+            )
+            try:
+                await autocommit_conn.execute(text("VACUUM FULL kap_attachment"))
+            except Exception:
+                pass
+            await autocommit_conn.execute(text("VACUUM ANALYZE"))
+            size_after = int(
+                await autocommit_conn.scalar(text("SELECT pg_database_size(current_database())"))
+                or 0
+            )
+            freed_bytes = max(0, size_before - size_after)
+            freed_mb = freed_bytes / (1024 * 1024)
+            return {
+                "ok": True,
+                "size_before_bytes": size_before,
+                "size_after_bytes": size_after,
+                "freed_bytes": freed_bytes,
+                "message": f"Depolama temizlendi. {freed_mb:.1f} MB disk alanı geri kazanıldı.",
+            }
+        else:
+            await autocommit_conn.execute(text("VACUUM"))
+            return {
+                "ok": True,
+                "message": "Veritabanı başarıyla vakumlandı.",
+            }
+
