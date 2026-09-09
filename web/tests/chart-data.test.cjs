@@ -103,3 +103,22 @@ test("benchmarkChangeSeries returns null before any benchmark data exists and ig
   const result = benchmarkChangeSeries(["2026-01-01", "2026-01-03", "2026-01-05"], benchmark);
   assert.deepEqual(result, [null, null, 0]);
 });
+
+test("handles ISO timestamps and Date objects seamlessly across charts", () => {
+  assert.equal(validChartDate("2026-09-08T00:00:00"), true);
+  assert.equal(validChartDate("2026-09-08T15:30:00Z"), true);
+  assert.equal(validChartDate(new Date("2026-09-08T00:00:00Z")), true);
+  const normalized = normalizePrices([
+    { date: "2026-09-08T00:00:00Z", close: "150.5" },
+    { date: "2026-09-09T10:00:00", close: 152 },
+  ]);
+  assert.deepEqual(normalized.map((r) => r.date), ["2026-09-08", "2026-09-09"]);
+  assert.equal(normalized[0].close, 150.5);
+
+  const perf = performanceSeries([
+    { date: "2026-09-08T00:00:00", value: 1000000 },
+    { date: "2026-09-09T00:00:00", value: 1050000 },
+  ]);
+  assert.equal(perf.length, 2);
+  assert.equal(perf[0].date, "2026-09-08");
+});

@@ -8,11 +8,27 @@ export function useChartWidth() {
   useEffect(() => {
     const element = ref.current;
     if (!element) return;
-    const resize = () => setWidth(Math.max(240, Math.round(element.getBoundingClientRect().width)));
-    resize();
-    if (typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(resize);
+    const update = () => {
+      const rectW = element.getBoundingClientRect().width;
+      const clientW = element.clientWidth;
+      const parentW = element.parentElement?.clientWidth;
+      const measured = rectW || clientW || parentW || 0;
+      if (measured > 0) {
+        setWidth(Math.max(240, Math.round(measured)));
+      }
+    };
+    update();
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", update);
+      return () => window.removeEventListener("resize", update);
+    }
+    const observer = new ResizeObserver(() => {
+      requestAnimationFrame(update);
+    });
     observer.observe(element);
+    if (element.parentElement) {
+      observer.observe(element.parentElement);
+    }
     return () => observer.disconnect();
   }, []);
   return { ref, width };

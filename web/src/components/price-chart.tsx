@@ -34,12 +34,16 @@ export function PriceChart({ prices, error = false }: { prices: Price[]; error?:
   const index = foundIndex < 0 ? Math.max(0, rows.length - 1) : foundIndex;
   const selected = rows[index], first = rows[0], last = rows.at(-1);
   const left = 60, right = width - 14;
-  const x = (i: number) => rows.length === 1 ? (left + right) / 2 : left + i * (right - left) / Math.max(1, rows.length - 1);
-  const visibleValues = rows.flatMap((row) => [row.close, row.low, row.high, showAverage ? row.avg_price : null, showMa20 ? row.ma20 : null, showMa50 ? row.ma50 : null]).filter((value): value is number => value != null);
+  const x = (i: number) => rows.length <= 1 ? (left + right) / 2 : left + i * (right - left) / Math.max(1, rows.length - 1);
+  const visibleValues = rows.flatMap((row) => [row.close, row.low, row.high, showAverage ? row.avg_price : null, showMa20 ? row.ma20 : null, showMa50 ? row.ma50 : null]).filter((value): value is number => value != null && Number.isFinite(value));
   const [min, max] = chartDomain(visibleValues);
-  const y = (value: number) => BOTTOM - (value - min) / (max - min) * (BOTTOM - TOP);
+  const y = (value: number) => {
+    const range = max - min;
+    if (range <= 0 || !Number.isFinite(range)) return (TOP + BOTTOM) / 2;
+    return BOTTOM - ((value - min) / range) * (BOTTOM - TOP);
+  };
   const volumeMax = rows.reduce((peak, row) => Math.max(peak, row.volume_try ?? 0), 0);
-  const hasVolume = rows.some((row) => row.volume_try != null);
+  const hasVolume = rows.some((row) => row.volume_try != null && row.volume_try > 0);
   const path = chartPath(rows.map((row) => row.close), x, y);
   const change = first && last && rows.length > 1 ? (last.close / first.close - 1) * 100 : null;
   const height = showRsi ? 468 : 360;
@@ -63,12 +67,14 @@ export function PriceChart({ prices, error = false }: { prices: Price[]; error?:
     setCustom({ start: all[firstIndex].date, end: all[firstIndex + rows.length - 1].date }); setRangeDays(null); setSelectedDate(null);
   }
   function handlePointer(event: PointerEvent<SVGSVGElement>) {
+    if (rows.length <= 1) return;
     const bounds = event.currentTarget.getBoundingClientRect();
     const svgX = (event.clientX - bounds.left) * width / bounds.width;
     const i = Math.max(0, Math.min(rows.length - 1, Math.round((svgX - left) / (right - left) * (rows.length - 1))));
     setSelectedDate(rows[i]?.date ?? null);
   }
   function handleKey(event: KeyboardEvent<SVGSVGElement>) {
+    if (rows.length <= 1) return;
     const next = { ArrowLeft: index - 1, ArrowRight: index + 1, Home: 0, End: rows.length - 1 }[event.key];
     if (next == null) return;
     event.preventDefault(); setSelectedDate(rows[Math.max(0, Math.min(rows.length - 1, next))]?.date ?? null);
@@ -90,18 +96,23 @@ export function PriceChart({ prices, error = false }: { prices: Price[]; error?:
       <svg className="w-full touch-pan-y rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--primary)]" style={{ height }} viewBox={`0 0 ${width} ${height}`} role="img" tabIndex={0} aria-label="Etkileşimli hisse fiyat ve hacim grafiği" aria-describedby={`${id}-help`} onPointerMove={handlePointer} onPointerDown={handlePointer} onPointerLeave={() => setSelectedDate(null)} onKeyDown={handleKey}>
         <defs><linearGradient id={`${id}-area`} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="var(--primary)" stopOpacity=".18"/><stop offset="1" stopColor="var(--primary)" stopOpacity="0"/></linearGradient></defs>
         {[0,.25,.5,.75,1].map((ratio) => <g key={ratio}><line x1={left} x2={right} y1={TOP+ratio*(BOTTOM-TOP)} y2={TOP+ratio*(BOTTOM-TOP)} stroke="var(--chart-grid)" strokeDasharray="4 5"/><text x={left-8} textAnchor="end" y={TOP+4+ratio*(BOTTOM-TOP)} fill="var(--text-muted)" fontSize="10">{formatNumber(max-ratio*(max-min), 2)}</text></g>)}
-        {mode === "line" ? <><path d={`${path} L${x(rows.length-1)},${BOTTOM} L${x(0)},${BOTTOM} Z`} fill={`url(#${id}-area)`}/><path d={path} fill="none" stroke="var(--primary)" strokeWidth="2"/></> : rows.map((row, i) => <g key={row.date} stroke={i > 0 && row.close < rows[i-1].close ? "var(--negative)" : "var(--positive)"} strokeWidth="1.5">
+        {mode === "line" ? (
+          rows.length > 1 ? <>
+            <path d={`${path} L${x(rows.length-1)},${BOTTOM} L${x(0)},${BOTTOM} Z`} fill={`url(#${id}-area)`}/>
+            <path d={path} fill="none" stroke="var(--primary)" strokeWidth="2"/>
+          </> : <line x1={left} x2={right} y1={y(selected.close)} y2={y(selected.close)} stroke="var(--primary)" strokeWidth="2" strokeDasharray="4 4"/>
+        ) : rows.map((row, i) => <g key={row.date} stroke={i > 0 && row.close < rows[i-1].close ? "var(--negative)" : "var(--positive)"} strokeWidth="1.5">
           {row.low != null && row.high != null && <line x1={x(i)} x2={x(i)} y1={y(row.low)} y2={y(row.high)}/>}
-          <line x1={x(i)} x2={x(i)+Math.max(1, Math.min(6,(right-left)/rows.length*.35))} y1={y(row.close)} y2={y(row.close)}/>
+          <line x1={x(i)} x2={x(i)+Math.max(1, Math.min(6,(right-left)/Math.max(1, rows.length)*.35))} y1={y(row.close)} y2={y(row.close)}/>
         </g>)}
         {[[showMa20, "ma20", "var(--positive)"], [showMa50, "ma50", "var(--negative)"], [showAverage, "avg_price", "var(--warning)"]].map(([show, key, color]) => show && <path key={String(key)} data-series={String(key)} d={chartPath(rows.map((row) => row[key as "ma20" | "ma50" | "avg_price"]), x, y)} fill="none" stroke={String(color)} strokeWidth="1.4" strokeDasharray={key === "avg_price" ? "5 4" : undefined}/>)}
         <text x={left} y={VOLUME_TOP-9} fill="var(--text-muted)" fontSize="10">{hasVolume ? `HACİM (TL) · tepe ${formatMoney(volumeMax, true)}` : "HACİM VERİSİ YOK"}</text>
-        {rows.map((row, i) => row.volume_try != null && <rect key={row.date} x={x(i)-Math.max(1,(right-left)/rows.length*.55)/2} y={VOLUME_BOTTOM-(volumeMax ? row.volume_try/volumeMax : 0)*(VOLUME_BOTTOM-VOLUME_TOP)} width={Math.max(1,(right-left)/rows.length*.55)} height={(volumeMax ? row.volume_try/volumeMax : 0)*(VOLUME_BOTTOM-VOLUME_TOP)} fill={i > 0 && row.close < rows[i-1].close ? "var(--negative)" : "var(--positive)"} opacity=".55"/>)}
+        {rows.map((row, i) => row.volume_try != null && <rect key={row.date} x={x(i)-Math.max(1,(right-left)/Math.max(1, rows.length)*.55)/2} y={VOLUME_BOTTOM-(volumeMax ? row.volume_try/volumeMax : 0)*(VOLUME_BOTTOM-VOLUME_TOP)} width={Math.max(1,(right-left)/Math.max(1, rows.length)*.55)} height={Math.max(1, (volumeMax ? row.volume_try/volumeMax : 0)*(VOLUME_BOTTOM-VOLUME_TOP))} fill={i > 0 && row.close < rows[i-1].close ? "var(--negative)" : "var(--positive)"} opacity=".55"/>)}
         {showRsi && <g><text x={left} y={RSI_TOP-10} fill="var(--text-muted)" fontSize="10">RSI (14) · Wilder</text>{[30,70].map((level) => <g key={level}><line x1={left} x2={right} y1={RSI_BOTTOM-level/100*(RSI_BOTTOM-RSI_TOP)} y2={RSI_BOTTOM-level/100*(RSI_BOTTOM-RSI_TOP)} stroke="var(--chart-grid)" strokeDasharray="4 5"/><text x={left-8} textAnchor="end" y={RSI_BOTTOM-level/100*(RSI_BOTTOM-RSI_TOP)+4} fill="var(--text-muted)" fontSize="10">{level}</text></g>)}<path data-series="rsi" d={chartPath(rows.map((row) => row.rsi), x, (value) => RSI_BOTTOM-value/100*(RSI_BOTTOM-RSI_TOP))} fill="none" stroke="var(--warning)" strokeWidth="1.5"/></g>}
-        <line x1={x(index)} x2={x(index)} y1={TOP} y2={showRsi ? RSI_BOTTOM : VOLUME_BOTTOM} stroke="var(--text-muted)" strokeDasharray="3 4"/><circle cx={x(index)} cy={y(selected.close)} r="3.5" fill="var(--surface)" stroke="var(--primary)" strokeWidth="2"/>
+        <line x1={x(index)} x2={x(index)} y1={TOP} y2={showRsi ? RSI_BOTTOM : VOLUME_BOTTOM} stroke="var(--text-muted)" strokeDasharray="3 4"/><circle cx={x(index)} cy={y(selected.close)} r="4" fill="var(--surface)" stroke="var(--primary)" strokeWidth="2.5"/>
         <text x={left} y={height-3} fill="var(--text-muted)" fontSize="10">{first.date}</text><text x={right} y={height-3} textAnchor="end" fill="var(--text-muted)" fontSize="10">{last?.date}</text>
       </svg>
-      <label className="mt-2 block text-xs text-[var(--text-muted)]">İşlem günü seç<input aria-label="İşlem günü seç" className="mt-1 block w-full accent-[var(--primary)]" type="range" min={0} max={Math.max(0, rows.length-1)} value={index} disabled={rows.length < 2} aria-valuetext={`${formatDate(selected.date)} · ${formatMoney(selected.close)}`} onChange={(event) => setSelectedDate(rows[Number(event.target.value)].date)}/></label>
+      {rows.length > 1 && <label className="mt-2 block text-xs text-[var(--text-muted)]">İşlem günü seç<input aria-label="İşlem günü seç" className="mt-1 block w-full accent-[var(--primary)]" type="range" min={0} max={Math.max(0, rows.length-1)} value={index} disabled={rows.length < 2} aria-valuetext={`${formatDate(selected.date)} · ${formatMoney(selected.close)}`} onChange={(event) => setSelectedDate(rows[Number(event.target.value)].date)}/></label>}
       <div className="mt-3 rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-3" data-testid="price-selection">
         <p className="mb-2 text-xs font-semibold">{formatDate(selected.date)}</p><dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs sm:grid-cols-3"><Detail label="Kapanış" value={formatMoney(selected.close)}/><Detail label="Düşük / Yüksek" value={`${formatMoney(selected.low)} / ${formatMoney(selected.high)}`}/><Detail label="Hacim (TL)" value={formatMoney(selected.volume_try, true)}/>{showMa20 && <Detail label="MA20" value={formatMoney(selected.ma20)}/>} {showMa50 && <Detail label="MA50" value={formatMoney(selected.ma50)}/>} {showAverage && <Detail label="AOF" value={formatMoney(selected.avg_price)}/>} {showRsi && <Detail label="RSI (14)" value={formatNumber(selected.rsi, 2)}/>}</dl>
       </div>
