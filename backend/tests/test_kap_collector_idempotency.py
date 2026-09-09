@@ -50,7 +50,7 @@ class _MemorySession:
 
 class _FixtureKapCollector(KapCollector):
     def __init__(self, session, list_items, detail):
-        super().__init__(session, download_attachments=False)
+        super().__init__(session)
         self._list_items = list_items
         self._detail = detail
         self.detail_request_count = 0
@@ -64,7 +64,7 @@ class _FixtureKapCollector(KapCollector):
 
     async def _save_detail(self, disclosure_index, payload):
         self._session.details[disclosure_index] = normalize_detail_response(payload)
-        return 0, 0
+        return 0
 
 
 class _ListWindowCollector(KapCollector):
@@ -73,7 +73,6 @@ class _ListWindowCollector(KapCollector):
             session,
             lookback_days=3,
             end_date=date(2026, 9, 6),
-            download_attachments=False,
         )
         self._item = item
         self.payloads = []
@@ -109,7 +108,6 @@ class _DailyLimitCollector(KapCollector):
             session,
             lookback_days=1,
             end_date=date(2026, 9, 6),
-            download_attachments=False,
         )
         self._item = item
         self.payloads: list[dict] = []

@@ -1,14 +1,13 @@
-"""KAP bildirimleri ve ek dosyalari.
+"""KAP bildirimleri ve ek dosya metadatasi.
 
 `KapDisclosure.disclosure_index`, KAP'in herkese acik bildirim numarasidir ve
 dogal anahtar olarak kullanilir. Bir bildirim birden cok kodla iliskili
 olabildigi icin kodlar JSON listesi olarak saklanir; isme dayali esleme
 yapilmaz.
 
-KAP ek indirme endpoint'i dosyayi ham olarak degil Java-serialized `byte[]`
-icinde dondurur. Collector sarmalayiciyi cozer ve yalnizca asil dosya
-baytlarini `KapAttachment.content` alanina yazar. Alan `deferred` oldugu icin
-liste/detay sorgularinda buyuk dosyalar gereksiz yere RAM'e alinmaz.
+Ek dosyalarin binary icerigi veritabaninda saklanmaz; yalnizca metadata
+(obj_id, dosya adi, uzanti) tutulur ve ihtiyac halinde KAP uzerinden
+canli proxy (on-demand) ile indirilir.
 """
 
 from datetime import datetime
@@ -21,7 +20,6 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
-    LargeBinary,
     String,
     Text,
     func,
@@ -86,12 +84,6 @@ class KapAttachment(Base):
     )
     file_name: Mapped[str] = mapped_column(String(1024))
     file_extension: Mapped[str | None] = mapped_column(String(32), nullable=True)
-
-    content: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True, deferred=True)
-    size_bytes: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
-    sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    downloaded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    download_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     raw_metadata: Mapped[dict] = mapped_column(JSON)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

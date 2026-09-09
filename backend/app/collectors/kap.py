@@ -4,19 +4,18 @@ Akis:
 1. Son birkac gunun bildirim listesini tek POST istegiyle al.
 2. Liste metadatasini `disclosure_index` uzerinden upsert et.
 3. Yalnizca yeni veya detayi daha once alinamamis bildirimlerin detayini cek.
-4. Ekleri indir, Java-serialized `byte[]` sarmalayicisini coz ve asil dosyayi sakla.
+4. Ek metadata'sini (objId, dosya adi, uzanti) `kap_attachment` tablosuna kaydet.
 
 Idempotency: bildirim icin `disclosure_index`, ek icin KAP `objId` dogal
 anahtardir. Ayni pencere ikinci kez toplandiginda yeni satir olusmaz ve daha
-once basariyla indirilen detay/ek icin tekrar ag istegi atilmaz.
+once basariyla indirilen detay icin tekrar ag istegi atilmaz.
 """
 
 from __future__ import annotations
 
-import hashlib
 import re
 import struct
-from datetime import UTC, date, datetime, timedelta
+from datetime import date, datetime, timedelta
 from html.parser import HTMLParser
 from typing import ClassVar
 from zoneinfo import ZoneInfo
@@ -263,7 +262,6 @@ class KapCollector(BaseCollector):
         *,
         lookback_days: int = DEFAULT_LOOKBACK_DAYS,
         end_date: date | None = None,
-        download_attachments: bool = True,
     ) -> None:
         super().__init__(rate_limit_per_sec=settings.kap_rate_limit_per_sec)
         if lookback_days < 1:
@@ -271,7 +269,6 @@ class KapCollector(BaseCollector):
         self._session = session
         self._lookback_days = lookback_days
         self._end_date = end_date or datetime.now(ISTANBUL).date()
-        self._download_attachments = download_attachments
 
     async def _fetch_list(self) -> list[dict]:
         start_date = self._end_date - timedelta(days=self._lookback_days - 1)
@@ -346,68 +343,7 @@ class KapCollector(BaseCollector):
                     merged[int(index)] = item
         return list(merged.values())
 
-    async def _download_attachment(self, fields: dict) -> bool:
-        obj_id = fields["obj_id"]
-        disclosure_index = fields["disclosure_index"]
-        try:
-            wrapped = await self.get_bytes(
-                KAP_FILE_URL.format(obj_id=obj_id),
-                headers={"Referer": f"https://www.kap.org.tr/tr/Bildirim/{disclosure_index}"},
-            )
-            content = unwrap_java_serialized_byte_array(wrapped)
-            await self._session.execute(
-                update(KapAttachment)
-                .where(KapAttachment.obj_id == obj_id)
-                .values(
-                    content=content,
-                    size_bytes=len(content),
-                    sha256=hashlib.sha256(content).hexdigest(),
-                    downloaded_at=datetime.now(UTC),
-                    download_error=None,
-                )
-            )
-            await self._session.commit()
-            return True
-        except Exception as exc:  # noqa: BLE001 - tek bozuk ek diger bildirimleri durdurmasin
-            await self._session.rollback()
-            await self._session.execute(
-                update(KapAttachment)
-                .where(KapAttachment.obj_id == obj_id)
-                .values(download_error=str(exc)[:2000])
-            )
-            await self._session.commit()
-            self.log.error(
-                "kap_attachment_failed",
-                disclosure_index=disclosure_index,
-                obj_id=obj_id,
-                error=str(exc),
-            )
-            return False
-
-    async def _retry_missing_attachments(self, disclosure_indices: list[int]) -> tuple[int, int]:
-        if not self._download_attachments or not disclosure_indices:
-            return 0, 0
-        result = await self._session.execute(
-            select(
-                KapAttachment.obj_id,
-                KapAttachment.disclosure_index,
-                KapAttachment.file_name,
-                KapAttachment.file_extension,
-                KapAttachment.raw_metadata,
-            ).where(
-                KapAttachment.disclosure_index.in_(disclosure_indices),
-                KapAttachment.content.is_(None),
-            )
-        )
-        downloaded = failed = 0
-        for row in result.mappings():
-            if await self._download_attachment(dict(row)):
-                downloaded += 1
-            else:
-                failed += 1
-        return downloaded, failed
-
-    async def _save_detail(self, disclosure_index: int, payload: dict | list) -> tuple[int, int]:
+    async def _save_detail(self, disclosure_index: int, payload: dict | list) -> int:
         mapped = map_disclosure_detail(payload)
         await self._session.execute(
             update(KapDisclosure)
@@ -420,10 +356,9 @@ class KapCollector(BaseCollector):
             )
         )
 
-        attachment_fields: list[dict] = []
+        attachments_count = 0
         for item in mapped["attachments"]:
             fields = map_attachment_metadata(disclosure_index, item)
-            attachment_fields.append(fields)
             stmt = pg_insert(KapAttachment).values(**fields)
             stmt = stmt.on_conflict_do_update(
                 index_elements=[KapAttachment.obj_id],
@@ -435,16 +370,9 @@ class KapCollector(BaseCollector):
                 },
             )
             await self._session.execute(stmt)
+            attachments_count += 1
         await self._session.commit()
-
-        downloaded = failed = 0
-        if self._download_attachments:
-            for fields in attachment_fields:
-                if await self._download_attachment(fields):
-                    downloaded += 1
-                else:
-                    failed += 1
-        return downloaded, failed
+        return attachments_count
 
     async def run(self) -> dict:
         raw_items = await self._fetch_list()
@@ -490,9 +418,9 @@ class KapCollector(BaseCollector):
             await self._session.execute(stmt)
         await self._session.commit()
 
-        downloaded, attachment_failures = await self._retry_missing_attachments(indices)
         detail_fetched = 0
         detail_failures: list[int] = []
+        attachments_saved = 0
         new_count = sum(index not in existing_details for index in indices)
 
         for index in indices:
@@ -503,9 +431,8 @@ class KapCollector(BaseCollector):
                     KAP_DETAIL_URL.format(index=index),
                     headers={"Referer": f"https://www.kap.org.tr/tr/Bildirim/{index}"},
                 )
-                new_downloaded, new_failed = await self._save_detail(index, detail_payload)
-                downloaded += new_downloaded
-                attachment_failures += new_failed
+                saved_count = await self._save_detail(index, detail_payload)
+                attachments_saved += saved_count
                 detail_fetched += 1
             except Exception as exc:  # noqa: BLE001 - sonraki bildirimleri toplamaya devam et
                 await self._session.rollback()
@@ -517,6 +444,5 @@ class KapCollector(BaseCollector):
             "new": new_count,
             "details_fetched": detail_fetched,
             "detail_failures": detail_failures,
-            "attachments_downloaded": downloaded,
-            "attachment_failures": attachment_failures,
+            "attachments_saved": attachments_saved,
         }

@@ -11,10 +11,6 @@ class KapAttachmentOut(BaseModel):
     obj_id: str
     file_name: str
     file_extension: str | None
-    size_bytes: int | None
-    sha256: str | None
-    downloaded_at: datetime | None
-    download_error: str | None
 
 
 class KapDisclosureListOut(BaseModel):

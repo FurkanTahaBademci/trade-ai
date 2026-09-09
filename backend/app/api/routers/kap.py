@@ -4,16 +4,20 @@ from datetime import datetime
 from typing import Annotated
 from urllib.parse import quote
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 from sqlalchemy import and_, cast, or_, select
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.collectors.kap import KAP_FILE_URL, unwrap_java_serialized_byte_array
+from app.core.config import get_settings
 from app.core.db import get_db
 from app.models import KapAttachment, KapDisclosure
 from app.schemas.kap import KapDisclosureDetailOut, KapDisclosureListOut
 
+settings = get_settings()
 router = APIRouter(prefix="/api/disclosures", tags=["disclosures"])
 
 
@@ -83,14 +87,23 @@ async def download_attachment(
     if row is None:
         raise HTTPException(status_code=404, detail="KAP eki bulunamadi")
 
-    content = await db.scalar(
-        select(KapAttachment.content).where(
-            KapAttachment.obj_id == obj_id,
-            KapAttachment.disclosure_index == disclosure_index,
-        )
-    )
-    if content is None:
-        raise HTTPException(status_code=503, detail="KAP eki henuz indirilemedi")
+    try:
+        async with httpx.AsyncClient(
+            headers={"User-Agent": settings.collector_user_agent}, timeout=30.0
+        ) as client:
+            resp = await client.get(
+                KAP_FILE_URL.format(obj_id=obj_id),
+                headers={"Referer": f"https://www.kap.org.tr/tr/Bildirim/{disclosure_index}"},
+            )
+            if resp.status_code != 200 or not resp.content:
+                raise HTTPException(status_code=502, detail="KAP sunucusundan ek dosya alinamadi")
+            content = unwrap_java_serialized_byte_array(resp.content)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502, detail=f"KAP eki indirilemedi: {exc}"
+        ) from exc
 
     media_type = "application/pdf" if row.file_extension == "pdf" else "application/octet-stream"
     return Response(

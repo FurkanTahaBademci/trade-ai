@@ -3,7 +3,6 @@
 Kullanim:
     python -m scripts.run_once instruments
     python -m scripts.run_once kap --days 3
-    python -m scripts.run_once kap --days 30 --no-attachments
     python -m scripts.run_once news
     python -m scripts.run_once llm
     python -m scripts.run_once fundamentals --tickers THYAO,ASELS --start-year 2025
@@ -75,7 +74,7 @@ async def run_index_prices(days: int | None) -> dict:
         return await collector.run_tracked()
 
 
-async def run_kap(days: int | None, download_attachments: bool) -> dict:
+async def run_kap(days: int | None) -> dict:
     from app.collectors.kap import DEFAULT_LOOKBACK_DAYS, KapCollector
 
     async with (
@@ -83,7 +82,6 @@ async def run_kap(days: int | None, download_attachments: bool) -> dict:
         KapCollector(
             session,
             lookback_days=days or DEFAULT_LOOKBACK_DAYS,
-            download_attachments=download_attachments,
         ) as collector,
     ):
         return await collector.run_tracked()
@@ -193,7 +191,7 @@ COLLECTORS = {
     ),
     "index-prices": lambda args: run_index_prices(args.days),
     "instruments": lambda args: run_instruments(),
-    "kap": lambda args: run_kap(args.days, not args.no_attachments),
+    "kap": lambda args: run_kap(args.days),
     "llm": lambda args: run_llm(),
     "news": lambda args: run_news(),
     "paper": lambda args: run_paper(),
@@ -222,11 +220,6 @@ def main() -> None:
         "--days",
         type=int,
         help="Kac gun geriye gidilecek (kap: 3 gun, prices: 3 yil varsayilan).",
-    )
-    parser.add_argument(
-        "--no-attachments",
-        action="store_true",
-        help="KAP eklerini indirme; yalnizca bildirim ve ek metadatasini kaydet.",
     )
     parser.add_argument("--start-year", type=int, help="Finansal tablo baslangic yili.")
     parser.add_argument("--end-year", type=int, help="Finansal tablo bitis yili.")
