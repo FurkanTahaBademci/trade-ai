@@ -2,6 +2,7 @@
 
 import pytest
 
+from app.api.routers.system import _estimated_requests
 from app.core.config import Settings
 from app.core.dynamic_settings import (
     clear_setting,
@@ -12,12 +13,21 @@ from app.core.dynamic_settings import (
 from app.main import app
 
 
-def test_settings_and_storage_routes_are_registered():
+def test_settings_and_system_routes_are_registered():
     paths = set(app.openapi()["paths"])
     assert "/api/settings" in paths
     assert "/api/settings/{key}" in paths
     assert "/api/settings/gemini/test" in paths
+    assert "/api/system/llm" in paths
     assert "/api/system/storage" in paths
+
+
+def test_llm_request_estimate_uses_configured_group_size():
+    assert _estimated_requests(0, 5) == 0
+    assert _estimated_requests(1, 5) == 1
+    assert _estimated_requests(10, 5) == 2
+    assert _estimated_requests(11, 5) == 3
+    assert _estimated_requests(3, 0) == 3
 
 
 class FakeRedis:

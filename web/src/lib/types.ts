@@ -22,6 +22,14 @@ export type MonetaryPolicyDecision = { id: number; decision_no: string; decision
 export type CollectorSchedule = { name: string; label: string; job_name: string; interval_minutes: number; minimum_interval_minutes: number; enabled: boolean; next_run_at: string | null; last_enqueued_at: string | null; updated_at: string };
 export type SettingStatus = { key: string; label: string; kind: "secret" | "url" | "boolean" | "choice"; is_set: boolean; source: "database" | "env" | "unset"; preview: string | null; choices: { value: string; label: string }[]; updated_at: string | null };
 export type StorageReport = { database_size_bytes: number; tables: { table: string; size_bytes: number; row_estimate: number }[] };
+export type LlmOperationsReport = {
+  generated_at: string;
+  config: { enabled: boolean; api_mode: "interactions" | "generate_content"; tier1_model: string; tier2_model: string; tier1_group_size: number; batch_size: number; max_attempts: number };
+  budget: { window_started_at: string; input_tokens: { used: number; limit: number }; output_tokens: { used: number; limit: number }; exhausted: boolean };
+  today: { succeeded: number; failed: number; running: number; last_completed_at: string | null };
+  backlog: { news: number; kap: number; documents: number; estimated_tier1_requests: number; retryable_failures: number; stale_running: number };
+  unresolved_failures: number;
+};
 export type BacktestPoint = { point_date: string; cash: number; positions_value: number; total_equity: number; position_count: number };
 export type BacktestTrade = { id: number; ticker: string; side: "BUY" | "SELL"; signal_date: string; execution_date: string; quantity: number; price: number; gross_amount: number; fee_amount: number; realized_pnl: number | null };
 export type BacktestRun = { id: number; strategy_version: string; signal_model_version: string; status: "COMPLETED" | "INSUFFICIENT_DATA"; start_date: string; end_date: string; initial_cash: number; final_equity: number; total_return_pct: number; max_drawdown_pct: number; annualized_volatility_pct: number | null; sharpe_ratio: number | null; closed_trades: number; winning_trades: number; win_rate_pct: number | null; total_fees: number; signal_count: number; price_count: number; skipped_signal_count: number; config: { entry_score: number; exit_score: number; min_confidence: number; min_coverage: number; max_positions: number; max_position_weight: number; fee_rate: number; slippage_rate: number; execution_price: string; risk_free_rate: number }; created_at: string; points?: BacktestPoint[]; trades?: BacktestTrade[] };
