@@ -28,11 +28,11 @@ class Settings(BaseSettings):
     gemini_model_tier2: str = "gemini-3.1-pro-preview"
     llm_enabled: bool = False
     llm_batch_size: int = 20
-    llm_tier1_group_size: int = 5
+    llm_tier1_group_size: int = 10
     llm_max_attempts: int = 3
     llm_tier2_min_impact: int = 70
-    llm_daily_input_token_limit: int = 500_000
-    llm_daily_output_token_limit: int = 100_000
+    llm_daily_input_token_limit: int = 2_000_000
+    llm_daily_output_token_limit: int = 500_000
     llm_max_source_chars: int = 12_000
 
     n8n_webhook_url: str = ""

@@ -811,7 +811,7 @@ class LlmEvaluationService:
                 user_content=build_batch_user_content(active_documents),
                 response_model=LlmTier1BatchResult,
                 thinking_level="low",
-                max_output_tokens=max(2_400, len(prepared) * 1_200),
+                max_output_tokens=min(8_192, max(2_400, len(prepared) * 450)),
             )
             batch = LlmTier1BatchResult.model_validate(response.data)
             expected_ids = [batch_document_id(document) for document in active_documents]
@@ -1030,7 +1030,7 @@ class LlmEvaluationService:
         tier1_attempted = 0
         tier1_documents = await self._tier1_documents()
         tier1_cursor = 0
-        group_size = max(1, min(self._settings.llm_tier1_group_size, 5))
+        group_size = max(1, min(self._settings.llm_tier1_group_size, 20))
         while tier1_cursor < len(tier1_documents):
             if not self._budget_available(input_tokens, output_tokens):
                 result["budget_exhausted"] = True

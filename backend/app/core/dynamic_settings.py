@@ -48,7 +48,17 @@ GEMINI_API_CHOICES: tuple[tuple[str, str], ...] = (
 TIER1_GROUP_SIZE_CHOICES: tuple[tuple[str, str], ...] = (
     ("1", "Tekli · en kolay izolasyon"),
     ("3", "3 kayıt / istek"),
-    ("5", "5 kayıt / istek · önerilen"),
+    ("5", "5 kayıt / istek"),
+    ("10", "10 kayıt / istek · önerilen"),
+    ("15", "15 kayıt / istek"),
+    ("20", "20 kayıt / istek · maksimum"),
+)
+LLM_OUTPUT_TOKEN_LIMIT_CHOICES: tuple[tuple[str, str], ...] = (
+    ("100000", "100.000 token (~450 haber) · eski sınır"),
+    ("250000", "250.000 token (~1.100 haber)"),
+    ("500000", "500.000 token (~2.200 haber) · önerilen"),
+    ("1000000", "1.000.000 token (~4.500 haber) · genişletilmiş"),
+    ("2000000", "2.000.000 token (~9.000 haber)"),
 )
 
 
@@ -81,6 +91,13 @@ MANAGED_SETTINGS: tuple[SettingSpec, ...] = (
         "choice",
         "llm_tier1_group_size",
         TIER1_GROUP_SIZE_CHOICES,
+    ),
+    SettingSpec(
+        "llm_daily_output_token_limit",
+        "Günlük Çıktı Token Bütçesi",
+        "choice",
+        "llm_daily_output_token_limit",
+        LLM_OUTPUT_TOKEN_LIMIT_CHOICES,
     ),
     SettingSpec("llm_enabled", "LLM Degerlendirmesi Etkin", "boolean", "llm_enabled"),
     SettingSpec("n8n_webhook_url", "N8N Webhook URL", "url", "n8n_webhook_url"),
@@ -171,7 +188,7 @@ async def resolve_settings(base: Settings | None = None, *, redis: Redis | None 
         raw = stored["value"]
         if spec.kind == "boolean":
             updates[spec.field] = raw == "true"
-        elif spec.field == "llm_tier1_group_size":
+        elif spec.field in {"llm_tier1_group_size", "llm_daily_output_token_limit"}:
             updates[spec.field] = int(raw)
         else:
             updates[spec.field] = raw

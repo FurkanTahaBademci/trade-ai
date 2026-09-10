@@ -502,3 +502,38 @@ def test_tier2_schema_rejects_unknown_fields():
 
     with pytest.raises(ValidationError):
         LlmTier2Result.model_validate(payload)
+
+
+def test_tier1_batch_schema_accepts_up_to_20_items_and_rejects_more():
+    item_payload = {
+        "document_id": "news:1:abc",
+        "relevant": False,
+        "relevance_score": 0,
+        "sentiment_score": 0.0,
+        "impact_score": 0,
+        "confidence": 0.5,
+        "event_type": "other",
+        "time_horizon": "unclear",
+        "summary": "Ozet",
+        "rationale": "Gerekce",
+        "ticker_codes": [],
+        "requires_deep_analysis": False,
+    }
+
+    # 10 items accepted
+    batch_10 = LlmTier1BatchResult(results=[
+        dict(item_payload, document_id=f"news:{i}:abc") for i in range(10)
+    ])
+    assert len(batch_10.results) == 10
+
+    # 20 items accepted
+    batch_20 = LlmTier1BatchResult(results=[
+        dict(item_payload, document_id=f"news:{i}:abc") for i in range(20)
+    ])
+    assert len(batch_20.results) == 20
+
+    # 21 items rejected
+    with pytest.raises(ValidationError):
+        LlmTier1BatchResult(results=[
+            dict(item_payload, document_id=f"news:{i}:abc") for i in range(21)
+        ])

@@ -63,7 +63,7 @@ class LlmTier1BatchItem(LlmTier1Result):
 class LlmTier1BatchResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    results: list[LlmTier1BatchItem] = Field(min_length=1, max_length=5)
+    results: list[LlmTier1BatchItem] = Field(min_length=1, max_length=20)
 
 
 class LlmTier2Result(_AnalysisBase):
