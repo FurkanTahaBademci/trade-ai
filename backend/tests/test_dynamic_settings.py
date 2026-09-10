@@ -100,6 +100,7 @@ async def test_gemini_api_and_model_choices_are_exposed_and_validated():
     tier1 = next(item for item in statuses if item["key"] == "gemini_model_tier1")
     group_size = next(item for item in statuses if item["key"] == "llm_tier1_group_size")
     output_limit = next(item for item in statuses if item["key"] == "llm_daily_output_token_limit")
+    batch_size = next(item for item in statuses if item["key"] == "llm_batch_size")
 
     assert api_mode["preview"] == "interactions"
     assert {item["value"] for item in api_mode["choices"]} == {
@@ -110,8 +111,11 @@ async def test_gemini_api_and_model_choices_are_exposed_and_validated():
     assert any(item["value"] == "gemini-3.1-pro-preview" for item in tier1["choices"])
     assert group_size["preview"] == "10"
     assert {item["value"] for item in group_size["choices"]} == {"1", "3", "5", "10", "15", "20"}
-    assert output_limit["preview"] == "500000"
-    assert "1000000" in {item["value"] for item in output_limit["choices"]}
+    assert output_limit["preview"] == "0"
+    assert "0" in {item["value"] for item in output_limit["choices"]}
+    assert "10000000" in {item["value"] for item in output_limit["choices"]}
+    assert batch_size["preview"] == "50"
+    assert {item["value"] for item in batch_size["choices"]} == {"20", "50", "100", "200"}
 
     with pytest.raises(ValueError, match="Desteklenmeyen secim"):
         await set_setting("gemini_api_mode", "openai", redis=redis)
@@ -119,6 +123,8 @@ async def test_gemini_api_and_model_choices_are_exposed_and_validated():
         await set_setting("gemini_model_tier1", "uydurma-model", redis=redis)
     with pytest.raises(ValueError, match="Desteklenmeyen secim"):
         await set_setting("llm_tier1_group_size", "99", redis=redis)
+    with pytest.raises(ValueError, match="Desteklenmeyen secim"):
+        await set_setting("llm_batch_size", "999", redis=redis)
 
 
 async def test_clear_setting_reverts_to_env_default():
@@ -139,6 +145,7 @@ async def test_resolve_settings_merges_database_override_over_env():
     await set_setting("gemini_model_tier1", "gemini-3.7-flash", redis=redis)
     await set_setting("llm_tier1_group_size", "20", redis=redis)
     await set_setting("llm_daily_output_token_limit", "1000000", redis=redis)
+    await set_setting("llm_batch_size", "100", redis=redis)
     base = _base_settings(gemini_api_key="sk-env-default")
 
     resolved = await resolve_settings(base, redis=redis)
@@ -149,6 +156,7 @@ async def test_resolve_settings_merges_database_override_over_env():
     assert resolved.gemini_model_tier1 == "gemini-3.7-flash"
     assert resolved.llm_tier1_group_size == 20
     assert resolved.llm_daily_output_token_limit == 1_000_000
+    assert resolved.llm_batch_size == 100
     assert resolved.n8n_webhook_url == ""
 
 

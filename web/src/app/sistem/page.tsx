@@ -48,6 +48,9 @@ function Infrastructure({ label, state }: { label: string; state?: string }) { c
 
 function numberText(value: number) { return value.toLocaleString("tr-TR"); }
 function BudgetBar({ label, used, limit }: { label: string; used: number; limit: number }) {
+  if (!limit || limit <= 0) {
+    return <div><div className="flex items-baseline justify-between gap-3 text-xs"><span className="font-medium">{label}</span><span className="font-medium text-[var(--positive)]">{numberText(used)} · Sınırsız (Tam kullanım)</span></div><div className="mt-2 h-2 overflow-hidden rounded-full bg-[var(--surface-raised)]"><div className="h-full rounded-full bg-[var(--positive)]" style={{ width: "100%" }}/></div></div>;
+  }
   const percentage = Math.round((used / Math.max(1, limit)) * 100);
   const width = Math.min(100, percentage);
   const color = percentage >= 100 ? "var(--negative)" : percentage >= 80 ? "var(--warning)" : "var(--primary)";

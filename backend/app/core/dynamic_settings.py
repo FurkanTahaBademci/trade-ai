@@ -54,11 +54,17 @@ TIER1_GROUP_SIZE_CHOICES: tuple[tuple[str, str], ...] = (
     ("20", "20 kayıt / istek · maksimum"),
 )
 LLM_OUTPUT_TOKEN_LIMIT_CHOICES: tuple[tuple[str, str], ...] = (
-    ("100000", "100.000 token (~450 haber) · eski sınır"),
-    ("250000", "250.000 token (~1.100 haber)"),
-    ("500000", "500.000 token (~2.200 haber) · önerilen"),
-    ("1000000", "1.000.000 token (~4.500 haber) · genişletilmiş"),
-    ("2000000", "2.000.000 token (~9.000 haber)"),
+    ("0", "0 (Sınırsız) · Tokenı sonuna kadar kullan · önerilen"),
+    ("1000000", "1.000.000 token (~4.500 haber)"),
+    ("5000000", "5.000.000 token (~22.000 haber)"),
+    ("10000000", "10.000.000 token (~45.000 haber)"),
+    ("50000000", "50.000.000 token (~225.000 haber)"),
+)
+LLM_BATCH_SIZE_CHOICES: tuple[tuple[str, str], ...] = (
+    ("20", "20 kayıt / döngü"),
+    ("50", "50 kayıt / döngü · önerilen"),
+    ("100", "100 kayıt / döngü · hızlı eritme"),
+    ("200", "200 kayıt / döngü · agresif"),
 )
 
 
@@ -99,6 +105,13 @@ MANAGED_SETTINGS: tuple[SettingSpec, ...] = (
         "llm_daily_output_token_limit",
         LLM_OUTPUT_TOKEN_LIMIT_CHOICES,
     ),
+    SettingSpec(
+        "llm_batch_size",
+        "Döngü Başına İşlenen Kayıt (Batch)",
+        "choice",
+        "llm_batch_size",
+        LLM_BATCH_SIZE_CHOICES,
+    ),
     SettingSpec("llm_enabled", "LLM Degerlendirmesi Etkin", "boolean", "llm_enabled"),
     SettingSpec("n8n_webhook_url", "N8N Webhook URL", "url", "n8n_webhook_url"),
 )
@@ -126,7 +139,7 @@ async def get_setting_statuses(*, redis: Redis | None = None) -> list[dict[str, 
             updated_at = stored.get("updated_at") if stored else None
         elif stored:
             value, source, updated_at = stored["value"], "database", stored.get("updated_at")
-        elif env_raw:
+        elif env_raw is not None and str(env_raw) != "":
             value, source, updated_at = str(env_raw), "env", None
         else:
             value, source, updated_at = "", "unset", None
@@ -188,7 +201,11 @@ async def resolve_settings(base: Settings | None = None, *, redis: Redis | None 
         raw = stored["value"]
         if spec.kind == "boolean":
             updates[spec.field] = raw == "true"
-        elif spec.field in {"llm_tier1_group_size", "llm_daily_output_token_limit"}:
+        elif spec.field in {
+            "llm_tier1_group_size",
+            "llm_daily_output_token_limit",
+            "llm_batch_size",
+        }:
             updates[spec.field] = int(raw)
         else:
             updates[spec.field] = raw

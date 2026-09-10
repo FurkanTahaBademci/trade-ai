@@ -497,10 +497,11 @@ class LlmEvaluationService:
         return int(row[0]), int(row[1])
 
     def _budget_available(self, input_tokens: int, output_tokens: int) -> bool:
-        return (
-            input_tokens < self._settings.llm_daily_input_token_limit
-            and output_tokens < self._settings.llm_daily_output_token_limit
-        )
+        input_limit = self._settings.llm_daily_input_token_limit
+        output_limit = self._settings.llm_daily_output_token_limit
+        input_ok = input_limit <= 0 or input_tokens < input_limit
+        output_ok = output_limit <= 0 or output_tokens < output_limit
+        return input_ok and output_ok
 
     async def _tier1_documents(self) -> list[SourceDocument]:
         scan_limit = max(self._settings.llm_batch_size * 5, 100)

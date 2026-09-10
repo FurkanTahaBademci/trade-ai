@@ -21,6 +21,9 @@ from app.core.db import engine, get_db
 from app.core.dynamic_settings import resolve_settings
 from app.llm.service import PROMPT_VERSION
 from app.models import KapDisclosure, LlmEvaluation, NewsArticle
+import structlog
+
+logger = structlog.get_logger("system")
 
 router = APIRouter(prefix="/api/system", tags=["system"])
 
@@ -172,8 +175,14 @@ async def get_llm_report(db: Annotated[AsyncSession, Depends(get_db)]) -> dict:
                 "limit": settings.llm_daily_output_token_limit,
             },
             "exhausted": (
-                input_used >= settings.llm_daily_input_token_limit
-                or output_used >= settings.llm_daily_output_token_limit
+                (
+                    settings.llm_daily_input_token_limit > 0
+                    and input_used >= settings.llm_daily_input_token_limit
+                )
+                or (
+                    settings.llm_daily_output_token_limit > 0
+                    and output_used >= settings.llm_daily_output_token_limit
+                )
             ),
         },
         "today": {
@@ -237,8 +246,8 @@ async def vacuum_storage_endpoint(
             )
             try:
                 await autocommit_conn.execute(text("VACUUM FULL kap_attachment"))
-            except Exception:
-                pass
+            except Exception as exc:  # noqa: BLE001 - tablonun kilitli olmasi veya bulunamamasi vakumlamayi engellemesin
+                logger.warning("vacuum_kap_attachment_failed", error=str(exc))
             await autocommit_conn.execute(text("VACUUM ANALYZE"))
             size_after = int(
                 await autocommit_conn.scalar(text("SELECT pg_database_size(current_database())"))

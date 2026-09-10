@@ -537,3 +537,24 @@ def test_tier1_batch_schema_accepts_up_to_20_items_and_rejects_more():
         LlmTier1BatchResult(results=[
             dict(item_payload, document_id=f"news:{i}:abc") for i in range(21)
         ])
+
+
+def test_budget_available_handles_zero_as_unlimited():
+    # Both zero -> unlimited
+    unlimited_service = LlmEvaluationService(
+        session=None,
+        gateway=None,
+        settings=Settings(llm_daily_input_token_limit=0, llm_daily_output_token_limit=0),
+    )
+    assert unlimited_service._budget_available(10_000_000, 5_000_000) is True
+
+    # Limited
+    limited_service = LlmEvaluationService(
+        session=None,
+        gateway=None,
+        settings=Settings(llm_daily_input_token_limit=100, llm_daily_output_token_limit=50),
+    )
+    assert limited_service._budget_available(50, 25) is True
+    assert limited_service._budget_available(100, 25) is False
+    assert limited_service._budget_available(50, 50) is False
+
