@@ -15,6 +15,18 @@ const feeds = {
     path: "/api/signals",
     parameters: ["label", "after_score", "after_ticker", "after_id"],
   },
+  watchlist: {
+    path: "/api/signals",
+    parameters: ["ticker", "tickers", "label", "after_score", "after_ticker", "after_id"],
+  },
+  portfolio: {
+    path: "/api/paper/portfolios",
+    parameters: ["ticker", "portfolio_id", "status"],
+  },
+  portfolios: {
+    path: "/api/paper/portfolios",
+    parameters: ["ticker", "portfolio_id", "status"],
+  },
 } as const;
 
 function apiBase() {
