@@ -558,3 +558,43 @@ def test_budget_available_handles_zero_as_unlimited():
     assert limited_service._budget_available(100, 25) is False
     assert limited_service._budget_available(50, 50) is False
 
+
+def test_dereference_json_schema_inlines_all_defs_and_refs():
+    from app.llm.service import dereference_json_schema
+    from app.schemas.llm import LlmTier1BatchResult
+
+    raw_schema = LlmTier1BatchResult.model_json_schema()
+    assert "$defs" in raw_schema
+    assert "$ref" in json.dumps(raw_schema)
+
+    clean_schema = dereference_json_schema(raw_schema)
+    assert "$defs" not in clean_schema
+    assert "definitions" not in clean_schema
+    assert "$ref" not in json.dumps(clean_schema)
+
+    # Check that inlined items has the full object properties
+    items_schema = clean_schema["properties"]["results"]["items"]
+    assert items_schema["type"] == "object"
+    assert "document_id" in items_schema["properties"]
+    assert "sentiment_score" in items_schema["properties"]
+    assert "ticker_codes" in items_schema["properties"]
+
+
+def test_thinking_level_and_model_validation():
+    from app.llm.service import _normalize_thinking_level, _validate_model_name
+
+    assert _normalize_thinking_level("LOW") == "low"
+    assert _normalize_thinking_level("medium") == "medium"
+    assert _normalize_thinking_level("HIGH") == "high"
+    assert _normalize_thinking_level("minimal") == "minimal"
+    assert _normalize_thinking_level(None) == "low"
+    assert _normalize_thinking_level("invalid_value") == "low"
+
+    assert _validate_model_name("gemini-3.8-flash") == "gemini-3.8-flash"
+    assert _validate_model_name("  gemini-2.5-flash  ") == "gemini-2.5-flash"
+    with pytest.raises(ValueError, match="model adı boş olamaz"):
+        _validate_model_name("")
+    with pytest.raises(ValueError, match="model adı boş olamaz"):
+        _validate_model_name("   ")
+
+

@@ -306,6 +306,63 @@ def _prioritize_documents(
     return [*retries, *remaining]
 
 
+def dereference_json_schema(schema: dict) -> dict:
+    """Dereferences and inlines all $ref and $defs / definitions in a JSON Schema.
+
+    Google GenAI / Gemini OpenAPI schema parser strictly rejects schemas with $defs
+    and $ref, failing with 'Request contains an invalid argument (invalid_request)'
+    if references are present.
+    """
+    import copy
+
+    result = copy.deepcopy(schema)
+    defs = result.pop("$defs", {})
+    if not defs:
+        defs = result.pop("definitions", {})
+
+    seen_refs: set[str] = set()
+
+    def _resolve(node):
+        if isinstance(node, dict):
+            if "$ref" in node:
+                ref = node["$ref"]
+                ref_key = ref.split("/")[-1]
+                if ref_key in defs:
+                    if ref_key in seen_refs:
+                        resolved_def = copy.deepcopy(defs[ref_key])
+                    else:
+                        seen_refs.add(ref_key)
+                        resolved_def = _resolve(copy.deepcopy(defs[ref_key]))
+                        seen_refs.remove(ref_key)
+                    for k, v in node.items():
+                        if k != "$ref":
+                            resolved_def[k] = _resolve(v)
+                    return resolved_def
+                return node
+            return {k: _resolve(v) for k, v in node.items()}
+        elif isinstance(node, list):
+            return [_resolve(item) for item in node]
+        return node
+
+    return _resolve(result)
+
+
+def _normalize_thinking_level(level: str | None) -> str:
+    if not level:
+        return "low"
+    cleaned = level.strip().lower()
+    if cleaned in {"minimal", "low", "medium", "high"}:
+        return cleaned
+    return "low"
+
+
+def _validate_model_name(model: str) -> str:
+    cleaned = (model or "").strip()
+    if not cleaned:
+        raise ValueError("Gemini model adı boş olamaz")
+    return cleaned
+
+
 class GeminiGateway:
     """Google Gen AI SDK'nin testlerde kolayca degistirilebilen ince adaptoru."""
 
@@ -335,6 +392,10 @@ class GeminiGateway:
         thinking_level: str,
         max_output_tokens: int,
     ) -> GatewayResponse:
+        model = _validate_model_name(model)
+        thinking_level = _normalize_thinking_level(thinking_level)
+        clean_schema = dereference_json_schema(response_model.model_json_schema())
+
         for attempt in range(1, self._max_attempts + 1):
             try:
                 if self._api_mode == "interactions":
@@ -343,6 +404,7 @@ class GeminiGateway:
                         system_instruction=system_instruction,
                         user_content=user_content,
                         response_model=response_model,
+                        schema=clean_schema,
                         thinking_level=thinking_level,
                         max_output_tokens=max_output_tokens,
                     )
@@ -351,6 +413,7 @@ class GeminiGateway:
                     system_instruction=system_instruction,
                     user_content=user_content,
                     response_model=response_model,
+                    schema=clean_schema,
                     thinking_level=thinking_level,
                     max_output_tokens=max_output_tokens,
                 )
@@ -376,6 +439,7 @@ class GeminiGateway:
         system_instruction: str,
         user_content: str,
         response_model: type[BaseModel],
+        schema: dict,
         thinking_level: str,
         max_output_tokens: int,
     ) -> GatewayResponse:
@@ -390,7 +454,7 @@ class GeminiGateway:
             response_format={
                 "type": "text",
                 "mime_type": "application/json",
-                "schema": response_model.model_json_schema(),
+                "schema": schema,
             },
             store=False,
             stream=True,
@@ -430,6 +494,7 @@ class GeminiGateway:
         system_instruction: str,
         user_content: str,
         response_model: type[BaseModel],
+        schema: dict,
         thinking_level: str,
         max_output_tokens: int,
     ) -> GatewayResponse:
@@ -441,7 +506,7 @@ class GeminiGateway:
             config=types.GenerateContentConfig(
                 system_instruction=system_instruction,
                 response_mime_type="application/json",
-                response_json_schema=response_model.model_json_schema(),
+                response_json_schema=schema,
                 thinking_config=types.ThinkingConfig(thinking_level=thinking_level),
                 max_output_tokens=max_output_tokens,
             ),
