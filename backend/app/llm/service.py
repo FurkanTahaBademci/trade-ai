@@ -306,6 +306,31 @@ def _prioritize_documents(
     return [*retries, *remaining]
 
 
+DISALLOWED_GEMINI_SCHEMA_KEYS = {
+    "title",
+    "minLength",
+    "maxLength",
+    "minimum",
+    "maximum",
+    "minItems",
+    "maxItems",
+    "additionalProperties",
+}
+
+
+def sanitize_gemini_schema(node: object) -> object:
+    """Removes OpenAPI validation keywords not supported by Gemini structured output."""
+    if isinstance(node, dict):
+        return {
+            k: sanitize_gemini_schema(v)
+            for k, v in node.items()
+            if k not in DISALLOWED_GEMINI_SCHEMA_KEYS
+        }
+    elif isinstance(node, list):
+        return [sanitize_gemini_schema(item) for item in node]
+    return node
+
+
 def dereference_json_schema(schema: dict) -> dict:
     """Dereferences and inlines all $ref and $defs / definitions in a JSON Schema.
 
@@ -344,7 +369,8 @@ def dereference_json_schema(schema: dict) -> dict:
             return [_resolve(item) for item in node]
         return node
 
-    return _resolve(result)
+    resolved = _resolve(result)
+    return sanitize_gemini_schema(resolved)  # type: ignore[return-value]
 
 
 def _normalize_thinking_level(level: str | None) -> str:

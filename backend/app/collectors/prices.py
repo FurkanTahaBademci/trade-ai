@@ -194,21 +194,24 @@ class PriceCollector(BaseCollector):
                 if not rows:
                     continue
 
-                stmt = pg_insert(PriceDaily).values(rows)
-                stmt = stmt.on_conflict_do_update(
-                    constraint="uq_price_daily_ticker_date",
-                    set_={
-                        "close": stmt.excluded.close,
-                        "high": stmt.excluded.high,
-                        "low": stmt.excluded.low,
-                        "avg_price": stmt.excluded.avg_price,
-                        "volume_try": stmt.excluded.volume_try,
-                        "close_usd": stmt.excluded.close_usd,
-                        "market_cap_try": stmt.excluded.market_cap_try,
-                    },
-                )
                 try:
-                    await self._session.execute(stmt)
+                    insert_batch_size = 1000
+                    for offset in range(0, len(rows), insert_batch_size):
+                        batch = rows[offset : offset + insert_batch_size]
+                        stmt = pg_insert(PriceDaily).values(batch)
+                        stmt = stmt.on_conflict_do_update(
+                            constraint="uq_price_daily_ticker_date",
+                            set_={
+                                "close": stmt.excluded.close,
+                                "high": stmt.excluded.high,
+                                "low": stmt.excluded.low,
+                                "avg_price": stmt.excluded.avg_price,
+                                "volume_try": stmt.excluded.volume_try,
+                                "close_usd": stmt.excluded.close_usd,
+                                "market_cap_try": stmt.excluded.market_cap_try,
+                            },
+                        )
+                        await self._session.execute(stmt)
                     await self._session.commit()
                     total_rows += len(rows)
                     self.log.info("price_chunk_done", chunk_index=chunk_idx, of=len(chunks), rows=len(rows))
