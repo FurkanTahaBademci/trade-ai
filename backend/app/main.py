@@ -53,9 +53,14 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PATCH", "OPTIONS"],
     allow_headers=["Content-Type", "X-Admin-Token"],
 )
+allowed_hosts = [item.strip() for item in settings.allowed_hosts.split(",") if item.strip()]
+for default_host in ("localhost", "127.0.0.1", "api"):
+    if default_host not in allowed_hosts:
+        allowed_hosts.append(default_host)
+
 app.add_middleware(
     TrustedHostMiddleware,
-    allowed_hosts=[item.strip() for item in settings.allowed_hosts.split(",") if item.strip()],
+    allowed_hosts=allowed_hosts,
 )
 
 app.include_router(health.router)
