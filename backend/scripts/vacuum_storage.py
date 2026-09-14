@@ -32,6 +32,14 @@ async def vacuum_storage() -> dict:
             size_before_mb = (size_before or 0) / (1024 * 1024)
             log.info("Baslangic veritabani boyutu: %.2f MB", size_before_mb)
 
+            try:
+                table_size_before = await autocommit_conn.scalar(
+                    text("SELECT pg_size_pretty(pg_total_relation_size('kap_attachment'))")
+                )
+                log.info("   'kap_attachment' tablosunun baslangic boyutu: %s", table_size_before)
+            except Exception as exc:
+                log.debug("kap_attachment tablosu kontrol edilemedi: %s", exc)
+
             log.info("1. 'kap_attachment' tablosu vakumlanip disk alani serbest birakiliyor...")
             try:
                 await autocommit_conn.execute(text("VACUUM FULL kap_attachment"))
@@ -48,6 +56,14 @@ async def vacuum_storage() -> dict:
             size_after_mb = (size_after or 0) / (1024 * 1024)
             freed_bytes = max(0, (size_before or 0) - (size_after or 0))
             freed_mb = freed_bytes / (1024 * 1024)
+
+            try:
+                table_size_after = await autocommit_conn.scalar(
+                    text("SELECT pg_size_pretty(pg_total_relation_size('kap_attachment'))")
+                )
+                log.info("   'kap_attachment' tablosunun sikistirma sonrasi boyutu: %s", table_size_after)
+            except Exception:
+                pass
 
             log.info("Temizlik sonrasi veritabani boyutu: %.2f MB", size_after_mb)
             log.info("Geri kazanilan disk alani: %.2f MB", freed_mb)
@@ -67,7 +83,10 @@ async def vacuum_storage() -> dict:
 
 
 def main() -> None:
-    asyncio.run(vacuum_storage())
+    try:
+        asyncio.run(vacuum_storage())
+    except Exception as exc:
+        log.warning("Depolama vakumlama sirasinda hata olustu (atlaniliyor): %s", exc)
 
 
 if __name__ == "__main__":

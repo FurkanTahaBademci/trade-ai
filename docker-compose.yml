@@ -83,7 +83,7 @@ services:
         limits:
           memory: ${API_MEMORY_LIMIT:-1G}
     command: >
-      sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips='*'"
+      sh -c "alembic upgrade head && (python scripts/vacuum_storage.py || true) && uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips='*'"
 
   worker:
     build:
