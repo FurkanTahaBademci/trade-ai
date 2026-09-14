@@ -1,27 +1,33 @@
 import Link from "next/link";
 import { apiGet } from "@/lib/api";
-import type { CompositeSignal, Disclosure, Evaluation, FundFlow, Instrument, NewsArticle, SystemHealth } from "@/lib/types";
+import type { CompositeSignal, Disclosure, Evaluation, FundFlow, NewsArticle, SystemHealth, SystemStats } from "@/lib/types";
 import { eventName, formatDate, formatMoney, formatPercent, relativeTime, signalName, sourceName } from "@/lib/format";
 import { Icon } from "@/components/icon";
 import { EmptyState, ScoreRing, SectionTitle, ServiceNotice, TickerPills } from "@/components/ui";
 
 export default async function Home() {
-  const [instruments, news, disclosures, evaluations, flows, signals, health] = await Promise.all([
-    apiGet<Instrument[]>("/api/instruments", []), apiGet<NewsArticle[]>("/api/news?limit=6", []), apiGet<Disclosure[]>("/api/disclosures?limit=5", []),
-    apiGet<Evaluation[]>("/api/evaluations?status=succeeded&limit=20", []), apiGet<FundFlow[]>("/api/funds/flows?limit=7", []), apiGet<CompositeSignal[]>("/api/signals?limit=5", []), apiGet<SystemHealth | null>("/health/detailed", null),
+  const [statsRes, news, disclosures, evaluations, flows, signals, health] = await Promise.all([
+    apiGet<SystemStats | null>("/api/system/stats", null, { revalidate: 60 }),
+    apiGet<NewsArticle[]>("/api/news?limit=6", []),
+    apiGet<Disclosure[]>("/api/disclosures?limit=5", []),
+    apiGet<Evaluation[]>("/api/evaluations?status=succeeded&limit=20", []),
+    apiGet<FundFlow[]>("/api/funds/flows?limit=7", []),
+    apiGet<CompositeSignal[]>("/api/signals?limit=5", []),
+    apiGet<SystemHealth | null>("/health/detailed", null, { revalidate: 15 }),
   ]);
+  const stats = statsRes.data;
   const focus = evaluations.data.find((item) => item.summary && item.impact_score != null);
   const latestFlow = flows.data[0];
   const servicesUp = health.ok && health.data?.status === "ok";
 
   return <>
-    <ServiceNotice show={!instruments.ok && !news.ok}/>
+    <ServiceNotice show={!news.ok && !signals.ok}/>
     <div className="mb-7 flex flex-col justify-between gap-3 sm:flex-row sm:items-end"><div><p className="eyebrow mb-2">Piyasa özeti</p><h1 className="page-title">Günaydın, Furkan.</h1><p className="mt-2 text-sm text-[var(--text-secondary)]">Piyasayı etkileyen veriler tek bir çalışma alanında.</p></div><div className="flex items-center gap-2 text-xs text-[var(--text-muted)]"><span className={`h-2 w-2 rounded-full ${servicesUp ? "bg-[var(--positive)]" : "bg-[var(--warning)]"}`}/>{servicesUp ? "Tüm sistemler çalışıyor" : "Servis bağlantısı bekleniyor"}</div></div>
 
     <section className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      <Metric icon="markets" label="Takip evreni" value={instruments.ok ? instruments.data.length.toLocaleString("tr-TR") : "—"} meta="aktif BIST hissesi"/>
-      <Metric icon="news" label="Son haberler" value={news.ok ? String(news.data.length) : "—"} meta="güncel akışta"/>
-      <Metric icon="ai" label="Bileşik sinyal" value={signals.ok ? String(signals.data.length) : "—"} meta="güncel sıralamada"/>
+      <Metric icon="markets" label="Takip evreni" value={stats?.instruments_total ? stats.instruments_total.toLocaleString("tr-TR") : "—"} meta="aktif BIST hissesi"/>
+      <Metric icon="news" label="Haber havuzu" value={stats?.news_total ? stats.news_total.toLocaleString("tr-TR") : (news.ok ? String(news.data.length) : "—")} meta="toplam haber"/>
+      <Metric icon="ai" label="Bileşik sinyal" value={stats?.signals_total ? stats.signals_total.toLocaleString("tr-TR") : (signals.ok ? String(signals.data.length) : "—")} meta="aktif sinyal"/>
       <Metric icon="funds" label="Fon hisse akımı" value={formatMoney(latestFlow?.estimated_stock_flow, true)} meta={latestFlow ? `${formatDate(latestFlow.date)} · ${formatPercent(latestFlow.positive_flow_pct)} pozitif` : "veri bekleniyor"} tone={(latestFlow?.estimated_stock_flow ?? 0) >= 0 ? "positive" : "negative"}/>
     </section>
 

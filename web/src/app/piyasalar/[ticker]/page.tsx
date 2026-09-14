@@ -14,11 +14,25 @@ export async function generateMetadata({ params }: { params: Promise<{ ticker: s
 export default async function InstrumentDetail({ params }: { params: Promise<{ ticker: string }> }) {
   const { ticker: rawTicker } = await params; const ticker = rawTicker.toUpperCase();
   const [instrument, prices, fundamentals, consensus, recommendations, signals, news, disclosures, evaluations, portfolios, policy] = await Promise.all([
-    apiGet<Instrument | null>(`/api/instruments/${ticker}`, null), apiGet<Price[]>(`/api/instruments/${ticker}/prices?start=2000-01-01`, []), apiGet<Fundamental[]>(`/api/fundamentals/${ticker}`, []), apiGet<Consensus[]>(`/api/analysts/${ticker}/consensus?limit=1`, []), apiGet<Recommendation[]>(`/api/analysts/${ticker}/recommendations?limit=20`, []), apiGet<CompositeSignal[]>(`/api/signals/${ticker}?limit=5`, []), apiGet<NewsArticle[]>(`/api/news?ticker=${ticker}&limit=8`, []), apiGet<Disclosure[]>(`/api/disclosures?ticker=${ticker}&limit=8`, []), apiGet<Evaluation[]>(`/api/evaluations?ticker=${ticker}&status=succeeded&limit=8`, []), apiGet<PaperPortfolio[]>("/api/paper/portfolios", []), apiGet<MonetaryPolicyDecision[]>("/api/macro/policy-decisions?status=PUBLISHED&limit=1", []),
+    apiGet<Instrument | null>(`/api/instruments/${ticker}`, null, { revalidate: 300 }),
+    apiGet<Price[]>(`/api/instruments/${ticker}/prices?start=2000-01-01`, [], { revalidate: 60 }),
+    apiGet<Fundamental[]>(`/api/fundamentals/${ticker}`, [], { revalidate: 300 }),
+    apiGet<Consensus[]>(`/api/analysts/${ticker}/consensus?limit=1`, [], { revalidate: 120 }),
+    apiGet<Recommendation[]>(`/api/analysts/${ticker}/recommendations?limit=20`, [], { revalidate: 120 }),
+    apiGet<CompositeSignal[]>(`/api/signals/${ticker}?limit=5`, [], { revalidate: 60 }),
+    apiGet<NewsArticle[]>(`/api/news?ticker=${ticker}&limit=8`, [], { revalidate: 30 }),
+    apiGet<Disclosure[]>(`/api/disclosures?ticker=${ticker}&limit=8`, [], { revalidate: 30 }),
+    apiGet<Evaluation[]>(`/api/evaluations?ticker=${ticker}&status=succeeded&limit=8`, [], { revalidate: 30 }),
+    apiGet<PaperPortfolio[]>("/api/paper/portfolios", [], { revalidate: 60 }),
+    apiGet<MonetaryPolicyDecision[]>("/api/macro/policy-decisions?status=PUBLISHED&limit=1", [], { revalidate: 600 }),
   ]);
   if (instrument.ok && !instrument.data) notFound();
   const portfolio = portfolios.data[0];
-  const [paperPositions, paperTrades] = portfolio ? await Promise.all([apiGet<PaperPosition[]>(`/api/paper/portfolios/${portfolio.id}/positions?ticker=${ticker}`, []), apiGet<PaperTrade[]>(`/api/paper/portfolios/${portfolio.id}/trades?ticker=${ticker}&limit=20`, [])]) : [{ data: [], ok: true as const }, { data: [], ok: true as const }];
+  const [paperPositions, paperTrades] = portfolio ? await Promise.all([
+    apiGet<PaperPosition[]>(`/api/paper/portfolios/${portfolio.id}/positions?ticker=${ticker}`, [], { revalidate: 30 }),
+    apiGet<PaperTrade[]>(`/api/paper/portfolios/${portfolio.id}/trades?ticker=${ticker}&limit=20`, [], { revalidate: 30 }),
+  ]) : [{ data: [], ok: true as const }, { data: [], ok: true as const }];
+
   const company = instrument.data; const latest = prices.data.at(-1); const ninetyDayStart = latest ? new Date(`${latest.date}T00:00:00`).getTime() - 90 * 86_400_000 : 0; const first = prices.data.find((row) => new Date(`${row.date}T00:00:00`).getTime() >= ninetyDayStart); const change = latest && first ? ((latest.close / first.close) - 1) * 100 : null; const fundamental = fundamentals.data[0]; const view = consensus.data[0]; const signal = signals.data[0]; const paperPosition = paperPositions.data[0]; const latestPolicy = policy.data[0];
   return <>
     <Breadcrumbs items={[{ label: "Piyasalar", href: "/piyasalar" }, { label: ticker }]}/>
