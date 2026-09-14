@@ -70,3 +70,40 @@ async def test_vacuum_storage_script_runs(monkeypatch):
     result = await vacuum_storage.vacuum_storage()
     assert result["ok"] is True
     await sqlite_engine.dispose()
+
+
+@pytest.mark.anyio
+async def test_get_system_stats_endpoint(test_app, monkeypatch):
+    class FakeRedis:
+        def __init__(self):
+            self.data = {}
+        async def get(self, key):
+            return self.data.get(key)
+        async def set(self, key, value, ex=None):
+            self.data[key] = value
+
+    monkeypatch.setattr("app.api.routers.system.get_redis", lambda: FakeRedis())
+
+    # Mock DB queries
+    async def fake_get_db():
+        class FakeSession:
+            async def scalar(self, stmt):
+                return 42
+            async def execute(self, stmt):
+                return [("src1", 10), ("src2", 20)]
+        yield FakeSession()
+
+    from app.core.db import get_db
+    test_app.dependency_overrides[get_db] = fake_get_db
+
+    client = TestClient(test_app)
+    resp = client.get("/api/system/stats")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["instruments_total"] == 42
+    assert data["news_total"] == 42
+    assert data["disclosures_total"] == 42
+    assert data["signals_total"] == 42
+    assert data["funds_total"] == 42
+    assert "src1" in data["news_by_source"]
+

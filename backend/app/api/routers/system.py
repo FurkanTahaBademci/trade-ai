@@ -15,17 +15,121 @@ from sqlalchemy import and_, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
+from pydantic import BaseModel
 from app.api.routers.schedules import require_admin_token
 from app.core.config import Settings
 from app.core.db import engine, get_db
 from app.core.dynamic_settings import resolve_settings
+from app.core.redis import get_redis
 from app.llm.service import PROMPT_VERSION
-from app.models import KapDisclosure, LlmEvaluation, NewsArticle
+from app.models import (
+    CompositeSignalSnapshot,
+    FundSnapshot,
+    Instrument,
+    KapDisclosure,
+    LlmEvaluation,
+    NewsArticle,
+)
 import structlog
 
 logger = structlog.get_logger("system")
 
 router = APIRouter(prefix="/api/system", tags=["system"])
+
+
+class SystemStatsOut(BaseModel):
+    instruments_total: int
+    news_total: int
+    news_by_source: dict[str, int]
+    disclosures_total: int
+    signals_total: int
+    signals_by_label: dict[str, int]
+    evaluations_total: int
+    evaluations_by_source: dict[str, int]
+    funds_total: int
+
+
+@router.get("/stats", response_model=SystemStatsOut)
+async def get_system_stats(
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> SystemStatsOut:
+    """Sistem genelindeki varlık toplamlarını ve kategori kırılımlarını döndürür."""
+    redis = get_redis()
+    cache_key = "system:stats:totals"
+    try:
+        cached = await redis.get(cache_key)
+        if cached:
+            return SystemStatsOut.model_validate_json(cached)
+    except Exception:
+        pass
+
+    instruments_total = int(
+        await db.scalar(
+            select(func.count(Instrument.ticker)).where(Instrument.is_active.is_(True))
+        )
+        or 0
+    )
+    news_total = int(await db.scalar(select(func.count(NewsArticle.id))) or 0)
+    news_source_rows = await db.execute(
+        select(NewsArticle.source, func.count(NewsArticle.id)).group_by(NewsArticle.source)
+    )
+    news_by_source = {str(row[0]): int(row[1]) for row in news_source_rows}
+
+    disclosures_total = int(
+        await db.scalar(select(func.count(KapDisclosure.disclosure_index))) or 0
+    )
+
+    latest_signal_date = await db.scalar(select(func.max(CompositeSignalSnapshot.as_of_date)))
+    signals_total = 0
+    signals_by_label: dict[str, int] = {}
+    if latest_signal_date is not None:
+        signals_total = int(
+            await db.scalar(
+                select(func.count(CompositeSignalSnapshot.id)).where(
+                    CompositeSignalSnapshot.as_of_date == latest_signal_date
+                )
+            )
+            or 0
+        )
+        signal_label_rows = await db.execute(
+            select(
+                CompositeSignalSnapshot.signal_label, func.count(CompositeSignalSnapshot.id)
+            )
+            .where(CompositeSignalSnapshot.as_of_date == latest_signal_date)
+            .group_by(CompositeSignalSnapshot.signal_label)
+        )
+        signals_by_label = {str(row[0]): int(row[1]) for row in signal_label_rows}
+
+    evaluations_total = int(await db.scalar(select(func.count(LlmEvaluation.id))) or 0)
+    evaluation_source_rows = await db.execute(
+        select(LlmEvaluation.source_type, func.count(LlmEvaluation.id)).group_by(
+            LlmEvaluation.source_type
+        )
+    )
+    evaluations_by_source = {str(row[0]): int(row[1]) for row in evaluation_source_rows}
+
+    funds_total = int(
+        await db.scalar(select(func.count(func.distinct(FundSnapshot.fund_code)))) or 0
+    )
+
+    stats = SystemStatsOut(
+        instruments_total=instruments_total,
+        news_total=news_total,
+        news_by_source=news_by_source,
+        disclosures_total=disclosures_total,
+        signals_total=signals_total,
+        signals_by_label=signals_by_label,
+        evaluations_total=evaluations_total,
+        evaluations_by_source=evaluations_by_source,
+        funds_total=funds_total,
+    )
+
+    try:
+        await redis.set(cache_key, stats.model_dump_json(), ex=60)
+    except Exception:
+        pass
+
+    return stats
 
 
 def _estimated_requests(document_count: int, group_size: int) -> int:
