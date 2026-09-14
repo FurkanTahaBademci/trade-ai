@@ -252,3 +252,36 @@ def test_institutional_routes_validate_enums_without_database_access():
         assert client.get("/api/funds/flows?fund_kind=INVALID").status_code == 422
     finally:
         app.dependency_overrides.pop(get_db, None)
+
+
+def test_fund_flow_collector_retries_on_connection_error():
+    import httpx
+    from unittest.mock import patch, MagicMock
+    from tenacity import wait_none
+    from app.collectors.fund_flows import FundFlowCollector
+
+    session = MagicMock()
+    collector = FundFlowCollector(session)
+    collector._rate_limit_per_sec = None
+
+    attempts = 0
+
+    async def mock_post(*args, **kwargs):
+        nonlocal attempts
+        attempts += 1
+        if attempts < 3:
+            raise httpx.RemoteProtocolError("Server disconnected without sending a response.")
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.raise_for_status = MagicMock()
+        resp.json = MagicMock(return_value={"resultList": []})
+        return resp
+
+    with patch("httpx.AsyncClient.post", side_effect=mock_post):
+        collector._post_tefas.retry.wait = wait_none()
+        import asyncio
+        data = asyncio.run(collector._post_tefas("https://test.tefas.gov.tr", {}))
+        assert data == {"resultList": []}
+        assert attempts == 3
+
+

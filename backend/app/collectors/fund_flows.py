@@ -5,14 +5,18 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
+import json
 from typing import Any
 from zoneinfo import ZoneInfo
 
+import httpx
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from app.collectors.base import BaseCollector, CollectorError
+from app.core.config import get_settings
 from app.models import FundFlowAggregate, FundSnapshot
 
 TEFAS_INFO_URL = "https://www.tefas.gov.tr/api/funds/fonGnlBlgSiraliGetir"
@@ -22,6 +26,7 @@ TEFAS_HEADERS = {
     "Content-Type": "application/json",
     "Origin": "https://www.tefas.gov.tr",
     "Referer": "https://www.tefas.gov.tr/tr/fon-verileri",
+    "Connection": "close",
 }
 FUND_KINDS = {"YAT", "EMK", "BYF", "GYF", "GSYF"}
 
@@ -231,11 +236,43 @@ class FundFlowCollector(BaseCollector):
             "fonUnvanTip": "",
         }
 
+    @retry(
+        retry=retry_if_exception_type((
+            httpx.TransportError,
+            httpx.HTTPStatusError,
+            httpx.TimeoutException,
+            json.JSONDecodeError,
+        )),
+        wait=wait_exponential(multiplier=2, min=2, max=30),
+        stop=stop_after_attempt(5),
+        reraise=True,
+    )
+    async def _post_tefas(self, url: str, payload: dict) -> dict:
+        await self._throttle()
+        async with httpx.AsyncClient(
+            headers={
+                **TEFAS_HEADERS,
+                "User-Agent": get_settings().collector_user_agent,
+            },
+            timeout=httpx.Timeout(60.0, connect=15.0),
+            verify=False,
+        ) as client:
+            try:
+                resp = await client.post(url, json=payload)
+                resp.raise_for_status()
+                return resp.json()
+            except Exception as exc:
+                self.log.warning(
+                    "tefas_http_request_retry",
+                    url=url,
+                    error=str(exc),
+                    error_type=type(exc).__name__,
+                )
+                raise
+
     async def run(self) -> dict:
-        info = await self.post_json(TEFAS_INFO_URL, json=self._payload(), headers=TEFAS_HEADERS)
-        allocation = await self.post_json(
-            TEFAS_ALLOCATION_URL, json=self._payload(), headers=TEFAS_HEADERS
-        )
+        info = await self._post_tefas(TEFAS_INFO_URL, self._payload())
+        allocation = await self._post_tefas(TEFAS_ALLOCATION_URL, self._payload())
         mapped = map_tefas_snapshots(info, allocation, fund_kind=self._fund_kind)
         identities = {(row["fund_code"], row["date"]) for row in mapped}
         existing = set(
