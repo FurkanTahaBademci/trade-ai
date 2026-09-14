@@ -83,6 +83,9 @@ class IndexPriceCollector(BaseCollector):
             df = await asyncio.to_thread(
                 fetch_index_data, list(self._index_codes), start_str, end_str
             )
+        except ValueError as val_exc:
+            self.log.info("index_price_no_data", indices=self._index_codes, error=str(val_exc))
+            return {"index_codes": list(self._index_codes), "rows_upserted": 0}
         except Exception as exc:
             self.log.error("index_price_fetch_failed", indices=self._index_codes, error=str(exc))
             raise

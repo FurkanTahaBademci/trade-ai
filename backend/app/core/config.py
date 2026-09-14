@@ -42,6 +42,10 @@ class Settings(BaseSettings):
     collector_user_agent: str = "trade-ai/0.1 (kisisel arastirma)"
     kap_rate_limit_per_sec: float = 2.0
 
+    worker_job_timeout: int = 1800
+    price_collector_chunk_size: int = 10
+    price_collector_timeout: int = 30
+
 
 @lru_cache
 def get_settings() -> Settings:

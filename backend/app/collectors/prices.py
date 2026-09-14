@@ -30,7 +30,7 @@ from app.core.config import get_settings
 from app.models import Instrument, PriceDaily
 
 DEFAULT_BACKFILL_YEARS = 3
-DEFAULT_CHUNK_SIZE = 50
+DEFAULT_CHUNK_SIZE = 10
 
 # isyatirimhisse ham kolon adlari -> price_daily model alanlari
 _COLUMN_MAP = {
@@ -68,12 +68,27 @@ def map_price_record(record: dict) -> dict | None:
     if not mapped.get("ticker") or not mapped.get("date") or mapped.get("close") is None:
         return None
     ts = mapped["date"]
-    mapped["date"] = ts.date() if hasattr(ts, "date") else ts
+    if isinstance(ts, date_type) and not isinstance(ts, datetime):
+        mapped["date"] = ts
+    elif hasattr(ts, "date"):
+        mapped["date"] = ts.date()
+    elif isinstance(ts, str):
+        try:
+            if "-" in ts:
+                parts = ts.split("-")
+                if len(parts[0]) == 4:
+                    mapped["date"] = date_type.fromisoformat(ts)
+                else:
+                    mapped["date"] = datetime.strptime(ts, "%d-%m-%Y").date()
+            else:
+                mapped["date"] = date_type.fromisoformat(ts)
+        except (ValueError, TypeError):
+            return None
     return mapped
 
 
 class PriceCollector(BaseCollector):
-    """`isyatirimhisse` uzerinden EOD fiyat ceker, `price_daily`'ye upsert eder."""
+    """IS Yatirim API / `isyatirimhisse` uzerinden EOD fiyat ceker, `price_daily`'ye upsert eder."""
 
     name = "prices"
 
@@ -83,15 +98,36 @@ class PriceCollector(BaseCollector):
         tickers: list[str] | None = None,
         start_date: date_type | None = None,
         end_date: date_type | None = None,
-        chunk_size: int = DEFAULT_CHUNK_SIZE,
+        chunk_size: int | None = None,
     ) -> None:
         super().__init__()
-        today = datetime.now(ZoneInfo(get_settings().tz)).date()
+        settings = get_settings()
+        today = datetime.now(ZoneInfo(settings.tz)).date()
         self._session = session
         self._tickers = tickers
         self._start_date = start_date or (today - timedelta(days=365 * DEFAULT_BACKFILL_YEARS))
         self._end_date = end_date or today
-        self._chunk_size = chunk_size
+        self._chunk_size = chunk_size or getattr(settings, "price_collector_chunk_size", DEFAULT_CHUNK_SIZE)
+        self._local_client = None
+
+    async def _get_client(self):
+        if self._client is not None:
+            return self._client
+        if self._local_client is None:
+            import httpx
+
+            settings = get_settings()
+            self._local_client = httpx.AsyncClient(
+                headers={"User-Agent": settings.collector_user_agent},
+                timeout=getattr(settings, "price_collector_timeout", 30),
+                verify=False,
+            )
+        return self._local_client
+
+    async def _close_local_client(self) -> None:
+        if self._local_client is not None:
+            await self._local_client.aclose()
+            self._local_client = None
 
     async def _active_tickers(self) -> list[str]:
         result = await self._session.execute(
@@ -99,11 +135,24 @@ class PriceCollector(BaseCollector):
         )
         return [row[0] for row in result.all()]
 
-    async def run(self) -> dict:
-        # Gec import: isyatirimhisse import'u agir olabilir, sadece bu collector
-        # calisirken yuklensin.
-        from isyatirimhisse import fetch_stock_data
+    async def _fetch_ticker_data(self, client, ticker: str, start_str: str, end_str: str) -> list[dict]:
+        url = (
+            f"https://www.isyatirim.com.tr/_layouts/15/Isyatirim.Website/Common/Data.aspx/HisseTekil"
+            f"?hisse={ticker}&startdate={start_str}&enddate={end_str}"
+        )
+        try:
+            resp = await client.get(url)
+            if resp.status_code != 200:
+                return []
+            data = resp.json()
+            if isinstance(data, dict):
+                return data.get("value", []) or []
+            return []
+        except Exception as exc:  # noqa: BLE001
+            self.log.warning("ticker_price_fetch_failed", ticker=ticker, error=str(exc))
+            return []
 
+    async def run(self) -> dict:
         tickers = self._tickers or await self._active_tickers()
         if not tickers:
             return {"tickers": 0, "rows_upserted": 0, "note": "instrument tablosu bos — once InstrumentCollector calistir"}
@@ -112,51 +161,67 @@ class PriceCollector(BaseCollector):
         end_str = self._end_date.strftime("%d-%m-%Y")
 
         total_rows = 0
-        failed_chunks: list[str] = []
+        failed_tickers: list[str] = []
 
         chunks = [tickers[i : i + self._chunk_size] for i in range(0, len(tickers), self._chunk_size)]
+        client = await self._get_client()
 
-        for chunk_idx, chunk in enumerate(chunks, start=1):
-            try:
-                df = await asyncio.to_thread(fetch_stock_data, chunk, start_str, end_str)
-            except Exception as exc:  # noqa: BLE001 - bir chunk basarisiz olsa bile digerleri devam etsin
-                self.log.error("price_chunk_failed", chunk_index=chunk_idx, tickers=chunk, error=str(exc))
-                failed_chunks.extend(chunk)
-                continue
+        try:
+            for chunk_idx, chunk in enumerate(chunks, start=1):
+                tasks = [self._fetch_ticker_data(client, ticker, start_str, end_str) for ticker in chunk]
+                results = await asyncio.gather(*tasks, return_exceptions=True)
 
-            if df is None or df.empty:
-                continue
+                chunk_records: list[dict] = []
+                for ticker, res in zip(chunk, results, strict=False):
+                    if isinstance(res, Exception):
+                        self.log.warning("price_ticker_failed", ticker=ticker, error=str(res))
+                        failed_tickers.append(ticker)
+                    elif isinstance(res, list):
+                        chunk_records.extend(res)
+                    else:
+                        failed_tickers.append(ticker)
 
-            rows = [
-                mapped
-                for record in df.to_dict(orient="records")
-                if (mapped := map_price_record(record)) is not None
-            ]
+                if not chunk_records:
+                    self.log.info("price_chunk_empty", chunk_index=chunk_idx, of=len(chunks), tickers=chunk)
+                    continue
 
-            if not rows:
-                continue
+                rows = [
+                    mapped
+                    for record in chunk_records
+                    if (mapped := map_price_record(record)) is not None
+                ]
 
-            stmt = pg_insert(PriceDaily).values(rows)
-            stmt = stmt.on_conflict_do_update(
-                constraint="uq_price_daily_ticker_date",
-                set_={
-                    "close": stmt.excluded.close,
-                    "high": stmt.excluded.high,
-                    "low": stmt.excluded.low,
-                    "avg_price": stmt.excluded.avg_price,
-                    "volume_try": stmt.excluded.volume_try,
-                    "close_usd": stmt.excluded.close_usd,
-                    "market_cap_try": stmt.excluded.market_cap_try,
-                },
-            )
-            await self._session.execute(stmt)
-            await self._session.commit()
+                if not rows:
+                    continue
 
-            total_rows += len(rows)
-            self.log.info("price_chunk_done", chunk_index=chunk_idx, of=len(chunks), rows=len(rows))
+                stmt = pg_insert(PriceDaily).values(rows)
+                stmt = stmt.on_conflict_do_update(
+                    constraint="uq_price_daily_ticker_date",
+                    set_={
+                        "close": stmt.excluded.close,
+                        "high": stmt.excluded.high,
+                        "low": stmt.excluded.low,
+                        "avg_price": stmt.excluded.avg_price,
+                        "volume_try": stmt.excluded.volume_try,
+                        "close_usd": stmt.excluded.close_usd,
+                        "market_cap_try": stmt.excluded.market_cap_try,
+                    },
+                )
+                try:
+                    await self._session.execute(stmt)
+                    await self._session.commit()
+                    total_rows += len(rows)
+                    self.log.info("price_chunk_done", chunk_index=chunk_idx, of=len(chunks), rows=len(rows))
+                except Exception as exc:  # noqa: BLE001
+                    await self._session.rollback()
+                    self.log.error("price_chunk_db_failed", chunk_index=chunk_idx, error=str(exc))
+                    failed_tickers.extend(chunk)
+                    continue
+        finally:
+            await self._close_local_client()
 
         return {
             "tickers_requested": len(tickers),
             "rows_upserted": total_rows,
-            "failed_tickers": failed_chunks,
+            "failed_tickers": failed_tickers,
         }

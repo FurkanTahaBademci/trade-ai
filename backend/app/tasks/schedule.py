@@ -34,6 +34,8 @@ from app.tasks.jobs import (
     run_paper_portfolio,
 )
 
+from arq.worker import func
+
 logger = structlog.get_logger(__name__)
 
 
@@ -57,10 +59,11 @@ def _redis_settings() -> RedisSettings:
 
 
 class WorkerSettings:
+    job_timeout = get_settings().worker_job_timeout
     functions: ClassVar[list] = [
         collect_instruments,
-        collect_prices,
-        collect_index_prices,
+        func(collect_prices, timeout=3600, name="collect_prices"),
+        func(collect_index_prices, timeout=1200, name="collect_index_prices"),
         collect_kap,
         collect_news,
         collect_fundamentals,

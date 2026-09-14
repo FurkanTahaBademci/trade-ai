@@ -46,7 +46,7 @@ async def run_instruments() -> dict:
         return await collector.run_tracked()
 
 
-async def run_prices(tickers: list[str] | None, days: int | None) -> dict:
+async def run_prices(tickers: list[str] | None, days: int | None, chunk_size: int | None = None) -> dict:
     from app.collectors.prices import PriceCollector
 
     start_date = (
@@ -55,7 +55,7 @@ async def run_prices(tickers: list[str] | None, days: int | None) -> dict:
 
     async with (
         session_factory() as session,
-        PriceCollector(session, tickers=tickers, start_date=start_date) as collector,
+        PriceCollector(session, tickers=tickers, start_date=start_date, chunk_size=chunk_size) as collector,
     ):
         return await collector.run_tracked()
 
@@ -198,6 +198,7 @@ COLLECTORS = {
     "prices": lambda args: run_prices(
         tickers=args.tickers.split(",") if args.tickers else None,
         days=args.days,
+        chunk_size=args.chunk_size,
     ),
     "signals": lambda args: run_signals(args.tickers.split(",") if args.tickers else None),
     "tcmb-policy": lambda args: run_tcmb_policy(
@@ -220,6 +221,11 @@ def main() -> None:
         "--days",
         type=int,
         help="Kac gun geriye gidilecek (kap: 3 gun, prices: 3 yil varsayilan).",
+    )
+    parser.add_argument(
+        "--chunk-size",
+        type=int,
+        help="Fiyat toplayici chunk boyutu (varsayilan: 10).",
     )
     parser.add_argument("--start-year", type=int, help="Finansal tablo baslangic yili.")
     parser.add_argument("--end-year", type=int, help="Finansal tablo bitis yili.")

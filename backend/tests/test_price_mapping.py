@@ -72,3 +72,30 @@ def test_python_date_input_also_works():
     mapped = map_price_record(_real_shaped_record(HGDG_TARIH=date(2026, 1, 15)))
     assert mapped is not None
     assert mapped["date"] == date(2026, 1, 15)
+
+
+def test_string_date_dmy_format_works():
+    """IS Yatirim ham JSON ciktisi gun-ay-yil (03-09-2024) stringi olarak gelir."""
+    mapped = map_price_record(_real_shaped_record(HGDG_TARIH="03-09-2024"))
+    assert mapped is not None
+    assert mapped["date"] == date(2024, 9, 3)
+
+
+def test_string_date_iso_format_works():
+    """ISO formatli tarih stringi (2026-09-04) basariyla date nesnesine donusur."""
+    mapped = map_price_record(_real_shaped_record(HGDG_TARIH="2026-09-04"))
+    assert mapped is not None
+    assert mapped["date"] == date(2026, 9, 4)
+
+
+def test_price_collector_chunk_size_configuration():
+    from unittest.mock import MagicMock
+    from app.collectors.prices import PriceCollector
+
+    session = MagicMock()
+    collector = PriceCollector(session, chunk_size=7)
+    assert collector._chunk_size == 7
+
+    default_collector = PriceCollector(session)
+    assert default_collector._chunk_size == 10
+

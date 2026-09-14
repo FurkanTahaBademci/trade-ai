@@ -23,20 +23,31 @@ async def collect_instruments(ctx: dict) -> dict:
         return await collector.run_tracked()
 
 
-async def collect_prices(ctx: dict) -> dict:
-    from app.collectors.prices import PriceCollector
+async def collect_prices(
+    ctx: dict | None = None, *, days: int | None = None, backfill: bool = False
+) -> dict:
+    from sqlalchemy import func, select
 
-    # Cron her calistiginda tum tarihceyi degil, son birkac gunu
-    # guncelliyoruz (duzeltilmis kapanislar/tatil telafisi icin 5 gun
-    # payi birakildi). Ilk backfill icin scripts/run_once.py kullanilir.
-    async with (
-        session_factory() as session,
-        PriceCollector(
-            session,
-            start_date=datetime.now(ZoneInfo("Europe/Istanbul")).date() - timedelta(days=5),
-        ) as collector,
-    ):
-        return await collector.run_tracked()
+    from app.collectors.prices import DEFAULT_BACKFILL_YEARS, PriceCollector
+    from app.models import PriceDaily
+
+    today = datetime.now(ZoneInfo("Europe/Istanbul")).date()
+
+    async with session_factory() as session:
+        count_res = await session.execute(select(func.count(PriceDaily.id)))
+        row_count = count_res.scalar() or 0
+
+        if days is not None:
+            start_date = today - timedelta(days=days)
+        elif backfill or row_count < 5000:
+            logger.info("price_history_backfill_active", current_rows=row_count)
+            start_date = today - timedelta(days=365 * DEFAULT_BACKFILL_YEARS)
+        else:
+            # Tatil ve duzeltmeler icin 10 gunluk pay
+            start_date = today - timedelta(days=10)
+
+        async with PriceCollector(session, start_date=start_date) as collector:
+            return await collector.run_tracked()
 
 
 async def collect_index_prices(ctx: dict) -> dict:
