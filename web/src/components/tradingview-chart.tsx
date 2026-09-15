@@ -25,6 +25,7 @@ import {
 import { chartButton } from "./chart-frame";
 
 const ranges = [
+  { label: "1H", days: 7 },
   { label: "1A", days: 30 },
   { label: "3A", days: 90 },
   { label: "6A", days: 180 },
@@ -52,6 +53,7 @@ export function TradingViewChart({
   const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
   const ma20SeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
   const ma50SeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const ma200SeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
   const avgPriceSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
   const rsiSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
 
@@ -59,6 +61,7 @@ export function TradingViewChart({
   const [chartMode, setChartMode] = useState<"candle" | "area" | "bar">("candle");
   const [showMa20, setShowMa20] = useState(true);
   const [showMa50, setShowMa50] = useState(false);
+  const [showMa200, setShowMa200] = useState(false);
   const [showAvgPrice, setShowAvgPrice] = useState(false);
   const [showRsi, setShowRsi] = useState(false);
   const [activeRange, setActiveRange] = useState<number | null>(90);
@@ -76,6 +79,7 @@ export function TradingViewChart({
     changePct: number | null;
     ma20?: number | null;
     ma50?: number | null;
+    ma200?: number | null;
     avgPrice?: number | null;
     rsi?: number | null;
   } | null>(null);
@@ -83,9 +87,10 @@ export function TradingViewChart({
   const dataBundle = useMemo(() => prepareTradingViewData(prices), [prices]);
 
   const priceMap = useMemo(() => {
-    const map = new Map<string, TvCandle & { volume?: number; ma20?: number; ma50?: number; avgPrice?: number; rsi?: number }>();
+    const map = new Map<string, TvCandle & { volume?: number; ma20?: number; ma50?: number; ma200?: number; avgPrice?: number; rsi?: number }>();
     const ma20Map = new Map(dataBundle.ma20.map((p) => [p.time, p.value]));
     const ma50Map = new Map(dataBundle.ma50.map((p) => [p.time, p.value]));
+    const ma200Map = new Map(dataBundle.ma200.map((p) => [p.time, p.value]));
     const avgMap = new Map(dataBundle.avgPrice.map((p) => [p.time, p.value]));
     const rsiMap = new Map(dataBundle.rsi.map((p) => [p.time, p.value]));
     const volMap = new Map(dataBundle.volume.map((p) => [p.time, p.value]));
@@ -96,6 +101,7 @@ export function TradingViewChart({
         volume: volMap.get(c.time),
         ma20: ma20Map.get(c.time),
         ma50: ma50Map.get(c.time),
+        ma200: ma200Map.get(c.time),
         avgPrice: avgMap.get(c.time),
         rsi: rsiMap.get(c.time),
       });
@@ -120,6 +126,7 @@ export function TradingViewChart({
       changePct,
       ma20: detailed?.ma20 ?? null,
       ma50: detailed?.ma50 ?? null,
+      ma200: detailed?.ma200 ?? null,
       avgPrice: detailed?.avgPrice ?? null,
       rsi: detailed?.rsi ?? null,
     };
@@ -257,6 +264,14 @@ export function TradingViewChart({
     });
     ma50SeriesRef.current = ma50Series;
 
+    const ma200Series = chart.addSeries(LineSeries, {
+      color: themeColors.ma200Color,
+      lineWidth: 2,
+      priceLineVisible: false,
+      title: "MA200",
+    });
+    ma200SeriesRef.current = ma200Series;
+
     const avgPriceSeries = chart.addSeries(LineSeries, {
       color: themeColors.avgPriceColor,
       lineWidth: 2,
@@ -316,6 +331,7 @@ export function TradingViewChart({
     volumeSeries.setData(dataBundle.volume as any);
     ma20Series.setData(showMa20 ? (dataBundle.ma20 as any) : []);
     ma50Series.setData(showMa50 ? (dataBundle.ma50 as any) : []);
+    ma200Series.setData(showMa200 ? (dataBundle.ma200 as any) : []);
     avgPriceSeries.setData(showAvgPrice ? (dataBundle.avgPrice as any) : []);
     if (rsiSeries && showRsi) {
       rsiSeries.setData(dataBundle.rsi as any);
@@ -393,6 +409,7 @@ export function TradingViewChart({
     chartMode,
     showMa20,
     showMa50,
+    showMa200,
     showAvgPrice,
     showRsi,
     priceMap,
@@ -540,6 +557,18 @@ export function TradingViewChart({
           >
             {isFullscreen ? "Küçült ✕" : "Tam Ekran ⛶"}
           </button>
+
+          {ticker && (
+            <a
+              href={`https://tr.tradingview.com/chart/?symbol=BIST:${ticker.trim().toUpperCase()}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`${chartButton} hidden sm:inline-flex items-center gap-1 text-[var(--primary)] font-medium hover:bg-[var(--primary-soft)]`}
+              title="TradingView.com üzerinde aç"
+            >
+              <span>↗</span> TradingView.com&apos;da Aç
+            </a>
+          )}
         </div>
       </div>
 
@@ -623,6 +652,17 @@ export function TradingViewChart({
         <button
           type="button"
           className={`${chartButton} ${
+            showMa200
+              ? "border-transparent bg-[var(--primary-soft)] !text-[#ec4899] font-medium"
+              : ""
+          }`}
+          onClick={() => setShowMa200(!showMa200)}
+        >
+          ● MA200
+        </button>
+        <button
+          type="button"
+          className={`${chartButton} ${
             showAvgPrice
               ? "border-transparent bg-[var(--primary-soft)] !text-[var(--accent,#8b5cf6)] font-medium"
               : ""
@@ -692,6 +732,11 @@ export function TradingViewChart({
           {showMa50 && displayHud.ma50 != null && (
             <span className="text-[var(--warning)]">
               MA50: <strong>{formatMoney(displayHud.ma50)}</strong>
+            </span>
+          )}
+          {showMa200 && displayHud.ma200 != null && (
+            <span className="text-[#ec4899]">
+              MA200: <strong>{formatMoney(displayHud.ma200)}</strong>
             </span>
           )}
           {showAvgPrice && displayHud.avgPrice != null && (

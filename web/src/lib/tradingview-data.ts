@@ -26,6 +26,7 @@ export interface ChartDataBundle {
   volume: TvVolumePoint[];
   ma20: TvLinePoint[];
   ma50: TvLinePoint[];
+  ma200: TvLinePoint[];
   avgPrice: TvLinePoint[];
   rsi: TvLinePoint[];
   minDate: string;
@@ -45,6 +46,7 @@ export function prepareTradingViewData(rawPrices: Price[]): ChartDataBundle {
       volume: [],
       ma20: [],
       ma50: [],
+      ma200: [],
       avgPrice: [],
       rsi: [],
       minDate: "",
@@ -56,6 +58,7 @@ export function prepareTradingViewData(rawPrices: Price[]): ChartDataBundle {
   const closes = normalized.map((p) => p.close);
   const ma20Series = movingAverage(closes, 20);
   const ma50Series = movingAverage(closes, 50);
+  const ma200Series = movingAverage(closes, 200);
   const rsiSeries = wilderRsi(closes, 14);
 
   const candles: TvCandle[] = [];
@@ -63,6 +66,7 @@ export function prepareTradingViewData(rawPrices: Price[]): ChartDataBundle {
   const volume: TvVolumePoint[] = [];
   const ma20: TvLinePoint[] = [];
   const ma50: TvLinePoint[] = [];
+  const ma200: TvLinePoint[] = [];
   const avgPrice: TvLinePoint[] = [];
   const rsi: TvLinePoint[] = [];
 
@@ -106,6 +110,11 @@ export function prepareTradingViewData(rawPrices: Price[]): ChartDataBundle {
       ma50.push({ time: row.date, value: m50 });
     }
 
+    const m200 = ma200Series[i];
+    if (m200 != null && Number.isFinite(m200)) {
+      ma200.push({ time: row.date, value: m200 });
+    }
+
     if (row.avg_price != null && Number.isFinite(row.avg_price)) {
       avgPrice.push({ time: row.date, value: row.avg_price });
     }
@@ -122,6 +131,7 @@ export function prepareTradingViewData(rawPrices: Price[]): ChartDataBundle {
     volume,
     ma20,
     ma50,
+    ma200,
     avgPrice,
     rsi,
     minDate: normalized[0].date,
@@ -148,6 +158,7 @@ export function getTradingViewThemeColors(isDark: boolean) {
       lineColor: "#3b82f6",
       ma20Color: "#10b981",
       ma50Color: "#f59e0b",
+      ma200Color: "#ec4899",
       avgPriceColor: "#8b5cf6",
       rsiColor: "#06b6d4",
     };
@@ -165,6 +176,7 @@ export function getTradingViewThemeColors(isDark: boolean) {
     lineColor: "#2563eb",
     ma20Color: "#059669",
     ma50Color: "#d97706",
+    ma200Color: "#db2777",
     avgPriceColor: "#7c3aed",
     rsiColor: "#0891b2",
   };

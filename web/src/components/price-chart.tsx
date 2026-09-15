@@ -68,7 +68,7 @@ export function PriceChart({ prices, error = false, ticker = "THYAO" }: PriceCha
       {activeTab === "native" ? (
         <DynamicTvChart prices={prices} error={error} ticker={ticker} />
       ) : (
-        <TradingViewWidget ticker={ticker} />
+        <TradingViewWidget ticker={ticker} onSwitchToNative={() => setActiveTab("native")} />
       )}
     </div>
   );

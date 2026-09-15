@@ -1,11 +1,19 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Icon } from "./icon";
 
-export function TradingViewWidget({ ticker }: { ticker: string }) {
+export function TradingViewWidget({
+  ticker,
+  onSwitchToNative,
+}: {
+  ticker: string;
+  onSwitchToNative?: () => void;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [loadError, setLoadError] = useState(false);
+  const symbol = `BIST:${ticker.trim().toUpperCase()}`;
 
   useEffect(() => {
     const checkTheme = () => {
@@ -48,7 +56,6 @@ export function TradingViewWidget({ ticker }: { ticker: string }) {
     script.async = true;
     script.onerror = () => setLoadError(true);
 
-    const symbol = `BIST:${ticker.trim().toUpperCase()}`;
     script.innerHTML = JSON.stringify({
       autosize: true,
       symbol,
@@ -73,19 +80,62 @@ export function TradingViewWidget({ ticker }: { ticker: string }) {
     return () => {
       container.innerHTML = "";
     };
-  }, [ticker, theme]);
-
-  if (loadError) {
-    return (
-      <div className="grid h-[520px] place-items-center rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-6 text-center text-sm text-[var(--text-muted)]">
-        TradingView servisine bağlanırken bir sorun oluştu. Lütfen bağlantınızı kontrol edin veya TradeAI Fiyat Grafiği sekmesini kullanın.
-      </div>
-    );
-  }
+  }, [symbol, theme]);
 
   return (
-    <div className="relative w-full overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)]" style={{ height: 560 }}>
-      <div ref={containerRef} className="tradingview-widget-container h-full w-full" />
+    <div className="space-y-4">
+      {/* Informative Guidance Banner */}
+      <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-4 sm:p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2">
+              <span className="pill pill-primary font-semibold">BIST Lisans Bilgilendirmesi</span>
+              <span className="text-xs text-[var(--text-muted)]">{symbol}</span>
+            </div>
+            <p className="text-xs leading-5 text-[var(--text-secondary)]">
+              Borsa İstanbul (BIST) veri lisans sözleşmeleri gereğince, üçüncü taraf web sitelerine gömülü (embedded) widget&apos;larda BIST sembollerinin gösterimi kısıtlanmaktadır (<em>&quot;Bu sembol sadece TradingView&apos;da mevcuttur&quot;</em> uyarısı bu nedenle çıkmaktadır).
+            </p>
+            <p className="text-xs text-[var(--text-muted)]">
+              TradeAI bünyesindeki <strong>&quot;TradeAI Grafiği&quot;</strong> sekmesi, İş Yatırım resmi veri tabanımız üzerinden TradingView Lightweight Charts canvas motoruyla <strong>kesintisiz</strong> çalışmaktadır.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
+            {onSwitchToNative && (
+              <button
+                type="button"
+                onClick={onSwitchToNative}
+                className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2 text-xs font-medium text-[var(--text)] transition hover:bg-[var(--surface-hover)]"
+              >
+                ← TradeAI Grafiğine Dön
+              </button>
+            )}
+
+            <a
+              href={`https://tr.tradingview.com/chart/?symbol=${encodeURIComponent(symbol)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 rounded-lg bg-[var(--primary)] px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:opacity-90"
+            >
+              <span>↗</span> TradingView.com&apos;da Aç
+            </a>
+          </div>
+        </div>
+      </div>
+
+      {/* Embedded Widget */}
+      {loadError ? (
+        <div className="grid h-[520px] place-items-center rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-6 text-center text-sm text-[var(--text-muted)]">
+          TradingView servisine bağlanırken bir sorun oluştu.
+        </div>
+      ) : (
+        <div
+          className="relative w-full overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)]"
+          style={{ height: 560 }}
+        >
+          <div ref={containerRef} className="tradingview-widget-container h-full w-full" />
+        </div>
+      )}
     </div>
   );
 }
