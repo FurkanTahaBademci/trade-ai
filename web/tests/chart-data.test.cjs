@@ -11,7 +11,7 @@ const compiled = ts.transpileModule(readFileSync(file, "utf8"), {
 });
 const loaded = new Module(file, module);
 loaded._compile(compiled.outputText, file);
-const { movingAverage, wilderRsi, chartDomain, chartPath, normalizePrices, rangeStart, performanceSeries, validChartDate, benchmarkChangeSeries } = loaded.exports;
+const { movingAverage, wilderRsi, bollingerBands, chartDomain, chartPath, normalizePrices, rangeStart, performanceSeries, validChartDate, benchmarkChangeSeries } = loaded.exports;
 const price = (date, close, extra = {}) => ({ date, close, low: null, high: null, avg_price: null, volume_try: null, close_usd: null, market_cap_try: null, ...extra });
 const near = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-8, `${actual} != ${expected}`);
 
@@ -23,6 +23,23 @@ test("moving averages warm up on full history before the visible range is sliced
   near(ma.slice(60)[0], 36.5);
   assert.deepEqual(movingAverage([], 20), []);
   assert.throws(() => movingAverage(values, 0));
+});
+
+test("bollinger bands compute upper, middle, and lower bands correctly", () => {
+  const values = Array(30).fill(100);
+  const bbFlat = bollingerBands(values, 20, 2);
+  assert.equal(bbFlat.middle[18], null);
+  assert.equal(bbFlat.middle[19], 100);
+  // Zero standard deviation means upper === middle === lower
+  assert.equal(bbFlat.upper[19], 100);
+  assert.equal(bbFlat.lower[19], 100);
+
+  // Dynamic values
+  const dynamic = Array.from({ length: 25 }, (_, i) => 10 + i * 2);
+  const bbDyn = bollingerBands(dynamic, 20, 2);
+  assert.ok(bbDyn.upper[19] > bbDyn.middle[19]);
+  assert.ok(bbDyn.lower[19] < bbDyn.middle[19]);
+  near(bbDyn.upper[19] - bbDyn.middle[19], bbDyn.middle[19] - bbDyn.lower[19]);
 });
 
 test("RSI uses a Wilder recurrence after the seed, not a rolling simple average", () => {

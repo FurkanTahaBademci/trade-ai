@@ -93,6 +93,36 @@ export function wilderRsi(values: number[], period = 14): Array<number | null> {
   return output;
 }
 
+export function bollingerBands(
+  values: number[],
+  period = 20,
+  multiplier = 2
+): {
+  upper: Array<number | null>;
+  middle: Array<number | null>;
+  lower: Array<number | null>;
+} {
+  if (!Number.isInteger(period) || period < 1) throw new Error("Invalid period");
+  const middle = movingAverage(values, period);
+  const upper: Array<number | null> = Array(values.length).fill(null);
+  const lower: Array<number | null> = Array(values.length).fill(null);
+
+  for (let i = period - 1; i < values.length; i++) {
+    const m = middle[i];
+    if (m == null) continue;
+    let sumSquares = 0;
+    for (let j = i - period + 1; j <= i; j++) {
+      const diff = values[j] - m;
+      sumSquares += diff * diff;
+    }
+    const stdDev = Math.sqrt(sumSquares / period);
+    upper[i] = m + multiplier * stdDev;
+    lower[i] = m - multiplier * stdDev;
+  }
+
+  return { upper, middle, lower };
+}
+
 export function chartDomain(values: number[]): [number, number] {
   const finite = values.filter((v) => typeof v === "number" && Number.isFinite(v));
   if (!finite.length) return [0, 1];

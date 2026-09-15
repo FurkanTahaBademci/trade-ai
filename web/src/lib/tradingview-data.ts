@@ -1,5 +1,5 @@
 import type { Price } from "./types";
-import { normalizePrices, movingAverage, wilderRsi } from "./chart-data";
+import { normalizePrices, movingAverage, wilderRsi, bollingerBands } from "./chart-data";
 
 export interface TvCandle {
   time: string;
@@ -27,6 +27,8 @@ export interface ChartDataBundle {
   ma20: TvLinePoint[];
   ma50: TvLinePoint[];
   ma200: TvLinePoint[];
+  bbUpper: TvLinePoint[];
+  bbLower: TvLinePoint[];
   avgPrice: TvLinePoint[];
   rsi: TvLinePoint[];
   minDate: string;
@@ -47,6 +49,8 @@ export function prepareTradingViewData(rawPrices: Price[]): ChartDataBundle {
       ma20: [],
       ma50: [],
       ma200: [],
+      bbUpper: [],
+      bbLower: [],
       avgPrice: [],
       rsi: [],
       minDate: "",
@@ -59,6 +63,7 @@ export function prepareTradingViewData(rawPrices: Price[]): ChartDataBundle {
   const ma20Series = movingAverage(closes, 20);
   const ma50Series = movingAverage(closes, 50);
   const ma200Series = movingAverage(closes, 200);
+  const bbSeries = bollingerBands(closes, 20, 2);
   const rsiSeries = wilderRsi(closes, 14);
 
   const candles: TvCandle[] = [];
@@ -67,6 +72,8 @@ export function prepareTradingViewData(rawPrices: Price[]): ChartDataBundle {
   const ma20: TvLinePoint[] = [];
   const ma50: TvLinePoint[] = [];
   const ma200: TvLinePoint[] = [];
+  const bbUpper: TvLinePoint[] = [];
+  const bbLower: TvLinePoint[] = [];
   const avgPrice: TvLinePoint[] = [];
   const rsi: TvLinePoint[] = [];
 
@@ -115,6 +122,16 @@ export function prepareTradingViewData(rawPrices: Price[]): ChartDataBundle {
       ma200.push({ time: row.date, value: m200 });
     }
 
+    const bbu = bbSeries.upper[i];
+    if (bbu != null && Number.isFinite(bbu)) {
+      bbUpper.push({ time: row.date, value: bbu });
+    }
+
+    const bbl = bbSeries.lower[i];
+    if (bbl != null && Number.isFinite(bbl)) {
+      bbLower.push({ time: row.date, value: bbl });
+    }
+
     if (row.avg_price != null && Number.isFinite(row.avg_price)) {
       avgPrice.push({ time: row.date, value: row.avg_price });
     }
@@ -132,6 +149,8 @@ export function prepareTradingViewData(rawPrices: Price[]): ChartDataBundle {
     ma20,
     ma50,
     ma200,
+    bbUpper,
+    bbLower,
     avgPrice,
     rsi,
     minDate: normalized[0].date,
@@ -159,6 +178,7 @@ export function getTradingViewThemeColors(isDark: boolean) {
       ma20Color: "#10b981",
       ma50Color: "#f59e0b",
       ma200Color: "#ec4899",
+      bbColor: "#38bdf8",
       avgPriceColor: "#8b5cf6",
       rsiColor: "#06b6d4",
     };
@@ -177,6 +197,7 @@ export function getTradingViewThemeColors(isDark: boolean) {
     ma20Color: "#059669",
     ma50Color: "#d97706",
     ma200Color: "#db2777",
+    bbColor: "#0284c7",
     avgPriceColor: "#7c3aed",
     rsiColor: "#0891b2",
   };
