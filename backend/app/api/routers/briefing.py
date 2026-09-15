@@ -5,11 +5,11 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 from typing import Any
+
 from fastapi import APIRouter, Depends
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import get_settings
 from app.core.db import get_db
 from app.core.redis import get_redis
 from app.models.llm_evaluation import LlmEvaluation
@@ -36,7 +36,7 @@ async def get_market_briefing(
     if cached:
         try:
             return json.loads(cached)
-        except Exception:
+        except (json.JSONDecodeError, TypeError):
             pass
 
     # 1. En son yuksek etkili KAP degerlendirmeleri

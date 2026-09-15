@@ -90,6 +90,7 @@ def test_string_date_iso_format_works():
 
 def test_price_collector_chunk_size_configuration():
     from unittest.mock import MagicMock
+
     from app.collectors.prices import PriceCollector
 
     session = MagicMock()

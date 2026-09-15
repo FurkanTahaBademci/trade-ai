@@ -255,9 +255,11 @@ def test_institutional_routes_validate_enums_without_database_access():
 
 
 def test_fund_flow_collector_retries_on_connection_error():
+    from unittest.mock import MagicMock, patch
+
     import httpx
-    from unittest.mock import patch, MagicMock
     from tenacity import wait_none
+
     from app.collectors.fund_flows import FundFlowCollector
 
     session = MagicMock()

@@ -13,6 +13,7 @@ from typing import ClassVar
 import structlog
 from arq import cron
 from arq.connections import RedisSettings
+from arq.worker import func
 
 from app.core.config import get_settings
 from app.core.redis import get_redis
@@ -33,8 +34,6 @@ from app.tasks.jobs import (
     evaluate_sources,
     run_paper_portfolio,
 )
-
-from arq.worker import func
 
 logger = structlog.get_logger(__name__)
 

@@ -10,12 +10,13 @@ from datetime import UTC, datetime, timedelta
 from math import ceil
 from typing import Annotated
 
+import structlog
 from fastapi import APIRouter, Depends
+from pydantic import BaseModel
 from sqlalchemy import and_, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from pydantic import BaseModel
 from app.api.routers.schedules import require_admin_token
 from app.core.config import Settings
 from app.core.db import engine, get_db
@@ -30,7 +31,6 @@ from app.models import (
     LlmEvaluation,
     NewsArticle,
 )
-import structlog
 
 logger = structlog.get_logger("system")
 

@@ -11,6 +11,7 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
 from app.api.routers import (
     backtests,
+    briefing,
     evaluations,
     fundamentals,
     health,
@@ -26,7 +27,6 @@ from app.api.routers import (
     signals,
     system,
 )
-from app.api.routers import briefing
 from app.api.routers import (
     settings as settings_router,
 )
