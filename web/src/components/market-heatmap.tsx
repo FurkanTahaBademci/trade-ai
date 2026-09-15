@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { MarketHeatmapData, MarketHeatmapStock } from "@/lib/types";
 import { formatMoney, formatPercent } from "@/lib/format";
@@ -10,12 +10,20 @@ export function MarketHeatmap({ data }: { data: MarketHeatmapData | null }) {
   const [metric, setMetric] = useState<"change" | "score">("change");
   const [selectedSector, setSelectedSector] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQuery(searchQuery);
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const sectors = data?.sectors || [];
   const summary = data?.summary;
 
   const filteredSectors = useMemo(() => {
-    const q = searchQuery.trim().toUpperCase();
+    const q = debouncedQuery.trim().toUpperCase();
     return sectors
       .filter((sec) => !selectedSector || sec.name === selectedSector)
       .map((sec) => {
@@ -28,7 +36,7 @@ export function MarketHeatmap({ data }: { data: MarketHeatmapData | null }) {
         };
       })
       .filter((sec) => sec.stocks.length > 0);
-  }, [sectors, selectedSector, searchQuery]);
+  }, [sectors, selectedSector, debouncedQuery]);
 
   if (!data || !sectors.length) {
     return (

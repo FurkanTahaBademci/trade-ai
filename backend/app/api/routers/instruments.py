@@ -1,18 +1,21 @@
-"""Hisse evreni ve fiyat verisi endpoint'leri."""
-
+import json
+import logging
 from datetime import date, datetime, timedelta
 from typing import Annotated
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from redis.exceptions import RedisError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.db import get_db
+from app.core.redis import get_redis
 from app.models import Instrument, PriceDaily
 from app.schemas.instrument import InstrumentOut, PriceDailyOut
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/instruments", tags=["instruments"])
 
 
@@ -22,18 +25,36 @@ async def list_instruments(
     active_only: Annotated[
         bool, Query(description="Sadece aktif (is_active=true) hisseleri dondur")
     ] = True,
-) -> list[Instrument]:
+) -> list[InstrumentOut]:
+    cache_key = f"instruments:list:{active_only}"
+    redis = get_redis()
+    try:
+        cached = await redis.get(cache_key)
+        if cached:
+            data = json.loads(cached)
+            return [InstrumentOut.model_validate(item) for item in data]
+    except (RedisError, json.JSONDecodeError, TypeError) as exc:
+        logger.debug("Redis cache miss or read error: %s", exc)
+
     stmt = select(Instrument).order_by(Instrument.ticker)
     if active_only:
         stmt = stmt.where(Instrument.is_active.is_(True))
     result = await db.execute(stmt)
-    return list(result.scalars().all())
+    items = list(result.scalars().all())
+    validated = [InstrumentOut.model_validate(item) for item in items]
+    try:
+        await redis.setex(
+            cache_key,
+            600,
+            json.dumps([item.model_dump(mode="json") for item in validated]),
+        )
+    except RedisError as exc:
+        logger.debug("Redis cache write error: %s", exc)
+    return validated
 
 
 @router.get("/{ticker}", response_model=InstrumentOut)
-async def get_instrument(
-    ticker: str, db: Annotated[AsyncSession, Depends(get_db)]
-) -> Instrument:
+async def get_instrument(ticker: str, db: Annotated[AsyncSession, Depends(get_db)]) -> Instrument:
     instrument = await db.get(Instrument, ticker.upper())
     if instrument is None:
         raise HTTPException(status_code=404, detail=f"'{ticker}' bulunamadi")
@@ -47,9 +68,7 @@ async def get_instrument_prices(
     start: Annotated[
         date | None, Query(description="Baslangic tarihi (verilmezse son 90 gun)")
     ] = None,
-    end: Annotated[
-        date | None, Query(description="Bitis tarihi (verilmezse bugun)")
-    ] = None,
+    end: Annotated[date | None, Query(description="Bitis tarihi (verilmezse bugun)")] = None,
 ) -> list[PriceDaily]:
     ticker = ticker.upper()
     instrument = await db.get(Instrument, ticker)

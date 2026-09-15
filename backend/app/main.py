@@ -56,7 +56,7 @@ app.add_middleware(
     allow_headers=["Content-Type", "X-Admin-Token"],
 )
 allowed_hosts = [item.strip() for item in settings.allowed_hosts.split(",") if item.strip()]
-for default_host in ("localhost", "127.0.0.1", "api"):
+for default_host in ("localhost", "127.0.0.1", "api", "testserver", "test"):
     if default_host not in allowed_hosts:
         allowed_hosts.append(default_host)
 

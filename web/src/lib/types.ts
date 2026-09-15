@@ -94,3 +94,66 @@ export type AIBriefingData = {
   generated_at: string;
 };
 
+export type CompanyComparePrice = {
+  last_price: number;
+  change_1d_pct: number;
+  change_1m_pct: number;
+  change_1y_pct: number;
+  volume_try: number;
+  market_cap_try: number;
+};
+
+export type CompanyCompareMultiples = {
+  pe_ratio: number | null;
+  pb_ratio: number | null;
+  revenue_try: number | null;
+  net_income_try: number | null;
+  net_margin_pct: number | null;
+  roe_pct: number | null;
+  debt_to_equity: number | null;
+  current_ratio: number | null;
+  fundamental_score: number | null;
+};
+
+export type CompanyCompareConsensus = {
+  target_price: number | null;
+  upside_pct: number | null;
+  buy_count: number;
+  hold_count: number;
+  sell_count: number;
+  score: number;
+};
+
+export type CompanyCompareSignal = {
+  composite_score: number;
+  label: string;
+};
+
+export type CompanyCompareRadarScores = {
+  valuation: number;
+  profitability: number;
+  momentum: number;
+  analysts: number;
+  ai_sentiment: number;
+};
+
+export type CompanyCompareStock = {
+  ticker: string;
+  name: string;
+  sector: string;
+  price: CompanyComparePrice;
+  multiples: CompanyCompareMultiples;
+  consensus: CompanyCompareConsensus;
+  signal: CompanyCompareSignal;
+  radar_scores: CompanyCompareRadarScores;
+};
+
+export type CompanyComparisonData = {
+  tickers: string[];
+  as_of_date: string;
+  companies: CompanyCompareStock[];
+  normalized_chart: Array<{ date: string; [ticker: string]: number | string }>;
+  dimensions: Array<{ key: string; label: string }>;
+};
+
+

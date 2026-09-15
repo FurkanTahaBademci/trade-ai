@@ -9,6 +9,7 @@ import { CommandPalette } from "./command-palette";
 const nav: { label: string; href: string; icon: IconName }[] = [
   { label: "Genel Bakış", href: "/", icon: "home" },
   { label: "Piyasalar", href: "/piyasalar", icon: "markets" },
+  { label: "Karşılaştır", href: "/karsilastir", icon: "activity" },
   { label: "İzleme Listesi", href: "/izleme-listesi", icon: "star" },
   { label: "Bileşik Sinyaller", href: "/sinyaller", icon: "activity" },
   { label: "Paper Portföy", href: "/portfoy", icon: "trend" },
