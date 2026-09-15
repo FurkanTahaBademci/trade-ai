@@ -8,13 +8,26 @@ import { InfiniteFeedStatus } from "./infinite-feed-status";
 import { EmptyState } from "./ui";
 import { WatchlistStar } from "./watchlist-star";
 
+import { matchesTurkishSearch, rankTurkishSearchMatch } from "@/lib/turkish";
+
 const BATCH_SIZE = 20;
 
 export function InstrumentList({ instruments }: { instruments: Instrument[] }) {
   const [query, setQuery] = useState("");
   const [visibleCount, setVisibleCount] = useState(BATCH_SIZE);
   const sentinelRef = useRef<HTMLDivElement>(null);
-  const filtered = useMemo(() => { const value = query.trim().toLocaleUpperCase("tr-TR"); return instruments.filter((item) => !value || item.ticker.includes(value) || item.name.toLocaleUpperCase("tr-TR").includes(value)); }, [instruments, query]);
+  const filtered = useMemo(() => {
+    const trimmed = query.trim();
+    if (!trimmed) return instruments;
+    return instruments
+      .filter((item) => matchesTurkishSearch(trimmed, item.ticker, item.name))
+      .sort((a, b) => {
+        const rankA = rankTurkishSearchMatch(trimmed, a.ticker, a.name);
+        const rankB = rankTurkishSearchMatch(trimmed, b.ticker, b.name);
+        return rankA - rankB || a.ticker.localeCompare(b.ticker, "tr-TR");
+      });
+  }, [instruments, query]);
+
   const visible = filtered.slice(0, visibleCount);
   const hasMore = visibleCount < filtered.length;
 

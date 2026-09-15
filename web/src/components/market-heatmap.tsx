@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { MarketHeatmapData, MarketHeatmapStock } from "@/lib/types";
-import { formatMoney, formatPercent } from "@/lib/format";
+import { formatMoney, formatPercent, signalName } from "@/lib/format";
+import { matchesTurkishSearch, rankTurkishSearchMatch } from "@/lib/turkish";
 import { Icon } from "./icon";
 
 export function MarketHeatmap({ data }: { data: MarketHeatmapData | null }) {
@@ -23,13 +24,18 @@ export function MarketHeatmap({ data }: { data: MarketHeatmapData | null }) {
   const summary = data?.summary;
 
   const filteredSectors = useMemo(() => {
-    const q = debouncedQuery.trim().toUpperCase();
+    const q = debouncedQuery.trim();
     return sectors
       .filter((sec) => !selectedSector || sec.name === selectedSector)
       .map((sec) => {
-        const matchingStocks = sec.stocks.filter(
-          (s) => !q || s.ticker.includes(q) || s.name.toUpperCase().includes(q)
-        );
+        const matchingStocks = sec.stocks
+          .filter((s) => !q || matchesTurkishSearch(q, s.ticker, s.name))
+          .sort((a, b) => {
+            if (!q) return 0;
+            const rankA = rankTurkishSearchMatch(q, a.ticker, a.name);
+            const rankB = rankTurkishSearchMatch(q, b.ticker, b.name);
+            return rankA - rankB || a.ticker.localeCompare(b.ticker, "tr-TR");
+          });
         return {
           ...sec,
           stocks: matchingStocks,
@@ -213,7 +219,7 @@ export function MarketHeatmap({ data }: { data: MarketHeatmapData | null }) {
                   )}\nGünlük Değişim: ${formatPercent(
                     stock.change_pct,
                     true
-                  )}\nSinyal: ${stock.composite_score} (${stock.signal_label})`}
+                  )}\nSinyal: ${stock.composite_score} (${signalName(stock.signal_label)})`}
                 >
                   <span className="truncate text-xs font-bold leading-tight tracking-tight">
                     {stock.ticker}
@@ -230,7 +236,7 @@ export function MarketHeatmap({ data }: { data: MarketHeatmapData | null }) {
                       <>
                         <span className="font-bold">{Math.round(stock.composite_score)}</span>
                         <span className="mt-1 text-[8px] opacity-75 truncate">
-                          {stock.signal_label}
+                          {signalName(stock.signal_label)}
                         </span>
                       </>
                     )}

@@ -24,3 +24,9 @@ async def test_compare_endpoint_validation():
         # 2. Bos hisse ile istek reddedilmeli
         resp_empty = await client.get("/api/markets/compare?tickers=")
         assert resp_empty.status_code == 400
+
+        # 3. Turkce karakterlerle ayni hisse iki kez verilirse tekilleştirilip < 2 kalmalı
+        resp_dupe = await client.get("/api/markets/compare?tickers=isctr,İSCTR")
+        assert resp_dupe.status_code == 400
+        assert "en az 2" in resp_dupe.json()["detail"]
+

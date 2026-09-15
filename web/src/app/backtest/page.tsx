@@ -9,6 +9,8 @@ import { BacktestForm } from "@/components/backtest-form";
 import { BacktestHistory } from "@/components/backtest-history";
 import { BacktestTrades } from "@/components/backtest-trades";
 
+import { normalizeTicker } from "@/lib/turkish";
+
 export const metadata: Metadata = { title: "Backtest" };
 
 type Params = { run?: string; ticker?: string; side?: string };
@@ -27,7 +29,8 @@ export default async function BacktestPage({ searchParams }: { searchParams: Pro
   const selectedId = Number.isSafeInteger(requestedId) && requestedId > 0 ? requestedId : runs.data[0]?.id;
   const detail = selectedId ? await apiGet<BacktestRun | null>(`/api/backtests/${selectedId}?include_trades=false`, null) : { data: null, ok: true as const };
   const run = detail.data;
-  const ticker = params.ticker?.trim().toUpperCase().slice(0, 16) || undefined;
+  const ticker = params.ticker ? normalizeTicker(params.ticker).slice(0, 16) || undefined : undefined;
+
   const side = params.side === "BUY" || params.side === "SELL" ? params.side : undefined;
   const query = new URLSearchParams({ limit: "25" });
   if (ticker) query.set("ticker", ticker);

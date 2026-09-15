@@ -1,4 +1,5 @@
 import type { MarketFeedItem } from "./types";
+import { matchesTurkishSearch, normalizeTicker, rankTurkishSearchMatch } from "./turkish";
 
 function finiteScore(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
@@ -10,7 +11,7 @@ export function normalizeMarketFeed(value: unknown): MarketFeedItem[] {
   for (const row of value) {
     if (!row || typeof row !== "object") continue;
     const candidate = row as Record<string, unknown>;
-    const ticker = typeof candidate.ticker === "string" ? candidate.ticker.trim().toUpperCase() : "";
+    const ticker = typeof candidate.ticker === "string" ? normalizeTicker(candidate.ticker) : "";
     const name = typeof candidate.name === "string" ? candidate.name.trim() : "";
     if (!/^[A-Z0-9]{1,16}$/.test(ticker) || !name) continue;
     items.set(ticker, {
@@ -28,19 +29,21 @@ export function searchMarketFeed(
   query: string,
   limit = 8,
 ): MarketFeedItem[] {
-  const value = query.trim().toLocaleUpperCase("tr-TR");
   if (limit <= 0) return [];
+  const trimmed = query.trim();
+  if (!trimmed) {
+    return items
+      .slice()
+      .sort((a, b) => a.ticker.localeCompare(b.ticker, "tr-TR"))
+      .slice(0, limit);
+  }
+
   return items
-    .filter((item) => (
-      !value
-      || item.ticker.includes(value)
-      || item.name.toLocaleUpperCase("tr-TR").includes(value)
-    ))
+    .filter((item) => matchesTurkishSearch(trimmed, item.ticker, item.name))
     .sort((a, b) => {
-      const rank = (item: MarketFeedItem) => (
-        item.ticker === value ? 0 : item.ticker.startsWith(value) ? 1 : 2
-      );
-      return rank(a) - rank(b) || a.ticker.localeCompare(b.ticker, "tr-TR");
+      const rankA = rankTurkishSearchMatch(trimmed, a.ticker, a.name);
+      const rankB = rankTurkishSearchMatch(trimmed, b.ticker, b.name);
+      return rankA - rankB || a.ticker.localeCompare(b.ticker, "tr-TR");
     })
     .slice(0, limit);
 }
@@ -52,3 +55,4 @@ export async function fetchMarketFeed(signal?: AbortSignal): Promise<MarketFeedI
   if (!Array.isArray(data)) throw new Error("Geçersiz market verisi");
   return normalizeMarketFeed(data);
 }
+

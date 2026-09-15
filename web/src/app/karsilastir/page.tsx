@@ -9,18 +9,27 @@ export const metadata: Metadata = {
   description: "BIST şirketlerini değerleme çarpanları, kârlılık rasyoları, analist beklentileri ve AI duygu puanlarıyla yan yana karşılaştırın.",
 };
 
+import { normalizeTicker } from "@/lib/turkish";
+
 type PageProps = {
   searchParams: Promise<{ tickers?: string }>;
 };
 
 export default async function ComparePage({ searchParams }: PageProps) {
   const params = await searchParams;
-  const rawTickers = params?.tickers || "THYAO,PGSUS";
+  const rawParam = params?.tickers || "THYAO,PGSUS";
+  const normalizedTickers = rawParam
+    .split(",")
+    .map((t) => normalizeTicker(t))
+    .filter(Boolean)
+    .join(",");
+  const safeTickers = normalizedTickers || "THYAO,PGSUS";
 
   const comparison = await apiGet<CompanyComparisonData | null>(
-    `/api/markets/compare?tickers=${encodeURIComponent(rawTickers)}`,
+    `/api/markets/compare?tickers=${encodeURIComponent(safeTickers)}`,
     null
   );
+
 
   return (
     <>

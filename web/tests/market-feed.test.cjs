@@ -4,19 +4,38 @@ const { readFileSync } = require("node:fs");
 const path = require("node:path");
 const Module = require("node:module");
 const ts = require("typescript");
+const originalResolve = Module._resolveFilename;
+
+Module._resolveFilename = function (request, parent, isMain, options) {
+  try {
+    return originalResolve.call(this, request, parent, isMain, options);
+  } catch (err) {
+    if (err.code === "MODULE_NOT_FOUND") {
+      try {
+        return originalResolve.call(this, request + ".ts", parent, isMain, options);
+      } catch {}
+    }
+    throw err;
+  }
+};
+
+require.extensions[".ts"] = function (mod, filename) {
+  const content = readFileSync(filename, "utf8");
+  const compiled = ts.transpileModule(content, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  });
+  mod._compile(compiled.outputText, filename);
+};
 
 function loadTypeScript(relativePath) {
   const file = path.resolve(__dirname, relativePath);
-  const compiled = ts.transpileModule(readFileSync(file, "utf8"), {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
-  });
-  const loaded = new Module(file, module);
-  loaded._compile(compiled.outputText, file);
-  return loaded.exports;
+  return require(file);
 }
 
 const { normalizeMarketFeed, searchMarketFeed } = loadTypeScript("../src/lib/market-feed.ts");
 const { normalizeWatchlist } = loadTypeScript("../src/lib/watchlist-data.ts");
+
+
 
 test("watchlist values are normalized, deduplicated and constrained to ticker syntax", () => {
   assert.deepEqual(

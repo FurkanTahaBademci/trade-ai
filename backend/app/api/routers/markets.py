@@ -29,9 +29,10 @@ router = APIRouter(prefix="/api/markets", tags=["markets"])
 async def get_market_heatmap(
     db: Annotated[AsyncSession, Depends(get_db)],
     min_volume: Annotated[float, Query(description="Minimum hacim filtresi (TRY)")] = 0.0,
-    sector_filter: Annotated[str | None, Query(description="Belirli bir sektor filtresi")] = None,
+    sector_filter: Annotated[str | None, Query(description="Belirli bir sektör filtresi")] = None,
 ) -> dict[str, Any]:
-    """BIST hisselerinin sektorel agac haritasi ve gunluk performans dagilimi (Redis onbellekli)."""
+    """BIST hisselerinin sektörel ağaç haritası ve günlük performans dağılımı (Redis önbellekli)."""
+
     cache_key = f"markets:heatmap:{min_volume}:{sector_filter or 'all'}"
     redis = get_redis()
     try:
@@ -211,18 +212,22 @@ async def get_market_heatmap(
 async def compare_companies(
     db: Annotated[AsyncSession, Depends(get_db)],
     tickers: Annotated[
-        str, Query(description="Virgulle ayrilmis 2-4 hisse kodu (orn: THYAO,PGSUS)")
+        str, Query(description="Virgülle ayrılmış 2-4 hisse kodu (örn: THYAO,PGSUS)")
     ],
 ) -> dict[str, Any]:
-    """2 ila 4 hisse senedinin temel, teknik, analist ve getiri karsilastirmasi (Peer Comparison)."""
-    raw_tickers = [t.strip().upper() for t in tickers.split(",") if t.strip()]
+    """2 ila 4 hisse senedinin temel, teknik, analist ve getiri karşılaştırması (Peer Comparison)."""
+    def _normalize_ticker(t: str) -> str:
+        return t.strip().replace("İ", "I").replace("i", "I").replace("ı", "I").upper()
+
+    raw_tickers = [_normalize_ticker(t) for t in tickers.split(",") if t.strip()]
     cleaned_tickers = list(dict.fromkeys(raw_tickers))[:4]
 
     if len(cleaned_tickers) < 2:
         raise HTTPException(
             status_code=400,
-            detail="Karsilastirma icin en az 2 farkli hisse kodu belirtilmelidir (orn: THYAO,PGSUS)",
+            detail="Karşılaştırma için en az 2 farklı hisse kodu belirtilmelidir (örn: THYAO,PGSUS)",
         )
+
 
     cache_key = f"markets:compare:{','.join(sorted(cleaned_tickers))}"
     redis = get_redis()

@@ -8,11 +8,18 @@ import { Breadcrumbs, EmptyState, ScoreRing, SectionTitle } from "@/components/u
 import { PriceChart } from "@/components/price-chart";
 import { Icon } from "@/components/icon";
 import { WatchlistStar } from "@/components/watchlist-star";
+import { normalizeTicker } from "@/lib/turkish";
 
-export async function generateMetadata({ params }: { params: Promise<{ ticker: string }> }): Promise<Metadata> { const { ticker } = await params; return { title: ticker.toUpperCase() }; }
+export async function generateMetadata({ params }: { params: Promise<{ ticker: string }> }): Promise<Metadata> {
+  const { ticker: rawTicker } = await params;
+  const ticker = normalizeTicker(rawTicker);
+  return { title: ticker };
+}
 
 export default async function InstrumentDetail({ params }: { params: Promise<{ ticker: string }> }) {
-  const { ticker: rawTicker } = await params; const ticker = rawTicker.toUpperCase();
+  const { ticker: rawTicker } = await params;
+  const ticker = normalizeTicker(rawTicker);
+
   const [instrument, prices, fundamentals, consensus, recommendations, signals, news, disclosures, evaluations, portfolios, policy] = await Promise.all([
     apiGet<Instrument | null>(`/api/instruments/${ticker}`, null, { revalidate: 300 }),
     apiGet<Price[]>(`/api/instruments/${ticker}/prices?start=2000-01-01`, [], { revalidate: 60 }),

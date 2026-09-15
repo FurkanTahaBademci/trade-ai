@@ -4,7 +4,8 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { CompanyComparisonData, CompanyCompareStock } from "@/lib/types";
-import { formatMoney, formatPercent } from "@/lib/format";
+import { formatMoney, formatPercent, signalName } from "@/lib/format";
+import { normalizeTicker } from "@/lib/turkish";
 import { Icon } from "./icon";
 
 const COMPANY_COLORS = [
@@ -43,7 +44,7 @@ export function CompanyCompareView({ initialData }: { initialData: CompanyCompar
 
   function handleAddTicker(e: React.FormEvent) {
     e.preventDefault();
-    const t = newTickerInput.trim().toUpperCase();
+    const t = normalizeTicker(newTickerInput);
     if (!t || tickers.includes(t) || tickers.length >= 4) return;
     const updated = [...tickers, t];
     setNewTickerInput("");
@@ -329,7 +330,7 @@ export function CompanyCompareView({ initialData }: { initialData: CompanyCompar
                   <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color.stroke }} />
                   <span className="font-bold">{c.ticker}</span>
                   <span className="text-[10px] text-[var(--text-muted)]">
-                    (Puan: {c.signal.composite_score})
+                    (Skor: {c.signal.composite_score} · {signalName(c.signal.label)})
                   </span>
                 </div>
               );
@@ -642,7 +643,7 @@ export function CompanyCompareView({ initialData }: { initialData: CompanyCompar
                               : "pill-neutral"
                           }`}
                         >
-                          {c.signal.composite_score} / 100 ({c.signal.label})
+                          {c.signal.composite_score} / 100 ({signalName(c.signal.label)})
                         </span>
                       </td>
                     ))}
