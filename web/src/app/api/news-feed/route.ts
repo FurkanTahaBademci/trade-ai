@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     : 12;
   const params = new URLSearchParams({ limit: String(limit) });
 
-  for (const name of ["source", "before", "before_id"] as const) {
+  for (const name of ["source", "ticker", "mode", "min_impact", "offset", "before", "before_id"] as const) {
     const value = incoming.get(name);
     if (value) params.set(name, value);
   }

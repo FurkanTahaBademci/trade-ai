@@ -17,6 +17,9 @@ class NewsArticleListOut(BaseModel):
     image_url: str | None
     published_at: datetime
     ticker_codes: list[str]
+    impact_score: int | None = None
+    sentiment_score: float | None = None
+    event_type: str | None = None
 
 
 class NewsArticleDetailOut(NewsArticleListOut):
