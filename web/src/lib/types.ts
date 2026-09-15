@@ -35,3 +35,62 @@ export type BacktestTrade = { id: number; ticker: string; side: "BUY" | "SELL"; 
 export type BacktestRun = { id: number; strategy_version: string; signal_model_version: string; status: "COMPLETED" | "INSUFFICIENT_DATA"; start_date: string; end_date: string; initial_cash: number; final_equity: number; total_return_pct: number; max_drawdown_pct: number; annualized_volatility_pct: number | null; sharpe_ratio: number | null; closed_trades: number; winning_trades: number; win_rate_pct: number | null; total_fees: number; signal_count: number; price_count: number; skipped_signal_count: number; config: { entry_score: number; exit_score: number; min_confidence: number; min_coverage: number; max_positions: number; max_position_weight: number; fee_rate: number; slippage_rate: number; execution_price: string; risk_free_rate: number }; created_at: string; points?: BacktestPoint[]; trades?: BacktestTrade[] };
 export type SystemStats = { instruments_total: number; news_total: number; news_by_source: Record<string, number>; disclosures_total: number; signals_total: number; signals_by_label: Record<string, number>; evaluations_total: number; evaluations_by_source: Record<string, number>; funds_total: number };
 
+export type MarketHeatmapStock = {
+  ticker: string;
+  name: string;
+  sector: string;
+  last_price: number;
+  change_pct: number;
+  volume_try: number;
+  market_cap_try: number;
+  composite_score: number;
+  signal_label: string;
+};
+
+export type MarketHeatmapSector = {
+  name: string;
+  stock_count: number;
+  avg_change_pct: number;
+  total_volume_try: number;
+  total_market_cap_try: number;
+  stocks: MarketHeatmapStock[];
+};
+
+export type MarketHeatmapData = {
+  as_of_date: string | null;
+  sectors: MarketHeatmapSector[];
+  summary: {
+    total_instruments: number;
+    positive_count: number;
+    negative_count: number;
+    neutral_count: number;
+    market_avg_change_pct: number;
+  };
+};
+
+export type AIBriefingCatalyst = {
+  title: string;
+  category: "KAP" | "HABER" | "MAKRO";
+  impact: "POSITIVE" | "NEGATIVE" | "NEUTRAL";
+  tickers: string[];
+  description: string;
+};
+
+export type AIBriefingSector = {
+  sector: string;
+  trend: string;
+  comment: string;
+};
+
+export type AIBriefingData = {
+  date: string;
+  session: "SABAH" | "AKŞAM";
+  headline: string;
+  market_mood: "BULLISH" | "NEUTRAL" | "BEARISH";
+  summary: string;
+  catalysts: AIBriefingCatalyst[];
+  sector_commentary: AIBriefingSector[];
+  actionable_takeaways: string[];
+  generated_at: string;
+};
+

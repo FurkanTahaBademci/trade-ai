@@ -19,12 +19,14 @@ from app.api.routers import (
     instruments,
     kap,
     macro,
+    markets,
     news,
     paper,
     schedules,
     signals,
     system,
 )
+from app.api.routers import briefing
 from app.api.routers import (
     settings as settings_router,
 )
@@ -79,6 +81,8 @@ app.include_router(macro.router)
 app.include_router(schedules.router)
 app.include_router(settings_router.router)
 app.include_router(system.router)
+app.include_router(markets.router)
+app.include_router(briefing.router)
 
 
 @app.get("/")

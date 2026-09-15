@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { apiGet } from "@/lib/api";
-import type { CompositeSignal, Disclosure, Evaluation, FundFlow, NewsArticle, SystemHealth, SystemStats } from "@/lib/types";
+import type { AIBriefingData, CompositeSignal, Disclosure, Evaluation, FundFlow, NewsArticle, SystemHealth, SystemStats } from "@/lib/types";
 import { eventName, formatDate, formatMoney, formatPercent, relativeTime, signalName, sourceName } from "@/lib/format";
 import { Icon } from "@/components/icon";
 import { EmptyState, ScoreRing, SectionTitle, ServiceNotice, TickerPills } from "@/components/ui";
+import { MarketBriefing } from "@/components/market-briefing";
 
 export default async function Home() {
-  const [statsRes, news, disclosures, evaluations, flows, signals, health] = await Promise.all([
+  const [statsRes, news, disclosures, evaluations, flows, signals, health, briefing] = await Promise.all([
     apiGet<SystemStats | null>("/api/system/stats", null, { revalidate: 60 }),
     apiGet<NewsArticle[]>("/api/news?limit=6", []),
     apiGet<Disclosure[]>("/api/disclosures?limit=5", []),
@@ -14,6 +15,7 @@ export default async function Home() {
     apiGet<FundFlow[]>("/api/funds/flows?limit=7", []),
     apiGet<CompositeSignal[]>("/api/signals?limit=5", []),
     apiGet<SystemHealth | null>("/health/detailed", null, { revalidate: 15 }),
+    apiGet<AIBriefingData | null>("/api/ai/briefing", null),
   ]);
   const stats = statsRes.data;
   const focus = evaluations.data.find((item) => item.summary && item.impact_score != null);
@@ -30,6 +32,8 @@ export default async function Home() {
       <Metric icon="ai" label="Bileşik sinyal" value={stats?.signals_total ? stats.signals_total.toLocaleString("tr-TR") : (signals.ok ? String(signals.data.length) : "—")} meta="aktif sinyal"/>
       <Metric icon="funds" label="Fon hisse akımı" value={formatMoney(latestFlow?.estimated_stock_flow, true)} meta={latestFlow ? `${formatDate(latestFlow.date)} · ${formatPercent(latestFlow.positive_flow_pct)} pozitif` : "veri bekleniyor"} tone={(latestFlow?.estimated_stock_flow ?? 0) >= 0 ? "positive" : "negative"}/>
     </section>
+
+    <MarketBriefing briefing={briefing.data} />
 
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1.55fr)_minmax(330px,.75fr)]">
       <div className="space-y-6">
