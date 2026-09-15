@@ -1,6 +1,6 @@
 import type { SVGProps } from "react";
 
-export type IconName = "home" | "markets" | "news" | "kap" | "ai" | "funds" | "search" | "bell" | "menu" | "close" | "arrow" | "trend" | "spark" | "building" | "file" | "clock" | "check" | "external" | "chevron" | "activity" | "star";
+export type IconName = "home" | "markets" | "news" | "kap" | "ai" | "funds" | "search" | "bell" | "menu" | "close" | "arrow" | "trend" | "spark" | "building" | "file" | "clock" | "check" | "external" | "chevron" | "activity" | "star" | "sun" | "moon";
 
 const paths: Record<IconName, React.ReactNode> = {
   home: <><path d="m3 10 9-7 9 7"/><path d="M5 9v11h14V9M9 20v-6h6v6"/></>,
@@ -19,7 +19,10 @@ const paths: Record<IconName, React.ReactNode> = {
   check: <path d="m5 12 4 4L19 6"/>, external: <><path d="M13 5h6v6M19 5l-8 8"/><path d="M17 13v6H5V7h6"/></>, chevron: <path d="m9 18 6-6-6-6"/>,
   activity: <path d="M3 12h4l2-7 4 14 2-7h6"/>,
   star: <path d="m12 2.5 2.95 6.4 6.98.65-5.28 4.7 1.58 6.9L12 17.6l-6.23 3.55 1.58-6.9-5.28-4.7 6.98-.65z"/>,
+  sun: <><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2M6.34 17.66l-1.41 1.41m14.14-14.14-1.41 1.41"/></>,
+  moon: <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>,
 };
+
 
 export function Icon({ name, size = 18, ...props }: SVGProps<SVGSVGElement> & { name: IconName; size?: number }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>{paths[name]}</svg>;

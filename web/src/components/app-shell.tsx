@@ -5,6 +5,8 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { Icon, type IconName } from "./icon";
 import { CommandPalette } from "./command-palette";
+import { ThemeToggle } from "./theme-toggle";
+
 
 const nav: { label: string; href: string; icon: IconName }[] = [
   { label: "Genel Bakış", href: "/", icon: "home" },
@@ -47,7 +49,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <header className="sticky top-0 z-30 flex h-[72px] items-center gap-3 border-b px-4 backdrop-blur-xl sm:px-6 lg:px-8" style={{ borderColor: "var(--border)", background: "color-mix(in srgb, var(--background) 88%, transparent)" }}>
         <button className="icon-button lg:hidden" onClick={() => setOpen(true)} aria-label="Menüyü aç"><Icon name="menu"/></button>
         <div><p className="text-sm font-semibold tracking-[-0.015em]">{title}</p><p className="hidden text-[11px] text-[var(--text-muted)] sm:block">BIST piyasa istihbaratı</p></div>
-        <div className="ml-auto flex items-center gap-2"><CommandPalette/><button className="icon-button relative" aria-label="Bildirimler"><Icon name="bell" size={17}/><span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-[var(--primary)]"/></button><div className="ml-1 grid h-9 w-9 place-items-center rounded-[10px] bg-[var(--surface-raised)] text-xs font-semibold text-[var(--primary)]">FT</div></div>
+        <div className="ml-auto flex items-center gap-2"><CommandPalette/><ThemeToggle/><button className="icon-button relative" aria-label="Bildirimler"><Icon name="bell" size={17}/><span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-[var(--primary)]"/></button><div className="ml-1 grid h-9 w-9 place-items-center rounded-[10px] bg-[var(--surface-raised)] text-xs font-semibold text-[var(--primary)]">FT</div></div>
+
       </header>
       <main className="mx-auto max-w-[1480px] p-4 sm:p-6 lg:p-8">{children}</main>
     </div>
