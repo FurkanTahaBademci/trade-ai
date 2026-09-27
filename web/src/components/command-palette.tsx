@@ -67,12 +67,12 @@ export function CommandPalette() {
   }
 
   return <>
-    <button type="button" onClick={() => setOpen(true)} aria-label="Hisse ara" className="flex h-9 w-9 items-center justify-center gap-2 rounded-[10px] border text-xs text-[var(--text-muted)] transition hover:bg-[var(--surface-hover)] md:w-56 md:justify-start md:px-3" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
+    <button type="button" onClick={() => setOpen(true)} aria-label="Hisse ara" className="flex h-9 w-9 items-center justify-center gap-2 rounded border text-xs text-[var(--text-muted)] transition hover:bg-[var(--surface-hover)] md:w-56 md:justify-start md:px-3" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
       <Icon name="search" size={15}/><span className="hidden md:inline">Hisse ara...</span><kbd className="ml-auto hidden text-[10px] md:inline">Ctrl K</kbd>
     </button>
     {open && <div className="fixed inset-0 z-[60] grid place-items-start justify-center pt-[12vh]">
       <button type="button" aria-label="Kapat" className="fixed inset-0 bg-[var(--overlay)]" onClick={() => setOpen(false)}/>
-      <div role="dialog" aria-modal="true" aria-label="Hisse arama" className="relative w-[min(560px,92vw)] overflow-hidden rounded-[14px] border shadow-2xl" style={{ borderColor: "var(--border)", background: "var(--surface-raised)" }}>
+      <div role="dialog" aria-modal="true" aria-label="Hisse arama" className="relative w-[min(560px,92vw)] overflow-hidden rounded border shadow-2xl" style={{ borderColor: "var(--border)", background: "var(--surface-raised)" }}>
         <div className="flex items-center gap-2 border-b px-4" style={{ borderColor: "var(--border)" }}>
           <Icon name="search" size={16} className="text-[var(--text-muted)]"/>
           <input
@@ -94,7 +94,7 @@ export function CommandPalette() {
           {items == null ? <p className="p-4 text-center text-xs text-[var(--text-muted)]">Yükleniyor...</p>
             : loadError ? <div className="p-4 text-center"><p className="text-xs text-[var(--negative)]">Piyasa verileri yüklenemedi.</p><button type="button" onClick={loadItems} className="mt-3 rounded-md border px-3 py-1.5 text-xs" style={{ borderColor: "var(--border)" }}>Tekrar dene</button></div>
             : results.length === 0 ? <p className="p-4 text-center text-xs text-[var(--text-muted)]">{query ? "Eşleşen hisse yok" : "Aramaya başlayın"}</p>
-            : results.map((item, i) => <button id={`market-result-${item.ticker}`} role="option" aria-selected={i === index} key={item.ticker} type="button" onMouseEnter={() => setIndex(i)} onClick={() => select(item)} className={`flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-left text-sm transition ${i === index ? "bg-[var(--primary-soft)] text-[var(--primary)]" : "hover:bg-[var(--surface-hover)]"}`}>
+            : results.map((item, i) => <button id={`market-result-${item.ticker}`} role="option" aria-selected={i === index} key={item.ticker} type="button" onMouseEnter={() => setIndex(i)} onClick={() => select(item)} className={`flex w-full items-center gap-3 rounded px-3 py-2.5 text-left text-sm transition ${i === index ? "bg-[var(--primary-soft)] text-[var(--primary)]" : "hover:bg-[var(--surface-hover)]"}`}>
               <span className="font-semibold">{item.ticker}</span>
               <span className="min-w-0 flex-1 truncate text-xs text-[var(--text-muted)]">{item.name}</span>
               {item.composite_score != null && <span className="text-[10px] text-[var(--text-muted)]">{Math.round(item.composite_score)}/100</span>}
