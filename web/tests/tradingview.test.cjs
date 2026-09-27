@@ -75,7 +75,7 @@ test("getTradingViewThemeColors provides distinct dark and light palettes", () =
   const dark = getTradingViewThemeColors(true);
   const light = getTradingViewThemeColors(false);
 
-  assert.equal(dark.background, "#0c111d");
+  assert.equal(dark.background, "#111922");
   assert.equal(light.background, "#ffffff");
   assert.notEqual(dark.textColor, light.textColor);
   assert.notEqual(dark.gridColor, light.gridColor);

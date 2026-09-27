@@ -13,36 +13,38 @@ export function PiyasalarView({
   instruments: Instrument[];
   heatmap: MarketHeatmapData | null;
 }) {
-  const [view, setView] = useState<"heatmap" | "table">("heatmap");
+  const [view, setView] = useState<"heatmap" | "table">("table");
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Görünüm Değiştirici Tab'ler */}
       <div className="flex items-center justify-between border-b border-[var(--border)] pb-3">
-        <div className="flex items-center gap-1.5 rounded-[12px] border border-[var(--border)] bg-[var(--surface-raised)] p-1 text-xs">
+        <div className="flex items-center gap-1.5 rounded border border-[var(--border)] bg-[var(--surface-raised)] p-1 text-xs">
           <button
             type="button"
             onClick={() => setView("heatmap")}
-            className={`flex items-center gap-1.5 rounded-[9px] px-3.5 py-1.5 font-medium transition ${
+            aria-pressed={view === "heatmap"}
+            className={`flex items-center gap-1.5 rounded px-3.5 py-1.5 font-medium transition ${
               view === "heatmap"
                 ? "bg-[var(--surface)] text-[var(--text)] font-semibold shadow-xs"
                 : "text-[var(--text-muted)] hover:text-[var(--text)]"
             }`}
           >
             <Icon name="spark" size={14} />
-            Sektörel Isı Haritası
+            Isı haritası
           </button>
           <button
             type="button"
             onClick={() => setView("table")}
-            className={`flex items-center gap-1.5 rounded-[9px] px-3.5 py-1.5 font-medium transition ${
+            aria-pressed={view === "table"}
+            className={`flex items-center gap-1.5 rounded px-3.5 py-1.5 font-medium transition ${
               view === "table"
                 ? "bg-[var(--surface)] text-[var(--text)] font-semibold shadow-xs"
                 : "text-[var(--text-muted)] hover:text-[var(--text)]"
             }`}
           >
             <Icon name="activity" size={14} />
-            Hisse Listesi & Arama
+            Hisse listesi
           </button>
         </div>
 

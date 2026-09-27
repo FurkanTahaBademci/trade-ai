@@ -5,7 +5,6 @@ import { useCallback, useMemo } from "react";
 import { formatDate, relativeTime, sourceName } from "@/lib/format";
 import type { NewsArticle } from "@/lib/types";
 import { useInfiniteFeed } from "@/lib/use-infinite-feed";
-import { Icon } from "./icon";
 import { InfiniteFeedStatus } from "./infinite-feed-status";
 import { EmptyState, TickerPills } from "./ui";
 
@@ -68,7 +67,7 @@ export function InfiniteNewsFeed({
         </span>
         <span>Kaydırdıkça yüklenir</span>
       </div>
-      <div className="grid gap-3 lg:grid-cols-2">
+      <div className="panel-flat overflow-hidden">
         {items.map((item) => (
           <NewsCard key={item.id} item={item} />
         ))}
@@ -87,76 +86,17 @@ export function InfiniteNewsFeed({
 }
 
 function NewsCard({ item }: { item: NewsArticle }) {
-  const impact = item.impact_score;
   const sentiment = item.sentiment_score;
-
-  return (
-    <article className="panel-flat group flex flex-col p-5 transition hover:-translate-y-0.5 hover:border-[var(--border-strong)]">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <span className="eyebrow">{sourceName(item.source)}</span>
-          {impact != null && impact > 0 && (
-            <span
-              className={`pill text-[11px] font-semibold ${
-                impact >= 60
-                  ? "pill-positive border-[var(--positive)]"
-                  : impact >= 40
-                  ? "pill-primary"
-                  : "bg-[var(--surface-raised)] text-[var(--text-secondary)]"
-              }`}
-            >
-              {impact >= 60 ? "🔥 " : "⚡ "}Etki: {impact}
-            </span>
-          )}
-          {sentiment != null && (
-            <span
-              className={`pill text-[10px] ${
-                sentiment > 0.15
-                  ? "text-[var(--positive)]"
-                  : sentiment < -0.15
-                  ? "text-[var(--negative)]"
-                  : "text-[var(--text-muted)]"
-              }`}
-            >
-              {sentiment > 0.15 ? "● Olumlu" : sentiment < -0.15 ? "● Olumsuz" : "● Nötr"}
-            </span>
-          )}
-        </div>
-
-        <span className="flex shrink-0 items-center gap-1 text-[11px] text-[var(--text-muted)]">
-          <Icon name="clock" size={12} />
-          {relativeTime(item.published_at)}
-        </span>
-      </div>
-
-      <Link href={`/haberler/${item.id}`}>
-        <h2 className="text-base font-semibold leading-6 tracking-[-0.018em] group-hover:text-[var(--primary)]">
-          {item.title}
-        </h2>
-      </Link>
-
-      {item.summary && (
-        <p className="mt-2 line-clamp-3 text-sm leading-6 text-[var(--text-secondary)]">
-          {item.summary}
-        </p>
-      )}
-
-      <div className="mt-auto flex items-end justify-between gap-4 pt-5">
-        <TickerPills tickers={item.ticker_codes} />
-        <Link
-          href={`/haberler/${item.id}`}
-          className="flex shrink-0 items-center gap-1 text-xs font-medium text-[var(--primary)]"
-        >
-          Detay <Icon name="arrow" size={13} />
-        </Link>
-      </div>
-    </article>
-  );
+  return <article className="feed-row group sm:grid-cols-[110px_minmax(0,1fr)] xl:grid-cols-[110px_minmax(0,1fr)_170px]">
+    <div className="flex items-center justify-between gap-2 sm:block"><p className="eyebrow tracking-wider">{sourceName(item.source)}</p><time dateTime={item.published_at} title={formatDate(item.published_at, true)} className="terminal-mono mt-1 text-[10px] text-[var(--text-muted)]">{relativeTime(item.published_at)}</time></div>
+    <div className="min-w-0"><Link href={`/haberler/${item.id}`} className="hover:text-[var(--primary)]"><h2 className="text-sm font-medium leading-5">{item.title}</h2></Link>{item.summary && <p className="mt-1 line-clamp-2 text-xs leading-5 text-[var(--text-secondary)]">{item.summary}</p>}<div className="mt-2"><TickerPills tickers={item.ticker_codes}/></div></div>
+    <div className="flex flex-wrap items-start gap-2 sm:col-start-2 xl:col-start-auto xl:justify-end"><span className="pill terminal-mono">Etki {item.impact_score ?? "—"}</span>{sentiment != null && <span className={`pill ${sentiment > .15 ? "pill-positive" : sentiment < -.15 ? "pill-negative" : ""}`}>{sentiment > .15 ? "Olumlu" : sentiment < -.15 ? "Olumsuz" : "Nötr"}</span>}</div>
+  </article>;
 }
 
 function NewsSkeleton() {
   return (
-    <div className="panel-flat min-h-48 animate-pulse p-5" aria-hidden="true">
+    <div className="min-h-24 animate-pulse p-5" aria-hidden="true">
       <div className="mb-5 flex justify-between">
         <span className="h-3 w-20 rounded bg-[var(--surface-raised)]" />
         <span className="h-3 w-24 rounded bg-[var(--surface-raised)]" />

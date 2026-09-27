@@ -68,27 +68,27 @@ export default async function NewsPage({
       />
 
       {/* Mode Switcher: Smart vs Chronological */}
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] pb-4">
-        <div className="flex rounded-xl border border-[var(--border)] p-1 bg-[var(--surface-raised)]">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] pb-4">
+        <div className="flex rounded border border-[var(--border)] p-1 bg-[var(--surface-raised)]">
           <Link
             href={buildUrl("smart", source)}
-            className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition ${
+            className={`flex items-center gap-1.5 rounded px-3.5 py-1.5 text-xs font-semibold transition ${
               mode === "smart"
-                ? "bg-[var(--primary)] text-white shadow-sm"
+                ? "bg-[var(--primary)] text-[var(--primary-contrast)]"
                 : "text-[var(--text-muted)] hover:text-[var(--text)]"
             }`}
           >
-            <span>🔥</span> Öne Çıkanlar (Önem & Güncellik)
+            Öne çıkanlar
           </Link>
           <Link
             href={buildUrl("chronological", source)}
-            className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition ${
+            className={`flex items-center gap-1.5 rounded px-3.5 py-1.5 text-xs font-semibold transition ${
               mode === "chronological"
-                ? "bg-[var(--primary)] text-white shadow-sm"
+                ? "bg-[var(--primary)] text-[var(--primary-contrast)]"
                 : "text-[var(--text-muted)] hover:text-[var(--text)]"
             }`}
           >
-            <span>⏱️</span> Tüm Haber Akışı (Normal Sıra)
+            Kronolojik akış
           </Link>
         </div>
 

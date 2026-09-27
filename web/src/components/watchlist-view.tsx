@@ -40,13 +40,13 @@ export function WatchlistView() {
 
   if (!watched.length) return <div className="panel-flat p-8 text-center"><p className="text-sm font-medium">İzlenen hisseler aktif piyasa evreninde bulunamadı</p><p className="mt-1 text-xs text-[var(--text-muted)]">Eski kayıtları aşağıdaki yıldızlarla listenizden çıkarabilirsiniz.</p><div className="mt-4 flex flex-wrap justify-center gap-2">{missing.map((ticker) => <span key={ticker} className="pill gap-1"><WatchlistStar ticker={ticker} size={14}/>{ticker}</span>)}</div></div>;
 
-  return <>{missing.length > 0 && <div className="mb-3 rounded-[10px] border px-4 py-3 text-xs text-[var(--warning)]" style={{ borderColor: "color-mix(in srgb, var(--warning) 25%, transparent)", background: "var(--warning-soft)" }}>{missing.join(", ")} aktif piyasa evreninde bulunamadı.</div>}<div className="table-shell overflow-x-auto"><table className="data-table min-w-[560px]"><thead><tr><th className="w-10"></th><th>Hisse</th><th>Şirket</th><th>Bileşik skor</th><th className="w-10"></th></tr></thead><tbody>
+  return <>{missing.length > 0 && <div className="mb-3 rounded border px-4 py-3 text-xs text-[var(--warning)]" style={{ borderColor: "color-mix(in srgb, var(--warning) 25%, transparent)", background: "var(--warning-soft)" }}>{missing.join(", ")} aktif piyasa evreninde bulunamadı.</div>}<div className="table-shell overflow-x-auto"><table className="data-table min-w-[560px]"><thead><tr><th className="w-10"><span className="sr-only">İşlem</span></th><th>Hisse</th><th>Şirket</th><th>Bileşik skor</th><th className="w-10"><span className="sr-only">İşlem</span></th></tr></thead><tbody>
     {watched.map((item) => <tr key={item.ticker}>
       <td><WatchlistStar ticker={item.ticker} size={16}/></td>
-      <td><Link href={`/piyasalar/${item.ticker}`} className="font-semibold text-[var(--primary)]">{item.ticker}</Link></td>
+      <td><Link href={`/piyasalar/${item.ticker}`} className="terminal-mono font-semibold text-[var(--primary)]">{item.ticker}</Link></td>
       <td className="font-medium">{item.name}</td>
       <td>{item.composite_score != null ? <span className="pill">{Math.round(item.composite_score)}/100 · {signalName(item.signal_label ?? "")}</span> : <span className="text-[var(--text-muted)]">Sinyal yok</span>}</td>
-      <td><Link href={`/piyasalar/${item.ticker}`} className="text-[var(--text-muted)]"><Icon name="chevron" size={16}/></Link></td>
+      <td><Link href={`/piyasalar/${item.ticker}`} aria-label={`${item.ticker} detayını aç`} className="text-[var(--text-muted)]"><Icon name="chevron" size={16}/></Link></td>
     </tr>)}
   </tbody></table></div></>;
 }

@@ -34,4 +34,4 @@ export function useChartWidth() {
   return { ref, width };
 }
 
-export const chartButton = "rounded-lg border border-[var(--border)] px-3 py-2 text-xs text-[var(--text-secondary)] transition hover:bg-[var(--surface-hover)] disabled:cursor-not-allowed disabled:opacity-40";
+export const chartButton = "rounded border border-[var(--border)] px-3 py-2 text-xs text-[var(--text-secondary)] transition hover:bg-[var(--surface-hover)] disabled:cursor-not-allowed disabled:opacity-40";
