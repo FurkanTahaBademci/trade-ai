@@ -72,7 +72,7 @@ services:
     # baglanir. Yerel gelistirmede host port'u docker-compose.override.yml
     # saglar (docker compose otomatik birlestirir).
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/ready"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -83,7 +83,7 @@ services:
         limits:
           memory: ${API_MEMORY_LIMIT:-1G}
     command: >
-      sh -c "alembic upgrade head && (python scripts/vacuum_storage.py || true) && uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips='*'"
+      sh -c "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips='*'"
 
   worker:
     build:
@@ -103,7 +103,7 @@ services:
       api:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import asyncio,os; from redis.asyncio import Redis; r=Redis.from_url(os.environ['REDIS_URL']); asyncio.run(r.ping())"]
+      test: ["CMD", "arq", "app.tasks.schedule.WorkerSettings", "--check"]
       interval: 30s
       timeout: 5s
       retries: 3
