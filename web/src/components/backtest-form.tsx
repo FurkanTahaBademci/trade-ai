@@ -21,7 +21,7 @@ export function BacktestForm({ startDate, endDate }: { startDate: string; endDat
       })}
     </fieldset>
     {state.message && <p role="alert" className="text-xs text-[var(--negative)]">{state.message}</p>}
-    <button disabled={pending} className="h-11 w-full rounded-[10px] bg-[var(--primary)] px-4 text-sm font-semibold text-[var(--primary-contrast)] transition hover:bg-[var(--primary-strong)] disabled:cursor-wait disabled:opacity-60">{pending ? "Hesaplanıyor…" : "Backtest çalıştır"}</button>
+    <button disabled={pending} className="h-11 w-full rounded bg-[var(--primary)] px-4 text-sm font-semibold text-[var(--primary-contrast)] transition hover:bg-[var(--primary-strong)] disabled:cursor-wait disabled:opacity-60">{pending ? "Hesaplanıyor…" : "Backtest çalıştır"}</button>
     <p role="status" className="text-xs leading-5 text-[var(--text-muted)]">{pending ? "Seçilen dönemin sinyal ve fiyatları değerlendiriliyor." : "Pozisyon sayısı × ağırlık en fazla %100 olabilir."}</p>
   </form>;
 }

@@ -8,7 +8,7 @@ const DynamicTvChart = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="grid h-[420px] place-items-center rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] text-sm text-[var(--text-muted)] animate-pulse">
+      <div className="grid h-[420px] place-items-center rounded border border-[var(--border)] bg-[var(--surface-raised)] text-sm text-[var(--text-muted)] animate-pulse">
         Gelişmiş grafik yükleniyor...
       </div>
     ),
@@ -28,4 +28,3 @@ export function PriceChart({ prices, error = false, ticker = "THYAO" }: PriceCha
     </div>
   );
 }
-

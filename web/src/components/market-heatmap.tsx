@@ -74,9 +74,9 @@ export function MarketHeatmap({ data }: { data: MarketHeatmapData | null }) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* 1. Kontrol ve Özet Çubuğu */}
-      <div className="flex flex-col gap-4 rounded-[16px] border border-[var(--border)] bg-[var(--surface)] p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 rounded border border-[var(--border)] bg-[var(--surface)] p-4 sm:flex-row sm:items-center sm:justify-between">
         {/* Özet sayaçlar */}
         {summary && (
           <div className="flex flex-wrap items-center gap-3 text-xs">
@@ -123,7 +123,7 @@ export function MarketHeatmap({ data }: { data: MarketHeatmapData | null }) {
             />
           </div>
 
-          <div className="flex rounded-[10px] border border-[var(--border)] bg-[var(--surface-raised)] p-0.5 text-xs">
+          <div className="flex rounded border border-[var(--border)] bg-[var(--surface-raised)] p-0.5 text-xs">
             <button
               type="button"
               onClick={() => setMetric("change")}
@@ -184,7 +184,7 @@ export function MarketHeatmap({ data }: { data: MarketHeatmapData | null }) {
         {filteredSectors.map((sector) => (
           <div
             key={sector.name}
-            className="flex flex-col rounded-[16px] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-xs transition hover:border-[var(--border-strong)]"
+            className="flex flex-col rounded border border-[var(--border)] bg-[var(--surface)] p-4 shadow-xs transition hover:border-[var(--border-strong)]"
           >
             {/* Sektör Başlığı */}
             <div className="mb-3 flex items-center justify-between border-b border-[var(--border-subtle)] pb-2.5">
@@ -211,7 +211,7 @@ export function MarketHeatmap({ data }: { data: MarketHeatmapData | null }) {
                 <Link
                   key={stock.ticker}
                   href={`/piyasalar/${stock.ticker}`}
-                  className={`group relative flex flex-col justify-between rounded-[10px] border p-2 text-center transition hover:scale-[1.03] hover:z-10 ${getStockBg(
+                  className={`group relative flex flex-col justify-between rounded border p-2 text-center transition hover:scale-[1.03] hover:z-10 ${getStockBg(
                     stock
                   )}`}
                   title={`${stock.name} (${stock.ticker})\nSon Fiyat: ${formatMoney(

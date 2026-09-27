@@ -85,7 +85,7 @@ export function TradingViewWidget({
   return (
     <div className="space-y-4">
       {/* Informative Guidance Banner */}
-      <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-4 sm:p-5">
+      <div className="rounded border border-[var(--border)] bg-[var(--surface-raised)] p-4 sm:p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-1.5">
             <div className="flex items-center gap-2">
@@ -105,7 +105,7 @@ export function TradingViewWidget({
               <button
                 type="button"
                 onClick={onSwitchToNative}
-                className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2 text-xs font-medium text-[var(--text)] transition hover:bg-[var(--surface-hover)]"
+                className="rounded border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2 text-xs font-medium text-[var(--text)] transition hover:bg-[var(--surface-hover)]"
               >
                 ← TradeAI Grafiğine Dön
               </button>
@@ -115,7 +115,7 @@ export function TradingViewWidget({
               href={`https://tr.tradingview.com/chart/?symbol=${encodeURIComponent(symbol)}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1.5 rounded-lg bg-[var(--primary)] px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:opacity-90"
+              className="flex items-center gap-1.5 rounded bg-[var(--primary)] px-4 py-2 text-xs font-semibold text-[var(--primary-contrast)] shadow-sm transition hover:opacity-90"
             >
               <span>↗</span> TradingView.com&apos;da Aç
             </a>
@@ -125,12 +125,12 @@ export function TradingViewWidget({
 
       {/* Embedded Widget */}
       {loadError ? (
-        <div className="grid h-[520px] place-items-center rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-6 text-center text-sm text-[var(--text-muted)]">
+        <div className="grid h-[520px] place-items-center rounded border border-[var(--border)] bg-[var(--surface-raised)] p-6 text-center text-sm text-[var(--text-muted)]">
           TradingView servisine bağlanırken bir sorun oluştu.
         </div>
       ) : (
         <div
-          className="relative w-full overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)]"
+          className="relative w-full overflow-hidden rounded border border-[var(--border)] bg-[var(--surface)]"
           style={{ height: 560 }}
         >
           <div ref={containerRef} className="tradingview-widget-container h-full w-full" />

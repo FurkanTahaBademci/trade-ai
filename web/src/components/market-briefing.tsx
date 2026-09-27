@@ -9,11 +9,11 @@ export function MarketBriefing({ briefing }: { briefing: AIBriefingData | null }
   const isBearish = briefing.market_mood === "BEARISH";
 
   return (
-    <section className="panel mb-7 overflow-hidden border border-[var(--border)] shadow-xs">
+    <section className="panel mb-5 overflow-hidden border border-[var(--border)] shadow-xs">
       {/* Üst Başlık Şeridi */}
-      <div className="flex flex-col gap-3 border-b border-[var(--border-subtle)] bg-[var(--surface-raised)] p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+      <div className="flex flex-col gap-3 border-b border-[var(--border-subtle)] bg-[var(--surface-raised)] p-5 sm:flex-row sm:items-center sm:justify-between sm:p-4">
         <div className="flex items-center gap-3">
-          <div className="grid h-10 w-10 place-items-center rounded-[12px] bg-[var(--primary-soft)] text-[var(--primary)]">
+          <div className="grid h-8 w-8 place-items-center rounded bg-[var(--primary-soft)] text-[var(--primary)]">
             <Icon name="spark" size={20} />
           </div>
           <div>
@@ -49,28 +49,30 @@ export function MarketBriefing({ briefing }: { briefing: AIBriefingData | null }
           {new Date(briefing.generated_at).toLocaleTimeString("tr-TR", {
             hour: "2-digit",
             minute: "2-digit",
+            timeZone: "Europe/Istanbul",
           })}{" "}
           güncellendi
         </span>
       </div>
 
-      <div className="p-5 sm:p-6">
+      <div className="p-5 sm:p-4">
         {/* Yönetici Özeti */}
-        <p className="text-sm leading-7 text-[var(--text-secondary)]">
+        <p className="text-sm leading-6 text-[var(--text-secondary)]">
           {briefing.summary}
         </p>
 
+        <details className="mt-3"><summary className="text-xs font-medium text-[var(--primary)]">Kaynaklar, sektör notları ve çıkarımlar</summary>
         {/* Günün Kritik Katalizörleri */}
         {briefing.catalysts && briefing.catalysts.length > 0 && (
           <div className="mt-6">
             <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
               Son Haberler ve KAP Değerlendirmeleri
             </h3>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="grid gap-2 sm:grid-cols-2">
               {briefing.catalysts.map((cat, idx) => (
                 <div
                   key={idx}
-                  className="flex flex-col justify-between rounded-[12px] border border-[var(--border)] bg-[var(--surface-raised)] p-3.5 transition hover:border-[var(--border-strong)]"
+                  className="flex flex-col justify-between rounded border border-[var(--border)] bg-[var(--surface-raised)] p-3.5 transition hover:border-[var(--border-strong)]"
                 >
                   <div>
                     <div className="mb-2 flex items-center justify-between gap-2">
@@ -115,7 +117,7 @@ export function MarketBriefing({ briefing }: { briefing: AIBriefingData | null }
         <div className="mt-6 grid gap-4 lg:grid-cols-2">
           {/* Sektör Notları */}
           {briefing.sector_commentary && briefing.sector_commentary.length > 0 && (
-            <div className="rounded-[12px] border border-[var(--border)] bg-[var(--surface-raised)] p-4">
+            <div className="rounded border border-[var(--border)] bg-[var(--surface-raised)] p-4">
               <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
                 Öne Çıkan Sektör Dinamikleri
               </h3>
@@ -137,7 +139,7 @@ export function MarketBriefing({ briefing }: { briefing: AIBriefingData | null }
 
           {/* Aksiyon Notları */}
           {briefing.actionable_takeaways && briefing.actionable_takeaways.length > 0 && (
-            <div className="rounded-[12px] border border-[var(--border)] bg-[var(--surface-raised)] p-4">
+            <div className="rounded border border-[var(--border)] bg-[var(--surface-raised)] p-4">
               <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
                 Takip Edilecek Seviye ve Çıkarımlar
               </h3>
@@ -152,6 +154,7 @@ export function MarketBriefing({ briefing }: { briefing: AIBriefingData | null }
             </div>
           )}
         </div>
+        </details>
       </div>
 
       <div

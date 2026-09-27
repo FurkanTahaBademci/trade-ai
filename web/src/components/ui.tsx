@@ -29,6 +29,3 @@ export function DataMetric({ label, value, meta, suffix, tone, icon }: { label: 
 export function Breadcrumbs({ items }: { items: { label: string; href?: string }[] }) {
   return <nav aria-label="Sayfa yolu" className="mb-4 flex-wrap flex items-center gap-1.5 text-xs text-[var(--text-muted)]">{items.map((item, index) => <span key={`${item.label}-${index}`} className="flex items-center gap-1.5">{index > 0 && <span>/</span>}{item.href ? <Link href={item.href} className="hover:text-[var(--text)]">{item.label}</Link> : <span className="text-[var(--text-secondary)]">{item.label}</span>}</span>)}</nav>;
 }
-
-// Compatibility while page and feed consumers migrate to the numeric meter.
-export const ScoreRing = ScoreMeter;

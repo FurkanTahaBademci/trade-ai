@@ -163,7 +163,7 @@ export function CompanyCompareView({ initialData }: { initialData: CompanyCompar
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* 1. Üst Seçici ve Hazır Kıyaslama Hapları */}
       <div className="rounded-[16px] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-xs">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -177,7 +177,7 @@ export function CompanyCompareView({ initialData }: { initialData: CompanyCompar
               return (
                 <div
                   key={comp.ticker}
-                  className="flex items-center gap-2 rounded-[10px] border px-3 py-1.5 text-xs font-semibold shadow-2xs"
+                  className="flex items-center gap-2 rounded border px-3 py-1.5 text-xs font-semibold shadow-2xs"
                   style={{
                     borderColor: color.stroke,
                     backgroundColor: `color-mix(in srgb, ${color.stroke} 8%, transparent)`,
@@ -237,7 +237,7 @@ export function CompanyCompareView({ initialData }: { initialData: CompanyCompar
       </div>
 
       {/* 2. Radar Grafik & Performans Görsel Paneli */}
-      <div className="grid gap-6 lg:grid-cols-12">
+      <div className="grid gap-4 lg:grid-cols-12">
         {/* A. 5-Eksenli Spider / Radar Grafiği */}
         <div className="flex flex-col justify-between rounded-[16px] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-xs lg:col-span-5">
           <div>
@@ -453,7 +453,7 @@ export function CompanyCompareView({ initialData }: { initialData: CompanyCompar
               Çarpanlar, Bilanço Rasyoları, Analist Hedefleri ve AI Sinyal Gücü
             </p>
           </div>
-          <div className="flex rounded-[10px] border border-[var(--border)] bg-[var(--surface-raised)] p-0.5 text-xs">
+          <div className="flex rounded border border-[var(--border)] bg-[var(--surface-raised)] p-0.5 text-xs">
             <button
               type="button"
               onClick={() => setActiveTab("all")}

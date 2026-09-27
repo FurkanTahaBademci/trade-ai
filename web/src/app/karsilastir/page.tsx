@@ -5,7 +5,7 @@ import { CompanyCompareView } from "@/components/company-compare";
 import { PageHeader, ServiceNotice } from "@/components/ui";
 
 export const metadata: Metadata = {
-  title: "Şirket Karşılaştırma & Peer Radar",
+  title: "Şirket Karşılaştırma",
   description: "BIST şirketlerini değerleme çarpanları, kârlılık rasyoları, analist beklentileri ve AI duygu puanlarıyla yan yana karşılaştırın.",
 };
 
@@ -35,7 +35,7 @@ export default async function ComparePage({ searchParams }: PageProps) {
     <>
       <PageHeader
         eyebrow="Şirket Analizi & Kıyaslama"
-        title="Şirket Karşılaştırma & Peer Radar"
+        title="Şirket Karşılaştırma"
         description="Aynı sektör veya farklı pazarlardaki BIST şirketlerini F/K, PD/DD, ROE, konsensüs hedef fiyatları ve AI kompozit sinyalleriyle 5 eksende kıyaslayın."
         actions={
           comparison.ok && comparison.data ? (

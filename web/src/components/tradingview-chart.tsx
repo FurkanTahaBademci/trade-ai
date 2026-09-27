@@ -520,7 +520,7 @@ export function TradingViewChart({
 
   if (error || !prices.length) {
     return (
-      <div className="grid h-64 place-items-center rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-6 text-center text-sm text-[var(--text-muted)]">
+      <div className="grid h-64 place-items-center rounded border border-[var(--border)] bg-[var(--surface-raised)] p-6 text-center text-sm text-[var(--text-muted)]">
         {error
           ? "Fiyat servisine ulaşılamadı. Sayfayı yenileyerek tekrar deneyin."
           : "Grafik için fiyat verisi bekleniyor."}
@@ -529,7 +529,7 @@ export function TradingViewChart({
   }
 
   const containerClasses = isFullscreen
-    ? "fixed inset-0 z-50 flex flex-col bg-[var(--background)] p-4 sm:p-6 overflow-y-auto"
+    ? "fixed inset-0 z-50 flex flex-col bg-[var(--background)] p-4 overflow-y-auto"
     : "min-w-0";
 
   return (
@@ -556,12 +556,12 @@ export function TradingViewChart({
 
         {/* Chart Style (Candle / Area / Bar) */}
         <div className="flex items-center gap-1">
-          <div className="flex rounded-lg border border-[var(--border)] p-0.5 bg-[var(--surface-raised)]">
+          <div className="flex rounded border border-[var(--border)] p-0.5 bg-[var(--surface-raised)]">
             <button
               type="button"
               className={`rounded px-2.5 py-1 text-xs transition ${
                 chartMode === "candle"
-                  ? "bg-[var(--primary)] text-white font-medium"
+                  ? "bg-[var(--primary)] text-[var(--primary-contrast)] font-medium"
                   : "text-[var(--text-muted)] hover:text-[var(--text)]"
               }`}
               onClick={() => setChartMode("candle")}
@@ -573,7 +573,7 @@ export function TradingViewChart({
               type="button"
               className={`rounded px-2.5 py-1 text-xs transition ${
                 chartMode === "area"
-                  ? "bg-[var(--primary)] text-white font-medium"
+                  ? "bg-[var(--primary)] text-[var(--primary-contrast)] font-medium"
                   : "text-[var(--text-muted)] hover:text-[var(--text)]"
               }`}
               onClick={() => setChartMode("area")}
@@ -585,7 +585,7 @@ export function TradingViewChart({
               type="button"
               className={`rounded px-2.5 py-1 text-xs transition ${
                 chartMode === "bar"
-                  ? "bg-[var(--primary)] text-white font-medium"
+                  ? "bg-[var(--primary)] text-[var(--primary-contrast)] font-medium"
                   : "text-[var(--text-muted)] hover:text-[var(--text)]"
               }`}
               onClick={() => setChartMode("bar")}
@@ -740,7 +740,7 @@ export function TradingViewChart({
       {/* TradingView-style HUD / Legend Panel */}
       {displayHud && (
         <div
-          className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-xs"
+          className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-xs"
           data-testid="price-selection"
         >
           <div className="font-semibold text-[var(--text)]">
@@ -813,7 +813,7 @@ export function TradingViewChart({
       {/* Chart Canvas Container */}
       <div
         ref={containerRef}
-        className="relative w-full rounded-xl overflow-hidden border border-[var(--border)] bg-[var(--surface)] transition-all"
+        className="relative w-full rounded overflow-hidden border border-[var(--border)] bg-[var(--surface)] transition-all"
         style={{ minHeight: showRsi ? 480 : 380 }}
       />
 
