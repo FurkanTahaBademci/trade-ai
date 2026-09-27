@@ -1,12 +1,36 @@
 # Codex Çalışma / Devir Notları
 
-Son güncelleme: 2026-09-08 (Europe/Istanbul)
+Son güncelleme: 2026-09-27 (Europe/Istanbul)
 
 Bu dosya, Codex'in yaptığı değişiklikleri Claude ve diğer ajanların hızlıca
 inceleyebilmesi için tutulur. Kanonik faz durumu `PROGRESS.md`, değişmemesi
 gereken ürün kararları `CLAUDE.md` içindedir. Aşağıdaki 2026-09-07 (Claude)
 girişi Codex değil, Claude tarafından yazıldı — paylaşılan tek devir
 günlüğünü bölmemek için burada tutuluyor, başlıkta ajan belirtildi.
+
+## 2026-09-27 — Çalışan sistem incelemesi ve doğruluk düzeltmeleri
+
+- İnceleme kapsamı bu makinedeki Compose ortamı; ayrı Coolify/domain henüz
+  doğrulanmadı. Ayrıntılı bulgular ve işletim notları `ops/REVIEW-2026-09-27.md`.
+- API readiness (`/health/ready`), gerçek ARQ health check ve JSON durumunu
+  kontrol eden production smoke eklendi. Açılışta `VACUUM FULL` kaldırıldı.
+- Bültenin varsayılan %50 faiz, sabit sektör hikâyeleri, satır sayısına dayalı
+  pozitif görünüm ve etki/duygu karışıklığı giderildi; İstanbul saati ve son 24
+  saat filtreleri eklendi. Arayüz bunun otomatik veri özeti olduğunu söyler.
+- Grafik kapanış alan görünümüyle başlar; sentetik mum açılışı ve çizim için
+  genişletilen yüksek/düşük açıkça etiketlenir.
+- Backend 194, web 42 test başarılı; yeni Docker bağımlılıklarıyla backend
+  testleri ayrıca geçti. Ruff, TypeScript, production build, offline Alembic
+  ve Compose kontrolleri temiz. `aiosqlite` test bağımlılığı eklendi.
+- AI etkin değil ve etkin Gemini anahtarı yok; bu tercih değiştirilmedi.
+  Bloomberg RSS doğrudan istekte de 14 Eylül içeriği döndürüyor. Yönetim web
+  ekranı kullanıcı doğrulaması, production ayarları, kaynak bazlı tazelik ve
+  sunucu dışı yedekleme açık işler olarak rapora yazıldı.
+- Yerel PostgreSQL dump'ı ve eski imaj etiketleri alındıktan sonra api/worker/web
+  yeniden oluşturuldu. Beş servis healthy; production smoke ve ARQ kontrolü
+  başarılı, `/karsilastir` dahil 14 sayfa HTTP 200. Chrome headless grafik
+  kontrolü geçti. Git teslim dalı: `fix/system-audit-2026-09-27`; değişiklikler
+  konu bazında ayrı commit'lere bölündü.
 
 ## 2026-09-08 — Tier 1 Gemini mikro-batch
 
