@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
-from typing import Any
+import logging
+from datetime import UTC, datetime, timedelta
+from typing import Annotated, Any
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import desc, select
+from redis.exceptions import RedisError
+from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
@@ -18,54 +21,74 @@ from app.models.news import NewsArticle
 from app.models.signal import CompositeSignalSnapshot
 
 router = APIRouter(prefix="/api/ai", tags=["ai"])
+logger = logging.getLogger(__name__)
 
 
 @router.get("/briefing")
 async def get_market_briefing(
-    db: AsyncSession = Depends(get_db),
+    db: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict[str, Any]:
     """Gunun gelismelerini, KAP aciklamalarini ve sektor beklentilerini ozetleyen AI Yonetici Bulteni."""
     now = datetime.now(UTC)
-    date_str = now.strftime("%Y-%m-%d")
+    local_now = now.astimezone(ZoneInfo("Europe/Istanbul"))
+    date_str = local_now.date().isoformat()
+    since = now - timedelta(hours=24)
     # Sabah 09:00 - 18:00 arasi "SABAH", aksam 18:00 sonrasi "AKŞAM"
-    session_name = "SABAH" if 6 <= now.hour < 18 else "AKŞAM"
-    cache_key = f"ai:briefing:{date_str}:{session_name}"
+    session_name = "SABAH" if 9 <= local_now.hour < 18 else "AKŞAM"
+    cache_key = f"ai:briefing:v2:{date_str}:{session_name}"
 
     redis = get_redis()
-    cached = await redis.get(cache_key)
-    if cached:
-        try:
+    try:
+        cached = await redis.get(cache_key)
+        if cached:
             return json.loads(cached)
-        except (json.JSONDecodeError, TypeError):
-            pass
+    except (RedisError, json.JSONDecodeError, TypeError) as exc:
+        logger.warning("Briefing cache read failed: %s", exc)
 
     # 1. En son yuksek etkili KAP degerlendirmeleri
     kap_eval_stmt = (
         select(LlmEvaluation)
-        .where(LlmEvaluation.source_type == "kap", LlmEvaluation.impact_score.is_not(None))
+        .where(
+            LlmEvaluation.source_type == "kap",
+            LlmEvaluation.status == "succeeded",
+            LlmEvaluation.completed_at >= since,
+            LlmEvaluation.impact_score.is_not(None),
+        )
         .order_by(desc(LlmEvaluation.impact_score), desc(LlmEvaluation.created_at))
         .limit(5)
     )
     kap_evals = (await db.scalars(kap_eval_stmt)).all()
 
     # 2. En son haberler
-    news_stmt = select(NewsArticle).order_by(desc(NewsArticle.published_at)).limit(6)
+    news_stmt = (
+        select(NewsArticle)
+        .where(NewsArticle.published_at >= since, NewsArticle.published_at <= now)
+        .order_by(desc(NewsArticle.published_at))
+        .limit(6)
+    )
     news_items = (await db.scalars(news_stmt)).all()
 
     # 3. TCMB son politika faizi
     macro_stmt = (
         select(MonetaryPolicyDecision)
-        .where(MonetaryPolicyDecision.status == "PUBLISHED")
+        .where(
+            MonetaryPolicyDecision.status == "PUBLISHED",
+            MonetaryPolicyDecision.decision_date <= local_now.date(),
+        )
         .order_by(desc(MonetaryPolicyDecision.decision_date))
         .limit(1)
     )
     latest_macro = (await db.scalars(macro_stmt)).first()
 
-    # 4. Sinyal motorunun en guclu pozitif ve negatif hisseleri
+    # Use the full latest snapshot for sentiment, not merely the top five rows.
+    latest_signal_date = select(func.max(CompositeSignalSnapshot.as_of_date)).scalar_subquery()
     pos_signals_stmt = (
         select(CompositeSignalSnapshot)
-        .order_by(desc(CompositeSignalSnapshot.as_of_date), desc(CompositeSignalSnapshot.composite_score))
-        .limit(5)
+        .where(
+            CompositeSignalSnapshot.as_of_date == latest_signal_date,
+            CompositeSignalSnapshot.computed_at >= since,
+        )
+        .order_by(desc(CompositeSignalSnapshot.composite_score))
     )
     top_signals = (await db.scalars(pos_signals_stmt)).all()
 
@@ -74,63 +97,73 @@ async def get_market_briefing(
     catalysts = []
 
     for ev in kap_evals[:3]:
-        impact_str = "POSITIVE" if (ev.impact_score or 50) >= 60 else "NEGATIVE" if (ev.impact_score or 50) <= 40 else "NEUTRAL"
-        catalysts.append({
-            "title": ev.event_type or "KAP Bildirimi",
-            "category": "KAP",
-            "impact": impact_str,
-            "tickers": ev.ticker_codes or [],
-            "description": ev.summary or "Önemli şirket bildirimi kaydedildi.",
-        })
+        sentiment = ev.sentiment_score or 0
+        impact_str = "POSITIVE" if sentiment > 0 else "NEGATIVE" if sentiment < 0 else "NEUTRAL"
+        catalysts.append(
+            {
+                "title": ev.event_type or "KAP Bildirimi",
+                "category": "KAP",
+                "impact": impact_str,
+                "tickers": ev.ticker_codes or [],
+                "description": ev.summary or "Önemli şirket bildirimi kaydedildi.",
+            }
+        )
 
     for n in news_items[:2]:
-        catalysts.append({
-            "title": n.title,
-            "category": "HABER",
-            "impact": "NEUTRAL",
-            "tickers": n.ticker_codes or [],
-            "description": f"{n.source.upper()} kaynaklı piyasa haberi.",
-        })
-
-    rate_text = f"%{latest_macro.policy_rate:.2f}" if latest_macro and latest_macro.policy_rate else "%50.00"
-
-    headline = f"BIST 100 {session_name.capitalize()} Görünümü: Kurumsal Sinyaller ve Sektörel Hareketler"
-    if session_name == "SABAH":
-        summary = (
-            f"Güne başlarken piyasada şirket bazlı gelişmeler ve makro görünüm takip ediliyor. "
-            f"TCMB politika faizi {rate_text} seviyesindeyken, kurumsal sinyal motorunda "
-            f"{', '.join(top_tickers) if top_tickers else 'öncü hisseler'} güçlü teknik ve temel puanlarla öne çıkıyor. "
-            f"Günün ilk saatlerinde KAP bildirimlerinin hisse bazlı etkileri fiyatlamalarda belirleyici olacak."
-        )
-    else:
-        summary = (
-            f"Günün kapanışına doğru BIST piyasalarında para akışları ve öne çıkan sektörler ayrıştı. "
-            f"KAP'a düşen kurumsal açıklamalar ve analist revizyonları doğrultusunda {', '.join(top_tickers) if top_tickers else 'lokomotif şirketler'} "
-            f"günün işlem hacminde ağırlık kazandı. Küresel piyasa tonu ve döviz dinamikleri kapanış dengesini şekillendiriyor."
+        catalysts.append(
+            {
+                "title": n.title,
+                "category": "HABER",
+                "impact": "NEUTRAL",
+                "tickers": n.ticker_codes or [],
+                "description": f"{n.source.upper()} kaynaklı piyasa haberi.",
+            }
         )
 
-    sector_commentary = [
-        {"sector": "Havacılık & Ulaştırma", "trend": "Pozitif", "comment": "Yolcu doluluk oranları ve dış hat talebi marjları destekliyor."},
-        {"sector": "Bankacılık & Finans", "trend": "Nötr", "comment": f"Mevduat maliyetleri ve TCMB faiz patikası ({rate_text}) kârlılık odağında."},
-        {"sector": "Enerji & Elektrik", "trend": "Dinamik", "comment": "Yeni kapasite yatırımları ve güneş/rüzgar projeleri hisse bazında ayrışma yaratıyor."},
+    rate_text = (
+        f"Son kayıtlı TCMB politika faizi %{latest_macro.policy_rate:.2f} "
+        f"({latest_macro.decision_date.isoformat()})."
+        if latest_macro and latest_macro.policy_rate is not None
+        else "TCMB politika faizi verisi bulunmuyor."
+    )
+    signal_text = (
+        f"Güncel bileşik skor sıralamasında ilk hisseler: {', '.join(top_tickers)}."
+        if top_tickers
+        else "Son 24 saatte hesaplanmış bileşik sinyal bulunmuyor."
+    )
+    summary = f"{signal_text} {rate_text} Bu özet kayıtlı verilerden otomatik derlenir."
+    headline = f"BIST {session_name.capitalize()} Veri Özeti"
+    # Do not turn row count into a bullish market call. Only sufficiently
+    # confident scores contribute, and missing coverage remains neutral.
+    scores = [
+        float(row.composite_score)
+        for row in top_signals
+        if row.confidence is not None and row.confidence >= 0.5
     ]
+    average_score = sum(scores) / len(scores) if scores else 50
 
     briefing = {
         "date": date_str,
         "session": session_name,
         "headline": headline,
-        "market_mood": "BULLISH" if len(top_signals) >= 3 else "NEUTRAL",
+        "market_mood": "BULLISH"
+        if average_score >= 60
+        else "BEARISH"
+        if average_score < 40
+        else "NEUTRAL",
         "summary": summary,
         "catalysts": catalysts,
-        "sector_commentary": sector_commentary,
+        "sector_commentary": [],
         "actionable_takeaways": [
-            f"Sinyal motorunda öne çıkan {', '.join(top_tickers)} için kademeli alım/satım seviyelerini izleyin.",
-            "Yüksek etki skorlu KAP bildirimlerinde haber akışının devamını teyit edin.",
-            f"TCMB PPK yönlendirmeleri ({rate_text}) ışığında faize duyarlı sektörlerde ağırlıkları gözden geçirin.",
+            "Bileşik skorları veri kapsamı ve güven düzeyiyle birlikte değerlendirin.",
+            "KAP değerlendirmelerini kaynak bildirim ve yayın tarihiyle doğrulayın.",
         ],
         "generated_at": now.isoformat(),
     }
 
     # Redis'e 1 saat onbellekle
-    await redis.setex(cache_key, 3600, json.dumps(briefing, ensure_ascii=False))
+    try:
+        await redis.setex(cache_key, 3600, json.dumps(briefing, ensure_ascii=False))
+    except RedisError as exc:
+        logger.warning("Briefing cache write failed: %s", exc)
     return briefing

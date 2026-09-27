@@ -1,6 +1,5 @@
 """Haber akıllı sıralama (önem + güncellik) ve filtreleme testleri."""
 
-from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 from sqlalchemy.dialects import postgresql
@@ -82,4 +81,3 @@ async def test_smart_news_with_custom_min_impact_and_offset():
     assert 50 in compiled.params.values()
     assert 20 in compiled.params.values()
     assert 10 in compiled.params.values()
-

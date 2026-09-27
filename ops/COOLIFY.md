@@ -50,6 +50,27 @@ Variables/Secrets alanında runtime değişkeni olarak tut.
    rotasını kontrol et; API/DB health'i Coolify container health durumundan izle.
 5. `/sistem` ekranında worker, PostgreSQL, Redis ve veri hatlarının durumunu kontrol et.
 
+### Sağlık kontrolleri
+
+- `/health` yalnız API sürecini, `/health/ready` PostgreSQL ve Redis erişimini
+  kontrol eder. Hazır olmayan API `/health/ready` için HTTP 503 döndürür.
+- `/health/detailed` arayüzün sorunları gösterebilmesi için HTTP 200 dönebilir;
+  gövdedeki `status` alanını da kontrol et. `make production-smoke` bunu yapar
+  ve `degraded` / `pending` durumunda başarısız olur; host üzerinde `python3`
+  ve `curl` gerektirir.
+- Worker Docker kontrolü `arq ... --check` kullanır; worker sağlık anahtarını
+  30 saniyede bir yeniler. Redis'in tek başına ayakta olması yeterli değildir.
+- API başlangıcında otomatik `VACUUM FULL` çalıştırılmaz. Bu işlem tabloyu
+  kilitleyebildiğinden yalnız gerektiğinde bakım penceresinde elle çalıştırılır.
+
+### Yönetim ekranı erişimi
+
+`ADMIN_API_TOKEN`, backend yazma uçlarını korur. Web sunucusu bu anahtarı
+server action'larda kullandığından tek başına web ziyaretçisini doğrulamaz.
+İnternete yayın öncesi `/sistem` ve `/backtest` için kimlik doğrulama gerekir;
+mevcut uygulamada kullanıcı oturumu katmanı yoktur. Reverse proxy erişim
+kontrolü kullanılıyorsa bu rotaların POST isteklerini de korumalıdır.
+
 ## Geri alma
 
 - Uygulama image'ını önceki commit'e döndürmeden önce migration'ın geriye uyumlu

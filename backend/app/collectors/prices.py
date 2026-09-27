@@ -79,7 +79,8 @@ def map_price_record(record: dict) -> dict | None:
                 if len(parts[0]) == 4:
                     mapped["date"] = date_type.fromisoformat(ts)
                 else:
-                    mapped["date"] = datetime.strptime(ts, "%d-%m-%Y").date()
+                    day, month, year = (int(part) for part in parts)
+                    mapped["date"] = date_type(year, month, day)
             else:
                 mapped["date"] = date_type.fromisoformat(ts)
         except (ValueError, TypeError):

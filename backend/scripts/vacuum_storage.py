@@ -12,6 +12,7 @@ import asyncio
 import logging
 
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.db import engine
 
@@ -37,14 +38,14 @@ async def vacuum_storage() -> dict:
                     text("SELECT pg_size_pretty(pg_total_relation_size('kap_attachment'))")
                 )
                 log.info("   'kap_attachment' tablosunun baslangic boyutu: %s", table_size_before)
-            except Exception as exc:
+            except SQLAlchemyError as exc:
                 log.debug("kap_attachment tablosu kontrol edilemedi: %s", exc)
 
             log.info("1. 'kap_attachment' tablosu vakumlanip disk alani serbest birakiliyor...")
             try:
                 await autocommit_conn.execute(text("VACUUM FULL kap_attachment"))
                 log.info("   'kap_attachment' tablosu basariyla sikistirildi.")
-            except Exception as exc:
+            except SQLAlchemyError as exc:
                 log.warning("   'kap_attachment' tablosu vakumlanamadi: %s", exc)
 
             log.info("2. Tum veritabani istatistikleri guncellenip vakumlaniyor (VACUUM ANALYZE)...")
@@ -62,8 +63,8 @@ async def vacuum_storage() -> dict:
                     text("SELECT pg_size_pretty(pg_total_relation_size('kap_attachment'))")
                 )
                 log.info("   'kap_attachment' tablosunun sikistirma sonrasi boyutu: %s", table_size_after)
-            except Exception:
-                pass
+            except SQLAlchemyError as exc:
+                log.debug("kap_attachment boyutu okunamadi: %s", exc)
 
             log.info("Temizlik sonrasi veritabani boyutu: %.2f MB", size_after_mb)
             log.info("Geri kazanilan disk alani: %.2f MB", freed_mb)
@@ -85,7 +86,7 @@ async def vacuum_storage() -> dict:
 def main() -> None:
     try:
         asyncio.run(vacuum_storage())
-    except Exception as exc:
+    except SQLAlchemyError as exc:
         log.warning("Depolama vakumlama sirasinda hata olustu (atlaniliyor): %s", exc)
 
 

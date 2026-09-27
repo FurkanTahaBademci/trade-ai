@@ -12,7 +12,8 @@ from typing import Annotated
 
 import structlog
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
+from redis.exceptions import RedisError
 from sqlalchemy import and_, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
@@ -60,8 +61,8 @@ async def get_system_stats(
         cached = await redis.get(cache_key)
         if cached:
             return SystemStatsOut.model_validate_json(cached)
-    except Exception:
-        pass
+    except (RedisError, ValidationError) as exc:
+        logger.warning("system_stats_cache_read_failed", error=str(exc))
 
     instruments_total = int(
         await db.scalar(
@@ -126,8 +127,8 @@ async def get_system_stats(
 
     try:
         await redis.set(cache_key, stats.model_dump_json(), ex=60)
-    except Exception:
-        pass
+    except RedisError as exc:
+        logger.warning("system_stats_cache_write_failed", error=str(exc))
 
     return stats
 
@@ -372,4 +373,3 @@ async def vacuum_storage_endpoint(
                 "ok": True,
                 "message": "Veritabanı başarıyla vakumlandı.",
             }
-

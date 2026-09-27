@@ -1,4 +1,3 @@
-import Link from "next/link";
 import type { AIBriefingData } from "@/lib/types";
 import { Icon } from "./icon";
 import { TickerPills } from "./ui";
@@ -19,7 +18,7 @@ export function MarketBriefing({ briefing }: { briefing: AIBriefingData | null }
           </div>
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <span className="eyebrow">Yapay Zeka Sentezi</span>
+              <span className="eyebrow">Otomatik Veri Özeti</span>
               <span className="pill pill-primary text-[10px] font-semibold">
                 {briefing.session} BÜLTENİ
               </span>
@@ -34,10 +33,10 @@ export function MarketBriefing({ briefing }: { briefing: AIBriefingData | null }
               >
                 <span className="h-1.5 w-1.5 rounded-full bg-current" />
                 {isBullish
-                  ? "Pozitif Görünüm"
+                  ? "Pozitif Skor Görünümü"
                   : isBearish
-                  ? "Temkinli Görünüm"
-                  : "Dengeli Görünüm"}
+                  ? "Negatif Skor Görünümü"
+                  : "Nötr / Yetersiz Veri"}
               </span>
             </div>
             <h2 className="mt-1 text-base font-semibold tracking-[-0.02em] text-[var(--text)] sm:text-lg">
@@ -65,7 +64,7 @@ export function MarketBriefing({ briefing }: { briefing: AIBriefingData | null }
         {briefing.catalysts && briefing.catalysts.length > 0 && (
           <div className="mt-6">
             <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-              Günün Önemli Katalizörleri & Bildirimler
+              Son Haberler ve KAP Değerlendirmeleri
             </h3>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {briefing.catalysts.map((cat, idx) => (
@@ -159,7 +158,7 @@ export function MarketBriefing({ briefing }: { briefing: AIBriefingData | null }
         className="border-t px-5 py-2.5 text-[11px] text-[var(--text-muted)]"
         style={{ borderColor: "var(--border)", background: "var(--surface-raised)" }}
       >
-        Yapay zeka bülteni; son 24 saatin KAP bildirimleri, haber akışları ve teknik sinyallerinden otomatik sentezlenmiştir. Yatırım tavsiyesi içermez.
+        Son 24 saatteki haberler, tamamlanan KAP analizleri ve hesaplanan bileşik skorlar ile son kayıtlı faiz kararından derlenmiştir. Yatırım tavsiyesi içermez.
       </div>
     </section>
   );

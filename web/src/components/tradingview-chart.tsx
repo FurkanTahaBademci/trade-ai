@@ -60,7 +60,7 @@ export function TradingViewChart({
   const rsiSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
 
   const [isDark, setIsDark] = useState(true);
-  const [chartMode, setChartMode] = useState<"candle" | "area" | "bar">("candle");
+  const [chartMode, setChartMode] = useState<"candle" | "area" | "bar">("area");
   const [showMa20, setShowMa20] = useState(true);
   const [showMa50, setShowMa50] = useState(false);
   const [showMa200, setShowMa200] = useState(false);
@@ -730,6 +730,13 @@ export function TradingViewChart({
         </button>
       </div>
 
+      {chartMode !== "area" && (
+        <p className="mb-2 text-xs text-[var(--text-muted)]">
+          Tahmini mum/çubuk: kaynak açılış fiyatı sağlamıyor. Açılış yerine önceki kapanış
+          (ilk kayıtta AOF veya kapanış) kullanılır; yüksek/düşük çizimleri bu değeri kapsayacak şekilde genişletilebilir.
+        </p>
+      )}
+
       {/* TradingView-style HUD / Legend Panel */}
       {displayHud && (
         <div
@@ -741,13 +748,13 @@ export function TradingViewChart({
           </div>
           <div className="flex items-center gap-3 text-[var(--text-muted)]">
             <span>
-              A: <strong className="font-medium text-[var(--text)]">{formatMoney(displayHud.open)}</strong>
+              A (tahmini): <strong className="font-medium text-[var(--text)]">{formatMoney(displayHud.open)}</strong>
             </span>
             <span>
-              Y: <strong className="font-medium text-[var(--text)]">{formatMoney(displayHud.high)}</strong>
+              Y (çizim): <strong className="font-medium text-[var(--text)]">{formatMoney(displayHud.high)}</strong>
             </span>
             <span>
-              D: <strong className="font-medium text-[var(--text)]">{formatMoney(displayHud.low)}</strong>
+              D (çizim): <strong className="font-medium text-[var(--text)]">{formatMoney(displayHud.low)}</strong>
             </span>
             <span>
               K: <strong className="font-medium text-[var(--text)]">{formatMoney(displayHud.close)}</strong>

@@ -58,6 +58,9 @@ def _redis_settings() -> RedisSettings:
 
 
 class WorkerSettings:
+    # ARQ renews an expiring key from its event loop; Redis PING alone cannot
+    # detect a stalled worker. Keep failure detection below two minutes.
+    health_check_interval = 30
     job_timeout = get_settings().worker_job_timeout
     functions: ClassVar[list] = [
         collect_instruments,

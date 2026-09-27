@@ -12,7 +12,18 @@ check() {
 }
 
 check "API process" "$api_url/health"
-check "API dependencies" "$api_url/health/detailed"
+check "API dependencies" "$api_url/health/ready"
+# /health/detailed intentionally remains HTTP 200 so the dashboard can render
+# degraded components. Check the JSON status instead of trusting HTTP alone.
+report=$(curl --fail --silent --show-error --max-time 20 "$api_url/health/detailed")
+printf '%s' "$report" | python3 -c '
+import json, sys
+report = json.load(sys.stdin)
+if report.get("status") != "ok":
+    print("FAIL API monitoring: " + str(report.get("status", "missing")), file=sys.stderr)
+    sys.exit(1)
+'
+printf 'OK  API monitoring\n'
 check "Schedules" "$api_url/api/schedules"
 check "Web process" "$web_url/health"
 check "Dashboard" "$web_url/"
