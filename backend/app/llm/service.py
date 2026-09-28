@@ -28,6 +28,7 @@ from sqlalchemy.orm import aliased
 
 from app.core.config import Settings, get_settings
 from app.core.dynamic_settings import resolve_settings
+from app.llm.quota import get_provider_pause, quota_pause
 from app.models import Instrument, KapDisclosure, LlmEvaluation, NewsArticle
 from app.schemas.llm import (
     LlmTier1BatchResult,
@@ -565,6 +566,8 @@ class LlmEvaluationService:
         self._gateway = gateway
         self._settings = settings or get_settings()
         self._prompts = prompts or load_prompts()
+        self._provider_pause: dict | None = None
+        self._provider_error: str | None = None
 
     async def _known_tickers(self) -> set[str]:
         result = await self._session.scalars(
@@ -976,6 +979,11 @@ class LlmEvaluationService:
                 if record is not None:
                     record.status = "failed"
                     record.error_text = _friendly_gemini_error(exc)
+                    pause = quota_pause(record.error_text, datetime.now(UTC), model)
+                    if pause:
+                        self._provider_pause = pause
+                        self._provider_error = record.error_text
+                        record.attempt_count = max(0, record.attempt_count - 1)
                     record.latency_ms = latency_ms
                     record.completed_at = datetime.now(UTC)
             await self._session.commit()
@@ -996,6 +1004,8 @@ class LlmEvaluationService:
         """Basarisiz grup semasindaki tek kaydi yeni attempt acmadan izole et."""
         started = time.monotonic()
         try:
+            if self._provider_pause:
+                raise RuntimeError(self._provider_error or "rate limit exceeded")
             response = await self._gateway.generate(
                 model=self._settings.gemini_model_tier1,
                 system_instruction=self._prompts.tier1_system,
@@ -1028,6 +1038,11 @@ class LlmEvaluationService:
             if record is not None:
                 record.status = "failed"
                 record.error_text = _friendly_gemini_error(exc)
+                pause = quota_pause(record.error_text, datetime.now(UTC), self._settings.gemini_model_tier1)
+                if pause:
+                    self._provider_pause = self._provider_pause or pause
+                    self._provider_error = self._provider_error or record.error_text
+                    record.attempt_count = max(0, record.attempt_count - 1)
                 record.latency_ms = round((time.monotonic() - started) * 1000)
                 record.completed_at = datetime.now(UTC)
                 await self._session.commit()
@@ -1102,6 +1117,11 @@ class LlmEvaluationService:
             if record is not None:
                 record.status = "failed"
                 record.error_text = _friendly_gemini_error(exc)
+                pause = quota_pause(record.error_text, datetime.now(UTC), model)
+                if pause:
+                    self._provider_pause = self._provider_pause or pause
+                    self._provider_error = self._provider_error or record.error_text
+                    record.attempt_count = max(0, record.attempt_count - 1)
                 record.latency_ms = round((time.monotonic() - started) * 1000)
                 record.completed_at = datetime.now(UTC)
                 await self._session.commit()
@@ -1118,6 +1138,11 @@ class LlmEvaluationService:
             "skipped": 0,
             "budget_exhausted": False,
         }
+
+        self._provider_pause = await get_provider_pause(self._session, self._settings)
+        if self._provider_pause:
+            return {**result, "provider_pause": self._provider_pause,
+                    "daily_input_tokens": input_tokens, "daily_output_tokens": output_tokens}
 
         tier1_attempted = 0
         tier1_documents = await self._tier1_documents()
@@ -1143,10 +1168,12 @@ class LlmEvaluationService:
             result["skipped"] += outcome.skipped
             input_tokens += outcome.input_tokens
             output_tokens += outcome.output_tokens
+            if self._provider_pause:
+                break
 
         tier2_attempted = 0
         tier2_batch_size = max(1, self._settings.llm_batch_size // 4)
-        if not result["budget_exhausted"]:
+        if not result["budget_exhausted"] and not self._provider_pause:
             for parent in await self._tier2_parents():
                 if tier2_attempted >= tier2_batch_size:
                     break
@@ -1168,10 +1195,13 @@ class LlmEvaluationService:
                     continue
                 tier2_attempted += 1
                 result[f"tier2_{status}"] += 1
+                if self._provider_pause:
+                    break
                 if response:
                     input_tokens += response.input_tokens or 0
                     output_tokens += response.output_tokens or 0
 
+        result["provider_pause"] = self._provider_pause
         result["daily_input_tokens"] = input_tokens
         result["daily_output_tokens"] = output_tokens
         return result
