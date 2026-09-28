@@ -112,3 +112,19 @@ test("lookup helpers translate known keys and pass through unknown ones", () => 
   assert.equal(componentName("fund_flow"), "Fon akımı");
   assert.equal(componentName("unknown"), "unknown");
 });
+
+// Server and browser may use different host time zones. Both render Istanbul time.
+test("formatDate uses Istanbul even when the host time zone changes", () => {
+  const previous = process.env.TZ;
+  try {
+    process.env.TZ = "UTC";
+    const utc = formatDate("2026-09-28T22:15:00Z", true);
+    process.env.TZ = "America/Los_Angeles";
+    assert.equal(formatDate("2026-09-28T22:15:00Z", true), utc);
+    assert.match(utc, /29 Eyl/);
+    assert.match(utc, /01:15/);
+  } finally {
+    if (previous === undefined) delete process.env.TZ;
+    else process.env.TZ = previous;
+  }
+});

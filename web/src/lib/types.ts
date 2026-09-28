@@ -23,6 +23,7 @@ export type CollectorSchedule = { name: string; label: string; job_name: string;
 export type SettingStatus = { key: string; label: string; kind: "secret" | "url" | "boolean" | "choice"; is_set: boolean; source: "database" | "env" | "unset"; preview: string | null; choices: { value: string; label: string }[]; updated_at: string | null };
 export type StorageReport = { database_size_bytes: number; tables: { table: string; size_bytes: number; row_estimate: number }[] };
 export type LlmOperationsReport = {
+  provider_pause?: { reason: "daily_quota" | "rate_limit"; model: string; retry_at: string } | null;
   generated_at: string;
   config: { enabled: boolean; api_mode: "interactions" | "generate_content"; tier1_model: string; tier2_model: string; tier1_group_size: number; batch_size: number; max_attempts: number };
   budget: { window_started_at: string; input_tokens: { used: number; limit: number }; output_tokens: { used: number; limit: number }; exhausted: boolean };

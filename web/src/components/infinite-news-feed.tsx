@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useMemo } from "react";
-import { formatDate, relativeTime, sourceName } from "@/lib/format";
+import { formatDate, sourceName } from "@/lib/format";
 import type { NewsArticle } from "@/lib/types";
 import { useInfiniteFeed } from "@/lib/use-infinite-feed";
 import { InfiniteFeedStatus } from "./infinite-feed-status";
@@ -88,7 +88,7 @@ export function InfiniteNewsFeed({
 function NewsCard({ item }: { item: NewsArticle }) {
   const sentiment = item.sentiment_score;
   return <article className="feed-row group sm:grid-cols-[110px_minmax(0,1fr)] xl:grid-cols-[110px_minmax(0,1fr)_170px]">
-    <div className="flex items-center justify-between gap-2 sm:block"><p className="eyebrow tracking-wider">{sourceName(item.source)}</p><time dateTime={item.published_at} title={formatDate(item.published_at, true)} className="terminal-mono mt-1 text-[10px] text-[var(--text-muted)]">{relativeTime(item.published_at)}</time></div>
+    <div className="flex items-center justify-between gap-2 sm:block"><p className="eyebrow tracking-wider">{sourceName(item.source)}</p><time dateTime={item.published_at} title={formatDate(item.published_at, true)} className="terminal-mono mt-1 text-[10px] text-[var(--text-muted)]">{formatDate(item.published_at, true)}</time></div>
     <div className="min-w-0"><Link href={`/haberler/${item.id}`} className="hover:text-[var(--primary)]"><h2 className="text-sm font-medium leading-5">{item.title}</h2></Link>{item.summary && <p className="mt-1 line-clamp-2 text-xs leading-5 text-[var(--text-secondary)]">{item.summary}</p>}<div className="mt-2"><TickerPills tickers={item.ticker_codes}/></div></div>
     <div className="flex flex-wrap items-start gap-2 sm:col-start-2 xl:col-start-auto xl:justify-end"><span className="pill terminal-mono">Etki {item.impact_score ?? "—"}</span>{sentiment != null && <span className={`pill ${sentiment > .15 ? "pill-positive" : sentiment < -.15 ? "pill-negative" : ""}`}>{sentiment > .15 ? "Olumlu" : sentiment < -.15 ? "Olumsuz" : "Nötr"}</span>}</div>
   </article>;

@@ -23,6 +23,7 @@ from app.core.config import Settings
 from app.core.db import engine, get_db
 from app.core.dynamic_settings import resolve_settings
 from app.core.redis import get_redis
+from app.llm.quota import get_provider_pause
 from app.llm.service import PROMPT_VERSION
 from app.models import (
     CompositeSignalSnapshot,
@@ -260,6 +261,7 @@ async def get_llm_report(db: Annotated[AsyncSession, Depends(get_db)]) -> dict:
     pending_documents = pending_news + pending_kap
     return {
         "generated_at": now,
+        "provider_pause": await get_provider_pause(db, settings, now=now),
         "config": {
             "enabled": settings.llm_enabled,
             "api_mode": settings.gemini_api_mode,
