@@ -1,6 +1,6 @@
 export function formatDate(value: string, withTime = false) {
   const date = new Date(value); if (Number.isNaN(date.getTime())) return "—";
-  return new Intl.DateTimeFormat("tr-TR", withTime ? { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" } : { day: "2-digit", month: "short", year: "numeric" }).format(date);
+  return new Intl.DateTimeFormat("tr-TR", withTime ? { timeZone: "Europe/Istanbul", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" } : { timeZone: "Europe/Istanbul", day: "2-digit", month: "short", year: "numeric" }).format(date);
 }
 export function relativeTime(value: string) {
   const date = new Date(value).getTime(); if (Number.isNaN(date)) return "—";
