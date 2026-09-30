@@ -30,6 +30,7 @@ export type LlmOperationsReport = {
   today: { succeeded: number; failed: number; running: number; last_completed_at: string | null };
   backlog: { news: number; kap: number; documents: number; estimated_tier1_requests: number; retryable_failures: number; stale_running: number };
   unresolved_failures: number;
+  failure_categories?: { category: "daily_quota" | "rate_limit" | "provider_unavailable" | "invalid_response" | "other"; label: string; count: number }[];
 };
 export type BacktestPoint = { point_date: string; cash: number; positions_value: number; total_equity: number; position_count: number };
 export type BacktestTrade = { id: number; ticker: string; side: "BUY" | "SELL"; signal_date: string; execution_date: string; quantity: number; price: number; gross_amount: number; fee_amount: number; realized_pnl: number | null };
@@ -156,5 +157,3 @@ export type CompanyComparisonData = {
   normalized_chart: Array<{ date: string; [ticker: string]: number | string }>;
   dimensions: Array<{ key: string; label: string }>;
 };
-
-
