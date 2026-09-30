@@ -14,7 +14,7 @@ import structlog
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, ValidationError
 from redis.exceptions import RedisError
-from sqlalchemy import and_, func, or_, select, text
+from sqlalchemy import and_, case, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -37,6 +37,42 @@ from app.models import (
 logger = structlog.get_logger("system")
 
 router = APIRouter(prefix="/api/system", tags=["system"])
+
+FAILURE_CATEGORY_PATTERNS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("daily_quota", ("requests per day", "daily quota", "per day on free tier")),
+    ("rate_limit", ("rate limit", "resource_exhausted", "429")),
+    (
+        "provider_unavailable",
+        ("connection", "high demand", "html", "403", "timeout", "timed out"),
+    ),
+    ("invalid_response", ("validation", "invalid json", "schema", "structured output")),
+)
+FAILURE_CATEGORY_LABELS = {
+    "daily_quota": "Günlük sağlayıcı kotası",
+    "rate_limit": "İstek hız sınırı",
+    "provider_unavailable": "Sağlayıcı/bağlantı",
+    "invalid_response": "Geçersiz model yanıtı",
+    "other": "Diğer",
+}
+
+
+def classify_llm_failure(error_text: str | None) -> str:
+    lowered = (error_text or "").lower()
+    for category, patterns in FAILURE_CATEGORY_PATTERNS:
+        if any(pattern in lowered for pattern in patterns):
+            return category
+    return "other"
+
+
+def _failure_category_expression():
+    lowered = func.lower(func.coalesce(LlmEvaluation.error_text, ""))
+    return case(
+        *(
+            (or_(*(lowered.contains(pattern) for pattern in patterns)), category)
+            for category, patterns in FAILURE_CATEGORY_PATTERNS
+        ),
+        else_="other",
+    )
 
 
 class SystemStatsOut(BaseModel):
@@ -235,6 +271,17 @@ async def get_llm_report(db: Annotated[AsyncSession, Depends(get_db)]) -> dict:
         )
         or 0
     )
+    failure_category = _failure_category_expression().label("category")
+    failure_category_rows = await db.execute(
+        select(failure_category, func.count(LlmEvaluation.id))
+        .where(
+            current_evaluations,
+            LlmEvaluation.status == "failed",
+            ~resolved_failure,
+        )
+        .group_by(failure_category)
+    )
+    failure_counts = {str(category): int(count) for category, count in failure_category_rows}
     retryable_failures = int(
         await db.scalar(
             select(func.count(LlmEvaluation.id)).where(
@@ -309,6 +356,15 @@ async def get_llm_report(db: Annotated[AsyncSession, Depends(get_db)]) -> dict:
             "stale_running": stale_running,
         },
         "unresolved_failures": unresolved_failures,
+        "failure_categories": [
+            {
+                "category": category,
+                "label": label,
+                "count": failure_counts.get(category, 0),
+            }
+            for category, label in FAILURE_CATEGORY_LABELS.items()
+            if failure_counts.get(category, 0) > 0
+        ],
     }
 
 
