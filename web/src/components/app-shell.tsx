@@ -70,7 +70,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <nav aria-label="Ana gezinme" className="min-h-0 flex-1 overflow-y-auto px-2 py-3">{groups.map((group) => <div key={group.label} className="mb-4"><p className="terminal-mono mb-1.5 px-3 text-[10px] tracking-wider text-[var(--text-muted)]">{group.label}</p>{group.routes.map((route) => {
         const item = nav.find((entry) => entry.href === route)!;
         const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
-        return <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined} onClick={() => setOpen(false)} className={`flex min-h-9 items-center gap-2.5 border-l-2 px-3 py-2 text-xs font-medium transition-colors ${active ? "border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary)]" : "border-transparent text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)]"}`}><Icon name={item.icon} size={15}/>{item.label}</Link>;
+        const protectedRoute = item.href === "/sistem" || item.href === "/backtest";
+        return <Link key={item.href} href={item.href} prefetch={protectedRoute ? false : undefined} aria-current={active ? "page" : undefined} onClick={() => setOpen(false)} className={`flex min-h-9 items-center gap-2.5 border-l-2 px-3 py-2 text-xs font-medium transition-colors ${active ? "border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary)]" : "border-transparent text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)]"}`}><Icon name={item.icon} size={15}/>{item.label}</Link>;
       })}</div>)}</nav>
       <div className="shrink-0 border-t border-[var(--border)] px-4 py-3 text-[10px] leading-5 text-[var(--text-muted)]"><p className="terminal-mono text-[var(--text-secondary)]">BIST / TRY / EOD</p><p>Paper işlem · Simülasyon</p></div>
     </aside>
