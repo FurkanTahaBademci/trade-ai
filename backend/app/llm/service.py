@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, Protocol
 import httpx
 import structlog
 from pydantic import BaseModel, ValidationError
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
@@ -590,6 +590,41 @@ class LlmEvaluationService:
         ).one()
         return int(row[0]), int(row[1])
 
+    async def _reconcile_stale_records(self) -> int:
+        """Convert abandoned work into auditable failures before retry selection.
+
+        A worker restart can leave a committed ``running`` row behind. Without
+        reconciliation, rows that already reached the attempt limit remain
+        permanently running and make the operational report misleading.
+        """
+        now = datetime.now(UTC)
+        stale_before = now - timedelta(minutes=30)
+        result = await self._session.execute(
+            update(LlmEvaluation)
+            .where(
+                LlmEvaluation.prompt_version == PROMPT_VERSION,
+                LlmEvaluation.api_mode == self._settings.gemini_api_mode,
+                or_(
+                    (LlmEvaluation.tier == 1)
+                    & (LlmEvaluation.model == self._settings.gemini_model_tier1),
+                    (LlmEvaluation.tier == 2)
+                    & (LlmEvaluation.model == self._settings.gemini_model_tier2),
+                ),
+                LlmEvaluation.status == "running",
+                LlmEvaluation.started_at < stale_before,
+            )
+            .values(
+                status="failed",
+                error_text="Worker islemi 30 dakika icinde tamamlanmadi; kayit yeniden denenebilir.",
+                completed_at=now,
+            )
+        )
+        await self._session.commit()
+        reconciled = int(result.rowcount or 0)
+        if reconciled:
+            logger.warning("stale_llm_evaluations_reconciled", count=reconciled)
+        return reconciled
+
     def _budget_available(self, input_tokens: int, output_tokens: int) -> bool:
         input_limit = self._settings.llm_daily_input_token_limit
         output_limit = self._settings.llm_daily_output_token_limit
@@ -1128,6 +1163,7 @@ class LlmEvaluationService:
             return "failed", None
 
     async def run(self) -> dict:
+        reconciled_stale = await self._reconcile_stale_records()
         known_tickers = await self._known_tickers()
         input_tokens, output_tokens = await self._daily_usage()
         result = {
@@ -1137,6 +1173,7 @@ class LlmEvaluationService:
             "tier2_failed": 0,
             "skipped": 0,
             "budget_exhausted": False,
+            "reconciled_stale": reconciled_stale,
         }
 
         self._provider_pause = await get_provider_pause(self._session, self._settings)
