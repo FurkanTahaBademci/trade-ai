@@ -37,11 +37,15 @@ koridoru ve senaryo bazlı piyasa aktarım kanallarıyla izleniyor.
 görüntülenebilir, duraklatılabilir, aralığı değiştirilebilir ve elle çalıştırılabilir.
 Ayarlar PostgreSQL'de kalır; Redis kilidi mükerrer worker tetiklemesini önler.
 
+✅ **Operasyonel Veri Kalitesi**: `/sistem` aktif enstrümanların güncel sinyal
+kapsamını ve çözülmemiş AI hatalarının secret/ham mesaj göstermeyen kategori
+dağılımını raporlar.
+
 ✅ **Docker / Coolify Hazırlığı**: servisler health check, kaynak sınırı, log
 rotasyonu, salt-okunur dosya sistemi ve yetkisiz kullanıcılarla sertleştirildi.
 PostgreSQL/Redis kalıcılığı ile yedekleme, geri yükleme ve üretim smoke komutları hazır.
 
-Toplam **161 backend + 28 web ağsız test** geçiyor. Docker ile yapılan canlı
+Toplam **211 backend + 49 web ağsız test** geçiyor. Docker ile yapılan canlı
 doğrulamaların sayısal sonuçları `.claude/CODEX_NOTES.md` içinde.
 
 ## Hızlı başlangıç (yerel geliştirme)
