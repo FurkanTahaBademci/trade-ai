@@ -14,6 +14,7 @@ cikarilir.
 
 from __future__ import annotations
 
+from bisect import bisect_right
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date
@@ -73,6 +74,9 @@ def compute_signal_accuracy(
             by_ticker[price.ticker].append((price.price_date, price.close))
     for rows in by_ticker.values():
         rows.sort(key=lambda row: row[0])
+    dates_by_ticker = {
+        ticker: [row_date for row_date, _ in rows] for ticker, rows in by_ticker.items()
+    }
 
     returns: dict[tuple[int, str], list[Decimal]] = defaultdict(list)
     hits: dict[tuple[int, str], list[bool]] = defaultdict(list)
@@ -81,11 +85,10 @@ def compute_signal_accuracy(
         candidates = by_ticker.get(signal.ticker)
         if not candidates:
             continue
-        base_index = next(
-            (i for i, (row_date, _) in enumerate(candidates) if row_date > signal.as_of_date),
-            None,
-        )
-        if base_index is None:
+        # Binary search avoids rescanning a ticker's entire price history for
+        # every daily signal. This is material on a cold accuracy-cache fill.
+        base_index = bisect_right(dates_by_ticker[signal.ticker], signal.as_of_date)
+        if base_index >= len(candidates):
             continue
         _, base_close = candidates[base_index]
         if base_close <= 0:

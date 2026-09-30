@@ -129,7 +129,7 @@ def test_accuracy_endpoint_executes_query_path_and_returns_horizon_shape():
             return []
 
     class _Session:
-        async def scalars(self, statement):
+        async def execute(self, statement):
             return _Rows()
 
     async def override_db():
