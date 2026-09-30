@@ -95,6 +95,7 @@ async def test_quota_stops_batch_and_isolation_without_consuming_document_retrie
     monkeypatch.setattr("app.llm.service.get_provider_pause", AsyncMock(return_value=None))
     service._known_tickers = AsyncMock(return_value=set())
     service._daily_usage = AsyncMock(return_value=(0, 0))
+    service._reconcile_stale_records = AsyncMock(return_value=0)
     service._tier1_documents = AsyncMock(return_value=documents)
     service._tier2_parents = AsyncMock()
     result = await service.run()
@@ -115,6 +116,7 @@ async def test_run_skips_all_work_during_persisted_pause(monkeypatch):
     service = LlmEvaluationService(SimpleNamespace(), gateway)
     service._known_tickers = AsyncMock(return_value=set())
     service._daily_usage = AsyncMock(return_value=(100, 50))
+    service._reconcile_stale_records = AsyncMock(return_value=0)
     service._tier1_documents = AsyncMock()
     service._tier2_parents = AsyncMock()
     result = await service.run()
@@ -123,3 +125,35 @@ async def test_run_skips_all_work_during_persisted_pause(monkeypatch):
     service._tier1_documents.assert_not_awaited()
     service._tier2_parents.assert_not_awaited()
     gateway.generate.assert_not_awaited()
+
+
+async def test_stale_running_records_are_reconciled_before_retry_selection():
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(LlmEvaluation.__table__.create)
+        now = datetime.now(UTC)
+        settings = Settings(gemini_model_tier1="flash", gemini_model_tier2="pro")
+        async with AsyncSession(engine) as db:
+            db.add_all([
+                LlmEvaluation(id=1, evaluation_key="stale", source_type="news", source_id=1,
+                              content_hash="a", prompt_version="v1", tier=1, model="flash",
+                              status="running", input_document={}, attempt_count=3,
+                              started_at=now - timedelta(minutes=31)),
+                LlmEvaluation(id=2, evaluation_key="fresh", source_type="news", source_id=2,
+                              content_hash="b", prompt_version="v1", tier=1, model="flash",
+                              status="running", input_document={}, attempt_count=1,
+                              started_at=now - timedelta(minutes=5)),
+            ])
+            await db.commit()
+            service = LlmEvaluationService(db, SimpleNamespace(), settings=settings)
+
+            assert await service._reconcile_stale_records() == 1
+            stale = await db.get(LlmEvaluation, 1)
+            fresh = await db.get(LlmEvaluation, 2)
+            assert stale.status == "failed"
+            assert stale.completed_at is not None
+            assert "30 dakika" in stale.error_text
+            assert fresh.status == "running"
+    finally:
+        await engine.dispose()

@@ -51,6 +51,13 @@ case "$admin_token" in
   *) [ ${#admin_token} -ge 32 ] && pass "ADMIN_API_TOKEN yapilandirildi" || fail "ADMIN_API_TOKEN en az 32 karakter olmali" ;;
 esac
 
+web_admin_password=$(setting WEB_ADMIN_PASSWORD)
+if [ -n "$web_admin_password" ]; then
+  [ ${#web_admin_password} -ge 16 ] && pass "WEB_ADMIN_PASSWORD yapilandirildi" || fail "WEB_ADMIN_PASSWORD en az 16 karakter olmali"
+else
+  printf 'WARN  WEB_ADMIN_PASSWORD bos; yonetim girisi ADMIN_API_TOKEN parolasini kullanacak\n'
+fi
+
 public_api_url=$(setting NEXT_PUBLIC_API_URL)
 case "$public_api_url" in
   "") pass "Public API adresi kapali; web private API agini kullanacak" ;;

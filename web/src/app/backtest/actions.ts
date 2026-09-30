@@ -3,8 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { backtestFields, validateBacktestForm, type BacktestField, type BacktestFormState } from "@/lib/backtest-form";
+import { requireAdminRequest } from "@/lib/admin-request";
 
 export async function createBacktestAction(_previous: BacktestFormState, formData: FormData): Promise<BacktestFormState> {
+  await requireAdminRequest();
   const values = Object.fromEntries(Object.keys(backtestFields).map((name) => [name, String(formData.get(name) ?? "")])) as BacktestFormState["values"];
   const errors = validateBacktestForm(values);
   if (Object.keys(errors).length) return { values, errors, message: "İşaretli alanları kontrol edin." };

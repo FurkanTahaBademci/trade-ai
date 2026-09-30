@@ -2,12 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { requireAdminRequest } from "@/lib/admin-request";
 
 function apiBase() {
   return process.env.API_INTERNAL_URL ?? "http://localhost:8000";
 }
 
 async function mutate(path: string, init: RequestInit): Promise<{ ok: boolean; message: string }> {
+  await requireAdminRequest();
   try {
     const response = await fetch(`${apiBase()}${path}`, {
       ...init,
@@ -99,4 +101,3 @@ export async function vacuumStorageAction() {
     message: result.ok ? (result.message || "Depolama vakumlandı ve disk alanı temizlendi") : result.message,
   });
 }
-

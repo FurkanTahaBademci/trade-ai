@@ -111,15 +111,16 @@ async def signal_accuracy_report(
     except (RedisError, json.JSONDecodeError, TypeError) as exc:
         logger.debug("Redis cache miss or read error: %s", exc)
 
-    signal_rows = list(
-        (
-            await db.scalars(
-                select(CompositeSignalSnapshot).where(
-                    CompositeSignalSnapshot.model_version == model_version
-                )
-            )
-        ).all()
-    )
+    signal_rows = (
+        await db.execute(
+            select(
+                CompositeSignalSnapshot.ticker,
+                CompositeSignalSnapshot.as_of_date,
+                CompositeSignalSnapshot.composite_score,
+                CompositeSignalSnapshot.signal_label,
+            ).where(CompositeSignalSnapshot.model_version == model_version)
+        )
+    ).all()
     tickers = {row.ticker for row in signal_rows}
     price_points: list[PricePoint] = []
     if tickers:
@@ -143,7 +144,7 @@ async def signal_accuracy_report(
     try:
         await redis.setex(
             cache_key,
-            300,
+            900,
             json.dumps([item.model_dump(mode="json") for item in validated]),
         )
     except RedisError as exc:

@@ -16,6 +16,8 @@
 - Güçlü ve benzersiz `POSTGRES_PASSWORD`
 - Parolayla eşleşen tam `DATABASE_URL`
 - En az 32 rastgele karakterli `ADMIN_API_TOKEN` (API ve web aynı değeri alır)
+- `/sistem` ve `/backtest` için güçlü `WEB_ADMIN_PASSWORD` (kullanıcı adı
+  varsayılan `admin`, `WEB_ADMIN_USERNAME` ile değiştirilebilir)
 - `CORS_ORIGINS=https://app.example.com` (birden çoksa virgülle ayır)
 - `ALLOWED_HOSTS=api,localhost` (public API varsa domainini de ekle)
 - İhtiyaca göre Gemini ve N8N değişkenleri
@@ -65,11 +67,10 @@ Variables/Secrets alanında runtime değişkeni olarak tut.
 
 ### Yönetim ekranı erişimi
 
-`ADMIN_API_TOKEN`, backend yazma uçlarını korur. Web sunucusu bu anahtarı
-server action'larda kullandığından tek başına web ziyaretçisini doğrulamaz.
-İnternete yayın öncesi `/sistem` ve `/backtest` için kimlik doğrulama gerekir;
-mevcut uygulamada kullanıcı oturumu katmanı yoktur. Reverse proxy erişim
-kontrolü kullanılıyorsa bu rotaların POST isteklerini de korumalıdır.
+`ADMIN_API_TOKEN`, backend yazma uçlarını; HTTPS Basic Auth ise `/sistem` ve
+`/backtest` sayfalarıyla bunların Server Action POST isteklerini korur. Ayrı
+`WEB_ADMIN_PASSWORD` önerilir; boşsa geçiş uyumluluğu için `ADMIN_API_TOKEN`
+parola olur. Coolify/reverse proxy üzerinde ek erişim kontrolü kullanılabilir.
 
 ## Geri alma
 

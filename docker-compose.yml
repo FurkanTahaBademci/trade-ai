@@ -130,6 +130,8 @@ services:
     environment:
       API_INTERNAL_URL: http://api:8000
       ADMIN_API_TOKEN: ${ADMIN_API_TOKEN:-}
+      WEB_ADMIN_USERNAME: ${WEB_ADMIN_USERNAME:-admin}
+      WEB_ADMIN_PASSWORD: ${WEB_ADMIN_PASSWORD:-}
     depends_on:
       api:
         condition: service_healthy
