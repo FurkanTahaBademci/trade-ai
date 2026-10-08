@@ -1,0 +1,16 @@
+# Yerel gelistirme / self-hosted reverse proxy icin ornek Caddyfile.
+# Coolify kullaniyorsan kendi reverse proxy'sini otomatik kurar; bu dosyayi
+# yalnizca Coolify DISI bir sunucuya elle deploy edersen kullan.
+#
+# Kullanim: caddy run --config ops/Caddyfile
+
+{$DOMAIN:localhost} {
+    # Next.js dashboard - kok
+    reverse_proxy /api/* localhost:8000
+    reverse_proxy /* localhost:3000
+}
+
+# API'yi ayri bir alt domainde yayinlamak istersen (opsiyonel):
+# api.{$DOMAIN:localhost} {
+#     reverse_proxy localhost:8000
+# }

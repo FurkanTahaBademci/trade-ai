@@ -1,0 +1,56 @@
+name: Release
+
+# vX.Y.Z etiketi push edilince: testler + sizinti denetimi, sonra GitHub Release.
+# Etiketi elle degil `make release VERSION=X.Y.Z` ile olusturun (docs/RELEASING.md).
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+    secrets:
+      LEAK_DENY_PATTERNS: ${{ secrets.LEAK_DENY_PATTERNS }}
+
+  release:
+    needs: ci
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Surum tutarliligi
+        run: |
+          version=$(tr -d '[:space:]' < VERSION)
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Etiket ($GITHUB_REF_NAME) VERSION dosyasiyla ($version) uyusmuyor."
+            exit 1
+          fi
+
+      - name: Surum notlari (CHANGELOG)
+        run: |
+          awk -v ver="${GITHUB_REF_NAME#v}" '
+            index($0, "## [" ver "]") == 1 {on=1; next}
+            on && /^## \[/ {exit}
+            on {print}
+          ' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
+          if [ -z "$(tr -d '[:space:]' < "$RUNNER_TEMP/notes.md")" ]; then
+            echo "::error::CHANGELOG.md icinde [${GITHUB_REF_NAME#v}] bolumu yok veya bos."
+            exit 1
+          fi
+
+      - name: GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "$GITHUB_REF_NAME Release'i zaten var."
+          else
+            gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" \
+              --notes-file "$RUNNER_TEMP/notes.md" --verify-tag
+          fi

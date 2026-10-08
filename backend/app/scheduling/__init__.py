@@ -1,0 +1,1 @@
+"""Veritabanindan yonetilen collector zamanlayicisi."""

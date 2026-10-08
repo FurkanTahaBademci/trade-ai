@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Env / secrets
+.env
+.env.local
+*.pem
+# Kisiye ozel sizinti denetim desenleri (ops/leak-check.sh)
+.leak-deny
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+next-env.d.ts
+*.tsbuildinfo
+
+# Data / çıktılar
+data/
+backups/
+*.db
+*.sqlite3
+backend/tests/fixtures/live/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Yerel gelistirme notlari ve canli ortam incelemeleri (repoya girmez)
+.claude/*
+!.claude/CLAUDE.md
+ops/LIVE-REVIEW-*.md
+ops/REVIEW-*.md
+ops/UI-TERMINAL-*.md
