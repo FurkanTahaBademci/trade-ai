@@ -67,8 +67,8 @@ Variables/Secrets alanında runtime değişkeni olarak tut.
 
 ### Yönetim ekranı erişimi
 
-`ADMIN_API_TOKEN`, backend yazma uçlarını; HTTPS Basic Auth ise `/sistem` ve
-`/backtest` sayfalarıyla bunların Server Action POST isteklerini korur. Ayrı
+`ADMIN_API_TOKEN`, backend yazma uçlarını; `/giris` sayfasındaki yönetici girişi
+ise `/sistem` ve `/backtest` sayfalarıyla bunların Server Action POST isteklerini korur. Ayrı
 `WEB_ADMIN_PASSWORD` önerilir; boşsa geçiş uyumluluğu için `ADMIN_API_TOKEN`
 parola olur. Coolify/reverse proxy üzerinde ek erişim kontrolü kullanılabilir.
 

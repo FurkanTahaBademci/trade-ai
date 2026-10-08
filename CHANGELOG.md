@@ -9,6 +9,18 @@ bu bölümü yeni sürüm numarasıyla kapatır.
 
 ## [Unreleased]
 
+### Eklendi
+
+- Yönetim ekranları için `/giris` giriş sayfası: imzalı ve 12 saat geçerli
+  oturum çerezi, `/sistem` ve `/backtest` başlıklarında "Çıkış yap" düğmesi,
+  hatalı denemelere karşı kilit. Giriş sonrası açılmak istenen sayfaya dönülür.
+
+### Değişti
+
+- Tarayıcının HTTP Basic Auth penceresi kaldırıldı. Mevcut
+  `WEB_ADMIN_USERNAME` / `WEB_ADMIN_PASSWORD` ayarları aynen kullanılır; yeni
+  ayar gerekmez. Parola değiştirildiğinde tüm açık oturumlar kapanır.
+
 ## [0.1.0] - 2026-10-08
 
 İlk açık kaynak sürüm.

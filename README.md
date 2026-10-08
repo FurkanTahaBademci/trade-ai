@@ -32,8 +32,8 @@ işletir.
   görüş, makro/faiz, piyasa takvimi, hisse karşılaştırma, izleme listesi,
   portföy ve CSV dışa aktarma. Açık/koyu tema ve mobil uyumlu arayüz.
 - **Yönetim:** Tarama takvimi, çalışma zamanı ayarları, bildirimler
-  (Telegram/webhook) ve veri kalitesi izleme. Hepsi parola korumalı `/sistem`
-  ekranından yönetilir.
+  (Telegram/webhook) ve veri kalitesi izleme. Hepsi yönetici girişiyle korunan
+  `/sistem` ekranından yönetilir.
 
 ## Mimari
 
@@ -78,8 +78,8 @@ make dev        # tüm servisleri derleyip başlatır
 
 - Dashboard: <http://localhost:3000>
 - API dokümanı: <http://localhost:8000/docs>
-- Yönetim: <http://localhost:3000/sistem>. Tarayıcı, `make init` çıktısındaki
-  kullanıcı adı ve parolayı sorar.
+- Yönetim: <http://localhost:3000/giris>. `make init` çıktısındaki kullanıcı adı
+  ve parolayla giriş yapın.
 
 Veritabanı migration'ları API açılırken otomatik çalışır. İlk veriler worker'ın
 takvimine göre birkaç dakika içinde gelmeye başlar. Beklemek istemiyorsanız bir

@@ -9,6 +9,7 @@ import type { BacktestRun, BacktestTrade, IndexPrice } from "@/lib/types";
 import { BacktestForm } from "@/components/backtest-form";
 import { BacktestHistory } from "@/components/backtest-history";
 import { BacktestTrades } from "@/components/backtest-trades";
+import { LogoutButton } from "@/components/logout-button";
 
 import { normalizeTicker } from "@/lib/turkish";
 
@@ -42,7 +43,7 @@ export default async function BacktestPage({ searchParams }: { searchParams: Pro
     : { data: [] as IndexPrice[], ok: true as const };
   const serviceDown = !runs.ok || !detail.ok || !trades.ok;
 
-  return <><PageHeader eyebrow="Strateji laboratuvarı · Canlı emir yok" title="Backtest" description="Bileşik sinyal stratejisini geçmiş veride, komisyon ve fiyat kaymasını dahil ederek ölçün. Geçmiş koşulara ve hisse bazında işlemlere ulaşın." actions={<span className="pill pill-primary">backtest-v1</span>}/><ServiceNotice show={serviceDown}/>
+  return <><PageHeader eyebrow="Strateji laboratuvarı · Canlı emir yok" title="Backtest" description="Bileşik sinyal stratejisini geçmiş veride, komisyon ve fiyat kaymasını dahil ederek ölçün. Geçmiş koşulara ve hisse bazında işlemlere ulaşın." actions={<div className="flex items-center gap-2"><span className="pill pill-primary">backtest-v1</span><LogoutButton/></div>}/><ServiceNotice show={serviceDown}/>
     <div className="grid gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
       <aside className="min-w-0 space-y-4">
         <section className="panel-flat p-4"><SectionTitle title="Yeni koşu" subtitle="Tarih aralığı ve strateji ayarları"/><BacktestForm startDate={dateInput(365)} endDate={dateInput()}/></section>

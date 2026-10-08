@@ -1,12 +1,12 @@
 # Yönetim Erişimi ve Parolalar
 
-trade-ai'de ayrı bir kullanıcı sistemi veya giriş sayfası **yoktur**. Herkese açık
-ekranlar (piyasalar, sinyaller, haberler, KAP, portföy…) kimlik doğrulama
-istemez. Sistemi değiştirebilen kısımlar iki ayrı katmanla korunur:
+trade-ai'de tek bir yönetici hesabı vardır; kullanıcı kaydı veya çoklu kullanıcı
+yoktur. Herkese açık ekranlar (piyasalar, sinyaller, haberler, KAP, portföy…)
+giriş istemez. Sistemi değiştirebilen kısımlar iki katmanla korunur:
 
 | Katman | Neyi korur | Nasıl çalışır | Ayar |
 |---|---|---|---|
-| **Web yönetim girişi** | `/sistem` ve `/backtest` sayfaları ile bu sayfalardaki tüm form gönderimleri | Tarayıcının kendi kullanıcı adı/parola penceresi (HTTP Basic Auth) | `WEB_ADMIN_USERNAME`, `WEB_ADMIN_PASSWORD` |
+| **Web yönetim girişi** | `/sistem` ve `/backtest` sayfaları ile bu sayfalardaki tüm form gönderimleri | `/giris` sayfası; başarılı girişte 12 saatlik imzalı oturum çerezi | `WEB_ADMIN_USERNAME`, `WEB_ADMIN_PASSWORD` |
 | **Backend yönetim anahtarı** | API'nin veri değiştiren tüm uçları | `X-Admin-Token` HTTP başlığı | `ADMIN_API_TOKEN` |
 
 Web sunucusu, yönetim ekranındaki bir işlemi backend'e iletirken
@@ -59,19 +59,31 @@ kullanılamaz. `@`, `/` ve `#` ise `DATABASE_URL` içinde kaçış gerektirir.
 
 ## Giriş ve çıkış
 
-1. Tarayıcıda `https://<alan-adınız>/sistem` adresini açın.
-2. Tarayıcı bir giriş penceresi gösterir. `WEB_ADMIN_USERNAME` (varsayılan
-   `admin`) ve `WEB_ADMIN_PASSWORD` değerlerini girin.
-3. Tarayıcı bilgileri oturum boyunca hatırlar; `/backtest` için tekrar sormaz.
+1. Menüden **Sistem Sağlığı** veya **Backtest** ekranını açın (ya da doğrudan
+   `https://<alan-adınız>/giris` adresine gidin).
+2. Oturum yoksa **Yönetici girişi** sayfasına yönlendirilirsiniz.
+   `WEB_ADMIN_USERNAME` (varsayılan `admin`) ve `WEB_ADMIN_PASSWORD`
+   değerlerini girin.
+3. Giriş sonrası açmak istediğiniz sayfaya geri dönersiniz. Oturum 12 saat
+   geçerlidir; süre dolunca giriş sayfası yeniden gelir.
+4. Çıkmak için `/sistem` veya `/backtest` başlığındaki **Çıkış yap** düğmesine
+   basın.
 
-HTTP Basic Auth'ta "çıkış yap" düğmesi yoktur. Çıkmak için tarayıcıyı tamamen
-kapatın veya yönetim işlerini gizli pencerede yapın. Parolayı değiştirdiğinizde
-eski parolayla açılmış tüm oturumlar bir sonraki istekte reddedilir.
+Oturum ayrıntıları:
 
-Basic Auth, parolayı her istekte yalnızca base64 kodlamasıyla gönderir;
-**şifreleme yapmaz**. İnternete açık her kurulumda HTTPS zorunludur. Coolify ve
-`ops/Caddyfile` örneği TLS sertifikasını otomatik alır. `http://localhost`
-yalnızca yerel geliştirmede kabul edilebilir.
+- Çerez (`tradeai_admin`) `HttpOnly` ve `SameSite=Lax` olarak verilir. Site HTTPS
+  arkasındaysa (`X-Forwarded-Proto: https`; Coolify ve Caddy bunu gönderir)
+  `Secure` da eklenir.
+- Çerez parolayı değil, yalnızca kullanıcı adını ve bitiş zamanını taşır. İmza
+  anahtarı yapılandırılmış paroladan türetilir. **Parolayı veya kullanıcı adını
+  değiştirmek tüm açık oturumları anında geçersiz kılar.** Bütün cihazlardan
+  çıkış yapmanın yolu budur.
+- Kaba kuvvet koruması: aynı istemciden 15 dakikada 5 hatalı deneme o istemciyi
+  kilitler. Toplamda 30 hatalı deneme ise girişi 15 dakikalığına herkes için
+  kilitler. Kilit web container'ı yeniden başlatılınca sıfırlanır.
+- Giriş formu parolayı düz metin olarak gönderir. İnternete açık her kurulumda
+  HTTPS zorunludur. Coolify ve `ops/Caddyfile` örneği TLS sertifikasını
+  otomatik alır. `http://localhost` yalnızca yerel kullanımda kabul edilebilir.
 
 ## Hangi durumda ne olur?
 
@@ -83,9 +95,9 @@ girişi devrededir.
 
 | `WEB_ADMIN_PASSWORD` | `ADMIN_API_TOKEN` | Docker / production | `npm run dev` |
 |---|---|---|---|
-| dolu | herhangi | Kullanıcı adı + `WEB_ADMIN_PASSWORD` sorulur | Aynı şekilde sorulur |
+| dolu | herhangi | `/giris` sayfası: kullanıcı adı + `WEB_ADMIN_PASSWORD` | Aynı şekilde |
 | boş | dolu | Parola olarak `ADMIN_API_TOKEN` kullanılır (geriye uyumluluk) | Giriş istenmez |
-| boş | boş | **HTTP 503** — "Yönetici erişimi yapılandırılmamış" | Giriş istenmez |
+| boş | boş | Yönetim sayfaları **HTTP 503**; `/giris` yapılandırma uyarısı gösterir | Giriş istenmez |
 
 Önerilen yapılandırma ilk satırdır: ayrı ve güçlü bir `WEB_ADMIN_PASSWORD`.
 
@@ -139,9 +151,9 @@ servisine verir; iki yere ayrı ayrı girmeniz gerekmez. Değerleri girdikten so
 değerlerini ekrana basmadan reddeder. Tam kontrol listesi:
 [ops/COOLIFY.md](../ops/COOLIFY.md).
 
-Ek güvenlik katmanı olarak yönetim yollarını reverse proxy üzerinde IP izin
-listesiyle veya Cloudflare Access gibi bir kimlik sağlayıcıyla da
-sınırlayabilirsiniz.
+Ek güvenlik katmanı olarak `/giris`, `/sistem` ve `/backtest` yollarını reverse
+proxy üzerinde IP izin listesiyle veya Cloudflare Access gibi bir kimlik
+sağlayıcıyla da sınırlayabilirsiniz.
 
 ## Parola değiştirme
 
@@ -178,9 +190,11 @@ docker compose up -d api worker
 
 | Belirti | Neden / çözüm |
 |---|---|
-| `/sistem` açılınca **503 "Yönetici erişimi yapılandırılmamış"** | Web container'ında `WEB_ADMIN_PASSWORD` ve `ADMIN_API_TOKEN` boş. Birini (tercihen ikisini) ayarlayıp `docker compose up -d web` çalıştırın. |
-| Giriş penceresi sürekli tekrar açılıyor | Kullanıcı adı veya parola yanlış. Değeri `.env` dosyasından kopyalayın; başında veya sonunda boşluk kalmadığından emin olun. Değeri değiştirdikten sonra container'ı yeniden oluşturdunuz mu? |
+| `/sistem` açılınca **503 "Yönetici erişimi yapılandırılmamış"** veya `/giris` aynı uyarıyı gösteriyor | Web container'ında `WEB_ADMIN_PASSWORD` ve `ADMIN_API_TOKEN` boş. Birini (tercihen ikisini) ayarlayıp `docker compose up -d web` çalıştırın. |
+| "Kullanıcı adı veya parola hatalı" | Kullanıcı adı veya parola yanlış. Değeri `.env` dosyasından kopyalayın; başında veya sonunda boşluk kalmadığından emin olun. Değeri değiştirdikten sonra container'ı yeniden oluşturdunuz mu? |
+| "Çok fazla hatalı deneme" | Kaba kuvvet kilidi devrede. 15 dakika bekleyin veya web container'ını yeniden başlatın: `docker compose restart web`. |
+| Giriş yaptıktan hemen sonra tekrar giriş sayfası geliyor | Çerez kaydedilmiyor. Site HTTP üzerinden açılıyor ama proxy `X-Forwarded-Proto: https` gönderiyorsa tarayıcı `Secure` çerezi saklamaz; siteyi `https://` ile açın. Tarayıcıda çerezlerin engellenmediğini de kontrol edin. |
 | Sayfa açılıyor ama işlemler **"Gecersiz yonetim anahtari"** hatası veriyor | `api` ve `web` farklı `ADMIN_API_TOKEN` değerleriyle çalışıyor. İkisini birlikte yeniden oluşturun: `docker compose up -d api web`. |
 | İşlemler **"ADMIN_API_TOKEN production ortaminda zorunludur"** hatası veriyor | `ENVIRONMENT=production` iken `ADMIN_API_TOKEN` boş. Bir değer üretip ayarlayın. |
 | Parolayı unuttum | Parola `.env` dosyasında (Coolify'da Environment Variables ekranında) düz metin olarak durur. Bulamazsanız yeni bir değer yazıp container'ı yeniden oluşturun. |
-| Yerelde `npm run dev` ile giriş hiç sorulmuyor | Beklenen davranış: geliştirme modunda `WEB_ADMIN_PASSWORD` boşsa giriş kapalıdır. Test etmek için `web/.env.local` içine `WEB_ADMIN_PASSWORD=...` yazın. |
+| Yerelde `npm run dev` ile giriş sayfası hiç gelmiyor | Beklenen davranış: geliştirme modunda `WEB_ADMIN_PASSWORD` boşsa giriş kapalıdır. Test etmek için `web/.env.local` içine `WEB_ADMIN_PASSWORD=...` yazın. |

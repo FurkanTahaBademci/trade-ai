@@ -37,8 +37,8 @@ trade-ai iki katmanlı yapılandırma kullanır:
 | Değişken | Açıklama |
 |---|---|
 | `ADMIN_API_TOKEN` | Backend yazma uçlarının anahtarı (en az 32 karakter). |
-| `WEB_ADMIN_USERNAME` | `/sistem` ve `/backtest` giriş kullanıcı adı (varsayılan `admin`). |
-| `WEB_ADMIN_PASSWORD` | `/sistem` ve `/backtest` giriş parolası (en az 16 karakter). |
+| `WEB_ADMIN_USERNAME` | `/giris` sayfasındaki yönetici kullanıcı adı (varsayılan `admin`). |
+| `WEB_ADMIN_PASSWORD` | `/giris` sayfasındaki yönetici parolası (en az 16 karakter). Değiştirmek açık oturumları kapatır. |
 
 Davranış tabloları ve parola değiştirme adımları: [ADMIN.md](ADMIN.md).
 
