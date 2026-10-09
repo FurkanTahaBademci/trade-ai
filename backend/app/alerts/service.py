@@ -21,7 +21,7 @@ from app.alerts.channels import AlertMessage, configured_channels, deliver
 from app.core.config import Settings
 from app.core.dynamic_settings import resolve_settings
 from app.core.redis import get_redis
-from app.models import CompositeSignalSnapshot, PaperPortfolio, PaperPosition
+from app.models import CompositeSignalSnapshot, PaperPortfolio, PaperPosition, PaperTrade
 
 logger = structlog.get_logger(__name__)
 
@@ -29,6 +29,8 @@ SENT_KEY_PREFIX = "alerts:sent:"
 LABEL_STATE_KEY = "alerts:label_state"
 EVENT_TTL_SECONDS = 7 * 24 * 60 * 60
 SIGNAL_MODEL_VERSION = "v1"
+# Risk kurali tetikli cikislar uyari seviyesinde bildirilir.
+EXIT_ALERT_REASONS = {"stop_loss", "trailing_stop", "take_profit"}
 LABEL_TEXT = {
     "VERY_POSITIVE": "Çok olumlu",
     "POSITIVE": "Olumlu",
@@ -73,6 +75,26 @@ def high_score_alert(row: dict[str, Any]) -> AlertMessage:
         title=f"{row['ticker']} çok yüksek skor: {row['score']:.1f}/100",
         message=f"Etiket: {LABEL_TEXT.get(row['label'], row['label'])} ({row['as_of_date']}).",
         details={k: str(v) for k, v in row.items()},
+    )
+
+
+def paper_trade_alert(trade: dict[str, Any]) -> AlertMessage:
+    buy = trade["side"] == "BUY"
+    verb = "alındı" if buy else "satıldı"
+    severity = "info"
+    if not buy and trade.get("exit_reason") in EXIT_ALERT_REASONS:
+        severity = "warning"
+    pnl = trade.get("realized_pnl")
+    pnl_text = "" if pnl is None else f" Gerçekleşen K/Z: {pnl:+,.2f} TL."
+    return AlertMessage(
+        event_type="paper_trade",
+        severity=severity,
+        title=f"{trade['ticker']} {verb} ({trade['portfolio']})",
+        message=(
+            f"{trade['quantity']:g} adet @ {trade['price']:.2f} ({trade['trade_date']}). "
+            f"{trade['reason']}.{pnl_text}"
+        ),
+        details={k: str(v) for k, v in trade.items() if v is not None},
     )
 
 
@@ -215,6 +237,52 @@ async def evaluate_signal_alerts(
     return stats
 
 
+async def evaluate_paper_trade_alerts(
+    session: AsyncSession,
+    *,
+    settings: Settings,
+    redis: Redis,
+    client: httpx.AsyncClient,
+) -> int:
+    """Son islem gunundeki paper islemleri bildirir (execution_key ile bir kez)."""
+    last_date = await session.scalar(select(func.max(PaperTrade.trade_date)))
+    if last_date is None:
+        return 0
+    rows = (
+        await session.execute(
+            select(PaperTrade, PaperPortfolio.name)
+            .join(PaperPortfolio, PaperPortfolio.id == PaperTrade.portfolio_id)
+            .where(PaperTrade.trade_date == last_date)
+            .order_by(PaperTrade.id)
+        )
+    ).all()
+    delivered = 0
+    for trade, portfolio_name in rows:
+        result = await dispatch_alert(
+            paper_trade_alert(
+                {
+                    "portfolio": portfolio_name,
+                    "ticker": trade.ticker,
+                    "side": trade.side,
+                    "quantity": float(trade.quantity),
+                    "price": float(trade.price),
+                    "trade_date": trade.trade_date.isoformat(),
+                    "reason": trade.reason,
+                    "exit_reason": trade.exit_reason,
+                    "realized_pnl": (
+                        None if trade.realized_pnl is None else float(trade.realized_pnl)
+                    ),
+                }
+            ),
+            dedupe_key=f"paper_trade:{trade.execution_key}",
+            settings=settings,
+            redis=redis,
+            client=client,
+        )
+        delivered += int(result["delivered"])
+    return delivered
+
+
 async def evaluate_health_alerts(
     *,
     settings: Settings,
@@ -262,7 +330,10 @@ async def evaluate_alerts(ctx: dict) -> dict[str, Any]:
                 signals = await evaluate_signal_alerts(
                     session, settings=settings, redis=redis, client=client
                 )
-        return {"enabled": True, "health": health, **signals}
+                paper_trades = await evaluate_paper_trade_alerts(
+                    session, settings=settings, redis=redis, client=client
+                )
+        return {"enabled": True, "health": health, "paper_trades": paper_trades, **signals}
     except Exception as exc:  # noqa: BLE001 - alarm degerlendirmesi worker'i cokertmemeli
         logger.error("alert_evaluation_failed", error=str(exc))
         return {"enabled": True, "error": str(exc)[:200]}

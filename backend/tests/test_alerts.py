@@ -102,6 +102,37 @@ async def test_dispatch_is_idempotent_for_same_event():
     assert len(calls) == 2  # ilk gonderimde telegram + webhook, ikincide sifir
 
 
+def _trade(**overrides):
+    return {
+        "portfolio": "Ana",
+        "ticker": "THYAO",
+        "side": "SELL",
+        "quantity": 100.0,
+        "price": 250.5,
+        "trade_date": "2026-10-08",
+        "reason": "Zarar-kes: -8.10% <= -8%",
+        "exit_reason": "stop_loss",
+        "realized_pnl": -1250.0,
+        **overrides,
+    }
+
+
+def test_paper_trade_alert_marks_risk_exits_as_warning():
+    stop = service.paper_trade_alert(_trade())
+    assert stop.severity == "warning"
+    assert "satıldı" in stop.title
+    assert "-1,250.00" in stop.message
+
+    signal_exit = service.paper_trade_alert(_trade(exit_reason="signal"))
+    buy = service.paper_trade_alert(
+        _trade(side="BUY", exit_reason=None, realized_pnl=None, reason="Bilesik skor 80")
+    )
+    assert signal_exit.severity == "info"
+    assert buy.severity == "info"
+    assert "alındı" in buy.title
+    assert "K/Z" not in buy.message
+
+
 @pytest.mark.asyncio
 async def test_dispatch_releases_key_when_all_channels_fail():
     redis = FakeRedis()

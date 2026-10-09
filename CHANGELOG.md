@@ -15,6 +15,9 @@ bu bölümü yeni sürüm numarasıyla kapatır.
   oturum çerezi, `/sistem` ve `/backtest` başlıklarında "Çıkış yap" düğmesi,
   hatalı denemelere karşı kilit. Giriş sonrası açılmak istenen sayfaya dönülür.
 
+- Paper portföy işlem bildirimleri: alım/satımlar Telegram/webhook ile bir kez
+  bildirilir; zarar-kes, trailing stop ve kar-al çıkışları uyarı seviyesindedir.
+
 ### Değişti
 
 - Tarayıcının HTTP Basic Auth penceresi kaldırıldı. Mevcut
