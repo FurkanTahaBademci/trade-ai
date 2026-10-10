@@ -9,6 +9,8 @@ bu bölümü yeni sürüm numarasıyla kapatır.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-10
+
 ### Eklendi
 
 - `/makro` sayfasında TCMB EVDS'den USD/TRY, EUR/TRY gösterge kurları ve TÜFE
