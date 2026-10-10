@@ -112,3 +112,39 @@ def test_multiple_signals_average_correctly():
     assert result.observation_count == 2
     assert result.average_return_pct == 10
     assert result.hit_rate_pct == 50
+
+
+def test_excess_return_subtracts_benchmark_over_same_window():
+    # Hisse %-5, endeks %-10: mutlak yon isabeti yok ama endeksi yendi.
+    prices = _consecutive_prices("THYAO", 2, ["100", "100", "99", "98", "97", "96", "95"])
+    benchmark = [(date(2026, 1, 2 + i), Decimal(v)) for i, v in enumerate(
+        ["1000", "1000", "980", "960", "940", "920", "900"]
+    )]
+
+    result = stat(
+        compute_signal_accuracy(
+            [signal("THYAO", 2, "POSITIVE")], prices, horizons=(5,), benchmark=benchmark
+        ),
+        5,
+        "POSITIVE",
+    )
+
+    assert result.average_return_pct == -5
+    assert result.hit_rate_pct == 0
+    assert result.average_excess_pct == 5
+    assert result.beat_rate_pct == 100
+
+
+def test_excess_fields_are_empty_without_benchmark():
+    result = stat(
+        compute_signal_accuracy(
+            [signal("THYAO", 2, "POSITIVE")],
+            _consecutive_prices("THYAO", 2, ["100"] * 7),
+            horizons=(5,),
+        ),
+        5,
+        "POSITIVE",
+    )
+
+    assert result.average_excess_pct is None
+    assert result.beat_rate_pct is None

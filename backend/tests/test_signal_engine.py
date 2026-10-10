@@ -13,9 +13,9 @@ from app.signals.service import (
     ComponentResult,
     build_composite_signal,
     score_analyst,
-    score_fund_flow,
     score_fundamental,
     score_llm_evaluations,
+    score_momentum,
     signal_label,
 )
 
@@ -37,11 +37,55 @@ def test_composite_renormalizes_missing_components_instead_of_counting_zero():
     result = build_composite_signal("THYAO", components, as_of_date=date(2026, 9, 7))
 
     assert result is not None
-    assert result["composite_score"] == Decimal("70.91")
+    # Ham 71,2; guven 0,445 < 0,60 oldugundan 50'ye dogru cekilir.
+    assert result["evidence"]["raw_score"] == 71.2
+    assert result["composite_score"] == Decimal("65.72")
     assert result["signal_label"] == "POSITIVE"
     assert result["coverage_count"] == 2
-    assert result["component_weights"] == {"fundamental": 0.5455, "analyst": 0.4545}
-    assert result["confidence"] < Decimal(1)
+    assert result["component_weights"] == {"fundamental": 0.56, "analyst": 0.44}
+    assert result["confidence"] == Decimal("0.44500")
+
+
+def test_low_confidence_score_is_pulled_toward_neutral():
+    weak = {
+        "llm": ComponentResult(Decimal(90), Decimal("0.2"), {}),
+        "analyst": ComponentResult(Decimal(90), Decimal("0.2"), {}),
+    }
+    strong = {
+        "llm": ComponentResult(Decimal(80), Decimal(1), {}),
+        "fundamental": ComponentResult(Decimal(80), Decimal(1), {}),
+        "analyst": ComponentResult(Decimal(80), Decimal(1), {}),
+    }
+
+    weak_result = build_composite_signal("AAA", weak, as_of_date=date(2026, 9, 7))
+    strong_result = build_composite_signal("BBB", strong, as_of_date=date(2026, 9, 7))
+
+    assert weak_result["evidence"]["raw_score"] == 90.0
+    assert weak_result["composite_score"] < strong_result["composite_score"]
+    assert strong_result["composite_score"] == Decimal("80.00")
+
+
+def test_fund_flow_is_not_a_composite_component():
+    components = {
+        "analyst": ComponentResult(Decimal(90), Decimal(1), {}),
+        "fund_flow": ComponentResult(Decimal(47), Decimal(1), {}),
+    }
+    assert build_composite_signal("GWIND", components, as_of_date=date(2026, 9, 7)) is None
+
+
+def test_stale_analyst_consensus_loses_confidence():
+    base = {
+        "id": 5,
+        "recommendation_score": Decimal(100),
+        "institution_count": 8,
+        "as_of_date": date(2026, 9, 7),
+        "implied_upside_pct": None,
+    }
+    fresh = score_analyst(SimpleNamespace(**base, average_age_days=Decimal(0)))
+    stale = score_analyst(SimpleNamespace(**base, average_age_days=Decimal(120)))
+
+    assert fresh.confidence == Decimal(1)
+    assert stale.confidence == Decimal("0.5")
 
 
 def test_single_component_is_not_published_as_composite_signal():
@@ -93,25 +137,11 @@ def test_component_adapters_bound_scores_and_expose_evidence():
             implied_upside_pct=Decimal("20.5"),
         )
     )
-    flow = score_fund_flow(
-        SimpleNamespace(
-            id=6,
-            total_aum=Decimal(1000),
-            estimated_stock_flow=Decimal(5),
-            positive_flow_pct=Decimal(60),
-            flow_observation_count=8,
-            fund_count=10,
-            date=date(2026, 9, 7),
-        ),
-        as_of_date=date(2026, 9, 7),
-    )
 
     assert fundamental is not None and fundamental.score == Decimal("83.2")
     assert fundamental.confidence == Decimal(1)
     assert analyst is not None and analyst.confidence == Decimal("0.75")
     assert analyst.score == Decimal("71.3125")
-    assert flow is not None and flow.score == Decimal(88)
-    assert flow.confidence == Decimal("0.8")
 
 
 def test_signal_routes_are_registered():
@@ -173,3 +203,41 @@ def test_signal_list_endpoint_executes_query_path():
         app.dependency_overrides.clear()
     assert response.status_code == 200
     assert response.json() == []
+
+
+def _series(start: date, values: list[float]) -> list[tuple[date, Decimal]]:
+    return [(start + timedelta(days=i), Decimal(str(v))) for i, v in enumerate(values)]
+
+
+def test_momentum_scores_relative_to_benchmark_not_absolute_return():
+    start = date(2026, 6, 1)
+    # Hisse 61 gunde %0, endeks %-20: goreli +20 puan (hem 20g hem 60g'de pozitif).
+    closes = _series(start, [100.0] * 61)
+    index = _series(start, [1000 - i * (200 / 60) for i in range(61)])
+    as_of = start + timedelta(days=60)
+
+    result = score_momentum(closes, index, as_of_date=as_of)
+
+    assert result is not None
+    assert result.score > 50
+    assert result.confidence == Decimal(1)
+    assert result.evidence["relative_60d_pct"] > 0
+
+
+def test_momentum_requires_enough_and_fresh_prices():
+    start = date(2026, 6, 1)
+    index = _series(start, [1000.0] * 61)
+    assert score_momentum(_series(start, [100.0] * 15), index, as_of_date=start + timedelta(days=14)) is None
+    stale = _series(start, [100.0] * 30)
+    assert score_momentum(stale, index, as_of_date=start + timedelta(days=45)) is None
+
+
+def test_momentum_ignores_prices_after_as_of_date():
+    start = date(2026, 6, 1)
+    index = _series(start, [1000.0] * 40)
+    flat_then_spike = _series(start, [100.0] * 30 + [300.0] * 10)
+
+    result = score_momentum(flat_then_spike, index, as_of_date=start + timedelta(days=29))
+
+    assert result is not None
+    assert result.score == Decimal(50)

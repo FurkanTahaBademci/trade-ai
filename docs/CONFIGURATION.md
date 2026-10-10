@@ -42,6 +42,15 @@ trade-ai iki katmanlı yapılandırma kullanır:
 
 Davranış tabloları ve parola değiştirme adımları: [ADMIN.md](ADMIN.md).
 
+### TCMB EVDS (makro göstergeler)
+
+| Değişken | Varsayılan | Açıklama |
+|---|---|---|
+| `EVDS_API_KEY` | — | TCMB EVDS API anahtarı (ücretsiz; evds2.tcmb.gov.tr üyelik → profil). Tanımlı değilse `/makro` sayfasındaki kur ve TÜFE kartları görünmez. |
+
+Anahtar tanımlandıktan sonra ilk veriyi almak için
+`docker compose exec api python -m scripts.run_once evds`.
+
 ### Gemini (yapay zeka değerlendirmesi)
 
 LLM değerlendirmesi ücretli API çağrısı yapar ve **varsayılan olarak kapalıdır**.
@@ -98,7 +107,9 @@ Aşağıdaki ayarlar yönetim girişinden sonra `/sistem` ekranından değiştir
 - **Gemini:** API anahtarı, API modu, Tier 1/Tier 2 modelleri, grup ve batch
   boyutu, günlük çıktı token bütçesi, LLM'in açık/kapalı durumu.
 - **Paper portföy riskleri:** stop-loss, take-profit, takip eden stop, en fazla
-  pozisyon ve sektör ağırlığı, yeniden dengeleme.
+  pozisyon ve sektör ağırlığı, yeniden dengeleme. Varsayılanlar: zarar-kes
+  %15, kâr-al ve takip eden stop kapalı, tek pozisyon %10, sektör %30,
+  yeniden dengeleme açık. Ekrandan kaydedilen değer varsayılanın önüne geçer.
 - **Bildirimler:** açık/kapalı, Telegram bot token ve chat ID, webhook URL,
   izlenen hisseler, yüksek skor eşiği.
 - **Sistem uyarıları:** N8N webhook URL.

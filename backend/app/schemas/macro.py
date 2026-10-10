@@ -25,3 +25,18 @@ class MonetaryPolicyDecisionOut(BaseModel):
     market_impact: dict
     created_at: datetime
     updated_at: datetime
+
+
+class MacroSeriesPointOut(BaseModel):
+    date: date
+    value: float
+
+
+class MacroSeriesOut(BaseModel):
+    code: str
+    label: str
+    latest_date: date | None
+    latest_value: float | None
+    change_pct: float | None
+    yoy_pct: float | None
+    history: list[MacroSeriesPointOut]

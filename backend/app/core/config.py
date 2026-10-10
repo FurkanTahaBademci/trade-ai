@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
 
     gemini_api_key: str = ""
+    # TCMB EVDS (kur, TUFE). Bos ise makro seri toplayicisi calismaz.
+    evds_api_key: str = ""
     gemini_api_mode: str = "interactions"
     gemini_model_tier1: str = "gemini-3.8-flash"
     gemini_model_tier2: str = "gemini-3.1-pro-preview"
@@ -36,12 +38,12 @@ class Settings(BaseSettings):
     llm_max_source_chars: int = 12_000
 
     # Paper portfoy risk kurallari (yuzde; 0 = kapali). Varsayilanlar mevcut davranisi korur.
-    paper_stop_loss_pct: int = 0
+    paper_stop_loss_pct: int = 15
     paper_take_profit_pct: int = 0
     paper_trailing_stop_pct: int = 0
     paper_max_position_weight_pct: int = 10
-    paper_max_sector_weight_pct: int = 0
-    paper_rebalance_enabled: bool = False
+    paper_max_sector_weight_pct: int = 30
+    paper_rebalance_enabled: bool = True
 
     n8n_webhook_url: str = ""
     monitoring_alert_cooldown_seconds: int = 3600

@@ -19,6 +19,7 @@ from app.models.llm_evaluation import LlmEvaluation
 from app.models.macro import MonetaryPolicyDecision
 from app.models.news import NewsArticle
 from app.models.signal import CompositeSignalSnapshot
+from app.signals.service import MODEL_VERSION
 
 router = APIRouter(prefix="/api/ai", tags=["ai"])
 logger = logging.getLogger(__name__)
@@ -81,11 +82,16 @@ async def get_market_briefing(
     latest_macro = (await db.scalars(macro_stmt)).first()
 
     # Use the full latest snapshot for sentiment, not merely the top five rows.
-    latest_signal_date = select(func.max(CompositeSignalSnapshot.as_of_date)).scalar_subquery()
+    latest_signal_date = (
+        select(func.max(CompositeSignalSnapshot.as_of_date))
+        .where(CompositeSignalSnapshot.model_version == MODEL_VERSION)
+        .scalar_subquery()
+    )
     pos_signals_stmt = (
         select(CompositeSignalSnapshot)
         .where(
             CompositeSignalSnapshot.as_of_date == latest_signal_date,
+            CompositeSignalSnapshot.model_version == MODEL_VERSION,
             CompositeSignalSnapshot.computed_at >= since,
         )
         .order_by(desc(CompositeSignalSnapshot.composite_score))

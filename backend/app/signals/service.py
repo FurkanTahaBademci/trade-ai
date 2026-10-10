@@ -1,44 +1,67 @@
 """Aciklanabilir, deterministik bilesik skor motoru.
 
-V1 agirliklari:
+V3 agirliklari:
   LLM haber/KAP etkisi  %35
-  Temel analiz          %30
-  Analist konsensusu    %25
-  TEFAS piyasa akimi    %10
+  Temel analiz          %28
+  Analist konsensusu    %22
+  Fiyat momentumu       %15
 
 Eksik bir kaynak sifir puan sayilmaz. Mevcut agirliklar yeniden normalize
 edilir; `confidence` kapsama ve kaynak kalitesini ayrica ifade eder.
+
+V1'den farklar (v2 yayinlanmadan v3'e birlestirildi):
+- TEFAS akimi piyasa geneli tek bir sayidir, hisse ayristirmaz; her hisseye
+  ayni puani verip bilesen sayisini sisirdigi icin bilesik skordan cikarildi.
+- Analist guveni ortalama tavsiye yasiyla azalir (bayat hedef fiyat).
+- Ham skor guvene gore 50'ye dogru cekilir; az kanitli hisse listenin
+  tepesine cikamaz. Ham skor `evidence.raw_score` icinde saklanir.
+- Gecmis tarih icin calistirildiginda o tarihte bilinmeyen veri kullanilmaz.
+- Momentum: hissenin XU100'e gore 20 ve 60 islem gunluk goreli getirisi.
 """
 
 from __future__ import annotations
 
+from bisect import bisect_right
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from decimal import ROUND_HALF_UP, Decimal
+from types import SimpleNamespace
 from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.collectors.analysts import ANALYST_MAX_AGE_DAYS, calculate_consensus
 from app.models import (
-    AnalystConsensus,
+    AnalystRecommendation,
     CompositeSignalSnapshot,
     FundamentalSnapshot,
-    FundFlowAggregate,
+    IndexDaily,
     Instrument,
     LlmEvaluation,
+    PriceDaily,
 )
 
-MODEL_VERSION = "v1"
+MODEL_VERSION = "v3"
 COMPONENT_WEIGHTS = {
     "llm": Decimal("0.35"),
-    "fundamental": Decimal("0.30"),
-    "analyst": Decimal("0.25"),
-    "fund_flow": Decimal("0.10"),
+    "fundamental": Decimal("0.28"),
+    "analyst": Decimal("0.22"),
+    "momentum": Decimal("0.15"),
 }
+BENCHMARK_INDEX = "XU100"
+MOMENTUM_SHORT_DAYS = 20
+MOMENTUM_LONG_DAYS = 60
+# Goreli getiri puana cevrilirken +/- %25 0/100 bandina gelir.
+MOMENTUM_SCALE = Decimal(2)
+MOMENTUM_MAX_STALE_DAYS = 7
 LLM_LOOKBACK_DAYS = 14
 MIN_COMPONENTS = 2
+# Bu guvenin altinda skor 50'ye dogru orantili cekilir (0 guven -> 50).
+FULL_CONFIDENCE = Decimal("0.60")
+# Ortalama tavsiye yasi bu kadar gun oldugunda analist guveni yariya iner.
+ANALYST_CONFIDENCE_HALF_LIFE_DAYS = 120
 
 
 @dataclass(frozen=True)
@@ -138,6 +161,9 @@ def score_analyst(row: Any) -> ComponentResult | None:
         return None
     institution_count = max(0, int(row.institution_count))
     confidence = min(1, institution_count / 8)
+    average_age = getattr(row, "average_age_days", None)
+    if average_age is not None:
+        confidence *= 0.5 ** (float(average_age) / ANALYST_CONFIDENCE_HALF_LIFE_DAYS)
     vote_score = _clamp(_decimal(row.recommendation_score))
     if row.implied_upside_pct is not None:
         # +/- %100 hedef potansiyeli 0/100 bandina gelir. Oy dagilimi daha
@@ -153,6 +179,7 @@ def score_analyst(row: Any) -> ComponentResult | None:
             "consensus_id": row.id,
             "as_of_date": row.as_of_date.isoformat(),
             "institution_count": institution_count,
+            "average_age_days": float(average_age) if average_age is not None else None,
             "implied_upside_pct": (
                 float(row.implied_upside_pct) if row.implied_upside_pct is not None else None
             ),
@@ -160,29 +187,64 @@ def score_analyst(row: Any) -> ComponentResult | None:
     )
 
 
-def score_fund_flow(row: Any, *, as_of_date: date) -> ComponentResult | None:
-    if row is None or row.total_aum in (None, 0) or row.estimated_stock_flow is None:
+def _value_at_or_before(series: list[tuple[date, Decimal]], target: date) -> Decimal | None:
+    index = bisect_right(series, (target, Decimal("Infinity"))) - 1
+    return series[index][1] if index >= 0 else None
+
+
+def score_momentum(
+    closes: list[tuple[date, Decimal]],
+    benchmark: list[tuple[date, Decimal]],
+    *,
+    as_of_date: date,
+) -> ComponentResult | None:
+    """XU100'e gore goreli getiri; `closes` ve `benchmark` tarihe gore sirali olmali."""
+    usable = [(day, close) for day, close in closes if day <= as_of_date and close > 0]
+    if len(usable) <= MOMENTUM_SHORT_DAYS:
         return None
-    age_days = (as_of_date - row.date).days
-    if age_days < 0 or age_days > 7:
+    last_day, last_close = usable[-1]
+    stale_days = (as_of_date - last_day).days
+    if stale_days > MOMENTUM_MAX_STALE_DAYS:
         return None
-    # +/- %0,5 tahmini hisse akimi, buyukluk alt skorunun 0/100 siniridir.
-    flow_ratio = _decimal(row.estimated_stock_flow) / _decimal(row.total_aum)
-    magnitude_score = _clamp(Decimal(50) + flow_ratio * Decimal(10_000))
-    breadth_score = _clamp(_decimal(row.positive_flow_pct, "50"))
-    score = magnitude_score * Decimal("0.70") + breadth_score * Decimal("0.30")
-    observed = max(0, int(row.flow_observation_count))
-    funds = max(1, int(row.fund_count))
-    observation_quality = min(1, observed / funds)
-    freshness = max(0.5, 1 - age_days / 14)
+    bench_last = _value_at_or_before(benchmark, last_day)
+    if not bench_last:
+        return None
+
+    relatives: dict[int, Decimal] = {}
+    for window in (MOMENTUM_SHORT_DAYS, MOMENTUM_LONG_DAYS):
+        if len(usable) <= window:
+            continue
+        base_day, base_close = usable[-1 - window]
+        bench_base = _value_at_or_before(benchmark, base_day)
+        if not bench_base:
+            continue
+        stock_return = (last_close / base_close - 1) * 100
+        bench_return = (bench_last / bench_base - 1) * 100
+        relatives[window] = stock_return - bench_return
+    if MOMENTUM_SHORT_DAYS not in relatives:
+        return None
+
+    if MOMENTUM_LONG_DAYS in relatives:
+        blended = (
+            relatives[MOMENTUM_SHORT_DAYS] * Decimal("0.6")
+            + relatives[MOMENTUM_LONG_DAYS] * Decimal("0.4")
+        )
+        coverage = Decimal(1)
+    else:
+        blended = relatives[MOMENTUM_SHORT_DAYS]
+        coverage = Decimal("0.6")
+    freshness = Decimal(1) if stale_days <= 3 else Decimal("0.7")
     return ComponentResult(
-        score=score,
-        confidence=Decimal(str(observation_quality * freshness)),
+        score=_clamp(Decimal(50) + blended * MOMENTUM_SCALE),
+        confidence=coverage * freshness,
         evidence={
-            "aggregate_id": row.id,
-            "date": row.date.isoformat(),
-            "fund_count": row.fund_count,
-            "estimated_stock_flow": float(row.estimated_stock_flow),
+            "price_date": last_day.isoformat(),
+            "relative_20d_pct": float(relatives[MOMENTUM_SHORT_DAYS].quantize(Decimal("0.01"))),
+            "relative_60d_pct": (
+                float(relatives[MOMENTUM_LONG_DAYS].quantize(Decimal("0.01")))
+                if MOMENTUM_LONG_DAYS in relatives
+                else None
+            ),
         },
     )
 
@@ -202,7 +264,9 @@ def build_composite_signal(
     quality = sum((available[name].confidence * effective[name] for name in available), Decimal(0))
     coverage_factor = available_weight / sum(COMPONENT_WEIGHTS.values())
     confidence = _clamp(quality * coverage_factor, Decimal(0), Decimal(1))
-    rounded_score = composite.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    shrink = min(Decimal(1), confidence / FULL_CONFIDENCE)
+    adjusted = Decimal(50) + (composite - Decimal(50)) * shrink
+    rounded_score = adjusted.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     return {
         "ticker": ticker,
         "as_of_date": as_of_date,
@@ -219,7 +283,10 @@ def build_composite_signal(
             name: float(weight.quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP))
             for name, weight in effective.items()
         },
-        "evidence": {name: value.evidence for name, value in available.items()},
+        "evidence": {
+            **{name: value.evidence for name, value in available.items()},
+            "raw_score": float(composite.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+        },
     }
 
 
@@ -258,6 +325,7 @@ async def run_signal_engine(
                     LlmEvaluation.created_at
                     >= datetime.combine(as_of, time.min, tzinfo=UTC)
                     - timedelta(days=LLM_LOOKBACK_DAYS),
+                    LlmEvaluation.created_at <= now,
                 )
             )
         ).all()
@@ -266,34 +334,78 @@ async def run_signal_engine(
         (
             await session.scalars(
                 select(FundamentalSnapshot).where(
-                    FundamentalSnapshot.fundamental_score.is_not(None)
+                    FundamentalSnapshot.fundamental_score.is_not(None),
+                    FundamentalSnapshot.computed_at <= now,
                 )
             )
         ).all()
     )
-    analyst_rows = list(
+    # Konsensus tablosu UI icin gunluk bir ozettir; skor motoru o tarihte
+    # gecerli tavsiyelerden ayni formulle anlik hesaplar (geriye donuk
+    # hesaplarda da yas agirligi ve bakis-onyargisi korumasi gecerli olur).
+    recommendation_rows = list(
         (
             await session.scalars(
-                select(AnalystConsensus).where(AnalystConsensus.as_of_date <= as_of)
+                select(AnalystRecommendation).where(
+                    AnalystRecommendation.recommendation_date <= as_of,
+                    AnalystRecommendation.recommendation_date
+                    >= as_of - timedelta(days=ANALYST_MAX_AGE_DAYS),
+                )
             )
         ).all()
     )
-    flow = await session.scalar(
-        select(FundFlowAggregate)
-        .where(FundFlowAggregate.fund_kind == "YAT", FundFlowAggregate.date <= as_of)
-        .order_by(FundFlowAggregate.date.desc())
-        .limit(1)
-    )
-
+    price_rows = (
+        await session.execute(
+            select(PriceDaily.ticker, PriceDaily.close)
+            .where(PriceDaily.date <= as_of)
+            .distinct(PriceDaily.ticker)
+            .order_by(PriceDaily.ticker, PriceDaily.date.desc())
+        )
+    ).all()
+    # Momentum icin ~60 islem gunu + tatiller: 120 takvim gunu yeterli.
+    momentum_start = as_of - timedelta(days=120)
+    closes_by_ticker: dict[str, list[tuple[date, Decimal]]] = {}
+    for ticker, day, close in (
+        await session.execute(
+            select(PriceDaily.ticker, PriceDaily.date, PriceDaily.close)
+            .where(
+                PriceDaily.date >= momentum_start,
+                PriceDaily.date <= as_of,
+                PriceDaily.ticker.in_(active),
+            )
+            .order_by(PriceDaily.ticker, PriceDaily.date)
+        )
+    ).all():
+        if close is not None:
+            closes_by_ticker.setdefault(ticker, []).append((day, Decimal(str(close))))
+    benchmark = [
+        (day, Decimal(str(value)))
+        for day, value in (
+            await session.execute(
+                select(IndexDaily.date, IndexDaily.value)
+                .where(
+                    IndexDaily.index_code == BENCHMARK_INDEX,
+                    IndexDaily.date >= momentum_start,
+                    IndexDaily.date <= as_of,
+                )
+                .order_by(IndexDaily.date)
+            )
+        ).all()
+        if value
+    ]
+    analysts = {
+        row["ticker"]: SimpleNamespace(id=None, **row)
+        for row in calculate_consensus(
+            recommendation_rows, market_prices=dict(price_rows), as_of_date=as_of
+        )
+    }
     fundamentals = _latest_by_ticker(
         fundamental_rows, lambda row: (row.year, row.period, row.computed_at)
     )
-    analysts = _latest_by_ticker(analyst_rows, lambda row: (row.as_of_date, row.computed_at))
     candidates = set(fundamentals) | set(analysts)
     candidates |= {ticker for row in llm_rows for ticker in (row.ticker_codes or [])}
     candidates &= active
 
-    flow_component = score_fund_flow(flow, as_of_date=as_of)
     snapshots: list[dict[str, Any]] = []
     skipped_low_coverage = 0
     for ticker in sorted(candidates):
@@ -307,8 +419,11 @@ async def run_signal_engine(
             components["fundamental"] = fundamental
         if analyst:
             components["analyst"] = analyst
-        if flow_component:
-            components["fund_flow"] = flow_component
+        momentum = score_momentum(
+            closes_by_ticker.get(ticker, []), benchmark, as_of_date=as_of
+        )
+        if momentum:
+            components["momentum"] = momentum
         snapshot = build_composite_signal(ticker, components, as_of_date=as_of)
         if snapshot:
             snapshots.append(snapshot)

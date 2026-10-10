@@ -20,6 +20,7 @@ from app.models.institutional import AnalystConsensus
 from app.models.instrument import Instrument
 from app.models.price import PriceDaily
 from app.models.signal import CompositeSignalSnapshot
+from app.signals.service import MODEL_VERSION
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/markets", tags=["markets"])
@@ -107,12 +108,13 @@ async def get_market_heatmap(
                 signal_label,
                 ROW_NUMBER() OVER (PARTITION BY ticker ORDER BY as_of_date DESC) as rn
             FROM composite_signal_snapshot
+            WHERE model_version = :model_version
         )
         SELECT ticker, composite_score, signal_label
         FROM ranked_signals
         WHERE rn = 1;
     """)
-    signals_result = await db.execute(signals_query)
+    signals_result = await db.execute(signals_query, {"model_version": MODEL_VERSION})
     signal_data = {
         row.ticker: {"score": row.composite_score, "label": row.signal_label}
         for row in signals_result
@@ -146,7 +148,8 @@ async def get_market_heatmap(
         else:
             neutral_count += 1
 
-        sig = signal_data.get(ticker, {"score": 50.0, "label": "NEUTRAL"})
+        # Skoru olmayan hisseye sahte "50 / Notr" yazilmaz; arayuz "—" gosterir.
+        sig = signal_data.get(ticker, {"score": None, "label": None})
 
         stock_item = {
             "ticker": ticker,
@@ -301,7 +304,10 @@ async def compare_companies(
     for t in cleaned_tickers:
         s_stmt = (
             select(CompositeSignalSnapshot)
-            .where(CompositeSignalSnapshot.ticker == t)
+            .where(
+                CompositeSignalSnapshot.ticker == t,
+                CompositeSignalSnapshot.model_version == MODEL_VERSION,
+            )
             .order_by(desc(CompositeSignalSnapshot.as_of_date))
             .limit(1)
         )
@@ -369,8 +375,9 @@ async def compare_companies(
 
         # Analist konsensus metrikleri
         target_price = float(cons.average_target) if cons and cons.average_target else None
+        # implied_upside_pct zaten yuzde birimindedir (64.5 = %64,5).
         upside_pct = (
-            float(cons.implied_upside_pct * 100)
+            float(cons.implied_upside_pct)
             if cons and cons.implied_upside_pct is not None
             else None
         )

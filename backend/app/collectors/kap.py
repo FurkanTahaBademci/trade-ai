@@ -25,6 +25,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.collectors.base import BaseCollector, CollectorError, settings
+from app.market_calendar.event_dates import disclosure_event_date
 from app.models import Instrument, KapAttachment, KapDisclosure
 
 KAP_DISCLOSURE_LIST_URL = "https://www.kap.org.tr/tr/api/disclosure/members/byCriteria"
@@ -345,6 +346,21 @@ class KapCollector(BaseCollector):
 
     async def _save_detail(self, disclosure_index: int, payload: dict | list) -> int:
         mapped = map_disclosure_detail(payload)
+        headline = (
+            await self._session.execute(
+                select(
+                    KapDisclosure.kap_title, KapDisclosure.subject, KapDisclosure.disclosure_class
+                ).where(KapDisclosure.disclosure_index == disclosure_index)
+            )
+        ).first()
+        event = None
+        if headline is not None:
+            event = disclosure_event_date(
+                title=headline.kap_title,
+                subject=headline.subject,
+                disclosure_class=headline.disclosure_class,
+                body_text=mapped["body_text"],
+            )
         await self._session.execute(
             update(KapDisclosure)
             .where(KapDisclosure.disclosure_index == disclosure_index)
@@ -352,6 +368,8 @@ class KapCollector(BaseCollector):
                 body_html=mapped["body_html"],
                 body_text=mapped["body_text"],
                 raw_detail=mapped["raw_detail"],
+                event_date=event.event_date if event else None,
+                event_detail=event.detail if event else None,
                 updated_at=func.now(),
             )
         )

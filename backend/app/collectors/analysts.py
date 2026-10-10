@@ -194,6 +194,16 @@ def parse_aggregator_recommendations(html: str) -> list[dict]:
     return rows
 
 
+# Hedef fiyatlar fiyat dustukce "potansiyel" uretir; eski tavsiye bu yuzden
+# hem agirlik kaybeder hem belli bir yastan sonra tamamen dusulur.
+ANALYST_MAX_AGE_DAYS = 180
+ANALYST_HALF_LIFE_DAYS = 90
+
+
+def recommendation_weight(age_days: int) -> Decimal:
+    return Decimal(str(0.5 ** (max(0, age_days) / ANALYST_HALF_LIFE_DAYS)))
+
+
 def calculate_consensus(
     recommendations: list[AnalystRecommendation | dict[str, Any]],
     *,
@@ -205,7 +215,12 @@ def calculate_consensus(
     def get(row, key):
         return row.get(key) if isinstance(row, dict) else getattr(row, key)
 
+    def age(row) -> int:
+        return (as_of_date - get(row, "recommendation_date")).days
+
     for row in recommendations:
+        if not 0 <= age(row) <= ANALYST_MAX_AGE_DAYS:
+            continue
         key = (get(row, "ticker"), get(row, "institution").casefold())
         previous = latest.get(key)
         row_rank = (get(row, "recommendation_date"), get(row, "source") == "isyatirim")
@@ -225,13 +240,16 @@ def calculate_consensus(
     vote_values = {"BUY": Decimal(100), "HOLD": Decimal(50), "SELL": Decimal(0)}
     for ticker, rows in sorted(grouped.items()):
         counts = Counter(get(row, "recommendation_normalized") for row in rows)
-        targets = [get(row, "target_price") for row in rows if get(row, "target_price")]
-        votes = [
-            vote_values[get(row, "recommendation_normalized")]
-            for row in rows
-            if get(row, "recommendation_normalized") in vote_values
-        ]
-        average = sum(targets) / len(targets) if targets else None
+        weights = {id(row): recommendation_weight(age(row)) for row in rows}
+        targeted = [row for row in rows if get(row, "target_price")]
+        targets = [get(row, "target_price") for row in targeted]
+        voted = [row for row in rows if get(row, "recommendation_normalized") in vote_values]
+        average = _weighted_mean(
+            [(get(row, "target_price"), weights[id(row)]) for row in targeted]
+        )
+        recommendation_score = _weighted_mean(
+            [(vote_values[get(row, "recommendation_normalized")], weights[id(row)]) for row in voted]
+        )
         median = Decimal(str(statistics.median(targets))) if targets else None
         dispersion = None
         if average and len(targets) >= 2:
@@ -255,11 +273,19 @@ def calculate_consensus(
                 "market_price": market_price,
                 "implied_upside_pct": implied_upside,
                 "target_dispersion": dispersion,
-                "recommendation_score": sum(votes) / len(votes) if votes else None,
+                "recommendation_score": recommendation_score,
+                "average_age_days": Decimal(sum(age(row) for row in rows)) / len(rows),
                 "source_breakdown": dict(source_counts),
             }
         )
     return output
+
+
+def _weighted_mean(pairs: list[tuple[Decimal, Decimal]]) -> Decimal | None:
+    total = sum((weight for _, weight in pairs), Decimal(0))
+    if not pairs or total <= 0:
+        return None
+    return sum((value * weight for value, weight in pairs), Decimal(0)) / total
 
 
 async def recompute_analyst_consensus(session: AsyncSession) -> list[dict]:

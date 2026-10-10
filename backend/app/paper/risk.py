@@ -1,8 +1,9 @@
 """Paper portfoy risk kurallari ve metrikleri (saf fonksiyonlar, DB'siz).
 
-Tum esikler yuzde olarak verilir; 0 degeri kurali kapatir. Varsayilanlar mevcut
-motor davranisini korur: stop/take-profit/trailing/sektor limiti kapali, tek
-pozisyon tavani %10, rebalance kapali. Canli emir yoktur.
+Tum esikler yuzde olarak verilir; 0 degeri kurali kapatir. Uygulama ayarlarinin
+varsayilanlari (core/config.py) zarar-kes %15, sektor limiti %30, tek pozisyon
+tavani %10 ve rebalance acik seklindedir; asagidaki RiskConfig varsayilanlari
+ise kurallari kapali tutar (saf fonksiyon testleri icin). Canli emir yoktur.
 """
 
 from __future__ import annotations
@@ -83,7 +84,7 @@ def evaluate_exit(position: PositionState, cfg: RiskConfig) -> tuple[str, str] |
                 f"Trailing stop: zirveden -{drop_pct:.2f}% >= {cfg.trailing_stop_pct}%",
             )
     if cfg.take_profit_pct > 0 and change_pct >= cfg.take_profit_pct:
-        return "take_profit", f"Kar-al: {change_pct:.2f}% >= {cfg.take_profit_pct}%"
+        return "take_profit", f"Kâr-al: {change_pct:.2f}% >= {cfg.take_profit_pct}%"
     return None
 
 
@@ -130,7 +131,7 @@ def plan_position_actions(
                     position.ticker,
                     "signal",
                     position.quantity,
-                    f"Bilesik skor {score} < {exit_score}",
+                    f"Bileşik skor {float(score):.1f} < {exit_score}",
                 )
             )
             continue
@@ -141,7 +142,7 @@ def plan_position_actions(
                     position.ticker,
                     "rebalance",
                     trim,
-                    f"Rebalance: agirlik tavan %{cfg.max_position_weight * 100:.0f} ustunde",
+                    f"Rebalance: ağırlık %{cfg.max_position_weight * 100:.0f} tavanının üstünde",
                 )
             )
     return actions

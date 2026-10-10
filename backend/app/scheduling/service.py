@@ -26,24 +26,26 @@ class ScheduleDefinition:
 
 SCHEDULE_DEFINITIONS: tuple[ScheduleDefinition, ...] = (
     ScheduleDefinition("kap", "KAP bildirimleri", "collect_kap", 5, 5),
-    ScheduleDefinition("news", "Haber akisi", "collect_news", 5, 5),
-    ScheduleDefinition("evaluations", "AI degerlendirmeleri", "evaluate_sources", 10, 10),
-    ScheduleDefinition("signals", "Bilesik sinyaller", "compute_signals", 10, 5),
+    ScheduleDefinition("news", "Haber akışı", "collect_news", 5, 5),
+    ScheduleDefinition("evaluations", "AI değerlendirmeleri", "evaluate_sources", 10, 10),
+    ScheduleDefinition("signals", "Bileşik sinyaller", "compute_signals", 10, 5),
     ScheduleDefinition("instruments", "Hisse evreni", "collect_instruments", 1440, 60, 6),
     ScheduleDefinition(
-        "tcmb_policy", "TCMB faiz kararlari", "collect_tcmb_policy", 1440, 60, 6, 30
+        "tcmb_policy", "TCMB faiz kararları", "collect_tcmb_policy", 1440, 60, 6, 30
     ),
     ScheduleDefinition("fundamentals", "Temel analiz", "collect_fundamentals", 1440, 60, 7),
-    ScheduleDefinition("analysts", "Analist gorusleri", "collect_analysts", 1440, 60, 7, 30),
+    ScheduleDefinition("analysts", "Analist görüşleri", "collect_analysts", 1440, 60, 7, 30),
     ScheduleDefinition(
-        "institutional_reports", "Kurum raporlari", "collect_institutional_reports", 1440, 60, 7, 45
+        "institutional_reports", "Kurum raporları", "collect_institutional_reports", 1440, 60, 7, 45
     ),
-    ScheduleDefinition("prices", "EOD fiyatlari", "collect_prices", 1440, 60, 18, 30),
+    ScheduleDefinition("prices", "EOD fiyatları", "collect_prices", 1440, 60, 18, 30),
     ScheduleDefinition(
         "index_prices", "BIST100 endeksi", "collect_index_prices", 1440, 60, 18, 35
     ),
-    ScheduleDefinition("paper_portfolio", "Paper portfoy", "run_paper_portfolio", 1440, 60, 18, 46),
-    ScheduleDefinition("fund_flows", "TEFAS fon akimi", "collect_fund_flows", 1440, 60, 20),
+    ScheduleDefinition("paper_portfolio", "Paper portföy", "run_paper_portfolio", 1440, 60, 18, 46),
+    ScheduleDefinition("fund_flows", "TEFAS fon akımı", "collect_fund_flows", 1440, 60, 20),
+    # TCMB gosterge kurlari 15:30 civari yayimlanir.
+    ScheduleDefinition("evds", "TCMB makro serileri", "collect_evds", 1440, 60, 16, 45),
 )
 DEFINITION_BY_NAME = {item.name: item for item in SCHEDULE_DEFINITIONS}
 
@@ -84,6 +86,9 @@ async def ensure_default_schedules(
     existing = {row.name: row for row in rows}
     for definition in SCHEDULE_DEFINITIONS:
         if definition.name in existing:
+            # Etiket kullanici ayari degil; kod tanimiyla senkron tutulur.
+            if existing[definition.name].label != definition.label:
+                existing[definition.name].label = definition.label
             continue
         row = CollectorSchedule(
             name=definition.name,

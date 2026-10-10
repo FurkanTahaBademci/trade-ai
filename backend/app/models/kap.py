@@ -10,12 +10,13 @@ Ek dosyalarin binary icerigi veritabaninda saklanmaz; yalnizca metadata
 canli proxy (on-demand) ile indirilir.
 """
 
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import (
     JSON,
     BigInteger,
     Boolean,
+    Date,
     DateTime,
     ForeignKey,
     Index,
@@ -55,6 +56,9 @@ class KapDisclosure(Base):
 
     body_html: Mapped[str | None] = mapped_column(Text, nullable=True)
     body_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Takvim icin olayin kendi tarihi (genel kurul gunu, kar payi hak kullanim gunu).
+    event_date: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
+    event_detail: Mapped[str | None] = mapped_column(String(160), nullable=True)
     raw_list_item: Mapped[dict] = mapped_column(JSON)
     raw_detail: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 

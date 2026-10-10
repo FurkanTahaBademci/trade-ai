@@ -30,7 +30,14 @@ def map_kap_item_to_instrument_fields(item: dict) -> list[dict]:
     Hisse kodu olmayan uyeler (bagimsiz denetim sirketleri, "-" stockCode)
     icin bos liste doner. KAP ayni sirketin farkli pay siniflarini
     `KRDMA, KRDMB, KRDMD` gibi tek alanda verebildiginden her kod ayri satira
-    donusturulur. Saf fonksiyon oldugu icin
+    donusturulur.
+
+    Hisse evrenine yalniz borsada payi islem goren kodlar aktif girer:
+    - `payIslemDurumu == "0"`: paylar islem gormez (faktoring, yalniz tahvil
+      ihrac eden bankalar vb.).
+    - Ayni satirdaki 3 harfli kodlar (`A1CAP, ACP`; `GARAN, TGB`) borclanma
+      araci ihracci kodudur; BIST pay kodlari 4-5 harflidir.
+    Saf fonksiyon oldugu icin
     DB/ag olmadan test edilebilir (bkz. tests/test_instrument_mapping.py).
     """
     raw_tickers = str(item.get("stockCode") or "").strip().upper()
@@ -44,14 +51,22 @@ def map_kap_item_to_instrument_fields(item: dict) -> list[dict]:
     if not tickers:
         return []
 
+    member_active = item.get("kapMemberState") == "A"
+    shares_traded = str(item.get("payIslemDurumu", "1")) != "0"
     common_fields = {
         "name": (item.get("kapMemberTitle") or "").strip(),
         "city": item.get("cityName"),
         "kap_member_oid": item["kapMemberOid"],
         "mkk_member_oid": item.get("mkkMemberOid"),
-        "is_active": item.get("kapMemberState") == "A",
     }
-    return [{"ticker": ticker, **common_fields} for ticker in tickers]
+    return [
+        {
+            "ticker": ticker,
+            **common_fields,
+            "is_active": member_active and shares_traded and len(ticker) >= 4,
+        }
+        for ticker in tickers
+    ]
 
 
 class InstrumentCollector(BaseCollector):

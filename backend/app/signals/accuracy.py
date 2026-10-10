@@ -10,6 +10,11 @@ sinyali o gunun kapanis verisini icerebilecegi icin bakis-onyargisi
 onlenir) — backtest.engine'deki "sonraki mevcut kapanis" mantigiyla ayni
 felsefe, ama burada tek bir pozisyon degil, tum gecmisin istatistigi
 cikarilir.
+
+Dusen bir piyasada her etiketin mutlak getirisi negatif cikar ve yon isabeti
+yaniltir. Bu yuzden BIST100 serisi verildiginde ayni tarih araligindaki
+endeks getirisi de cikarilir: `average_excess_pct` ve `beat_rate_pct`
+(endeksi yenme orani) asil degerlendirme olcusudur.
 """
 
 from __future__ import annotations
@@ -60,6 +65,15 @@ class HorizonStat:
     observation_count: int
     average_return_pct: Decimal | None
     hit_rate_pct: Decimal | None
+    average_excess_pct: Decimal | None = None
+    beat_rate_pct: Decimal | None = None
+
+
+def _value_at_or_before(
+    dates: list[date], values: list[Decimal], target: date
+) -> Decimal | None:
+    index = bisect_right(dates, target) - 1
+    return values[index] if index >= 0 else None
 
 
 def compute_signal_accuracy(
@@ -67,7 +81,11 @@ def compute_signal_accuracy(
     prices: list[PricePoint],
     *,
     horizons: tuple[int, ...] = DEFAULT_HORIZONS,
+    benchmark: list[tuple[date, Decimal]] | None = None,
 ) -> list[HorizonStat]:
+    bench_rows = sorted(row for row in benchmark or [] if row[1] and row[1] > 0)
+    bench_dates = [row_date for row_date, _ in bench_rows]
+    bench_values = [value for _, value in bench_rows]
     by_ticker: dict[str, list[tuple[date, Decimal]]] = defaultdict(list)
     for price in prices:
         if price.close and price.close > 0:
@@ -80,6 +98,8 @@ def compute_signal_accuracy(
 
     returns: dict[tuple[int, str], list[Decimal]] = defaultdict(list)
     hits: dict[tuple[int, str], list[bool]] = defaultdict(list)
+    excess: dict[tuple[int, str], list[Decimal]] = defaultdict(list)
+    beats: dict[tuple[int, str], list[bool]] = defaultdict(list)
 
     for signal in signals:
         candidates = by_ticker.get(signal.ticker)
@@ -90,7 +110,7 @@ def compute_signal_accuracy(
         base_index = bisect_right(dates_by_ticker[signal.ticker], signal.as_of_date)
         if base_index >= len(candidates):
             continue
-        _, base_close = candidates[base_index]
+        base_date, base_close = candidates[base_index]
         if base_close <= 0:
             continue
         for horizon in horizons:
@@ -99,13 +119,20 @@ def compute_signal_accuracy(
             # vade atlanir — kisa vadeler yine de katkida bulunur.
             if base_index + horizon >= len(candidates):
                 continue
-            _, future_close = candidates[base_index + horizon]
+            future_date, future_close = candidates[base_index + horizon]
             forward_return = (future_close / base_close - 1) * 100
             key = (horizon, signal.signal_label)
             returns[key].append(forward_return)
             direction = _EXPECTED_DIRECTION.get(signal.signal_label)
             if direction is not None:
                 hits[key].append((forward_return > 0) == (direction > 0))
+            bench_base = _value_at_or_before(bench_dates, bench_values, base_date)
+            bench_future = _value_at_or_before(bench_dates, bench_values, future_date)
+            if bench_base and bench_future:
+                excess_return = forward_return - (bench_future / bench_base - 1) * 100
+                excess[key].append(excess_return)
+                if direction is not None:
+                    beats[key].append((excess_return > 0) == (direction > 0))
 
     stats: list[HorizonStat] = []
     for horizon in horizons:
@@ -113,6 +140,8 @@ def compute_signal_accuracy(
             key = (horizon, label)
             label_returns = returns.get(key, [])
             label_hits = hits.get(key, [])
+            label_excess = excess.get(key, [])
+            label_beats = beats.get(key, [])
             stats.append(
                 HorizonStat(
                     horizon=horizon,
@@ -123,6 +152,12 @@ def compute_signal_accuracy(
                     ),
                     hit_rate_pct=(
                         Decimal(sum(label_hits)) / len(label_hits) * 100 if label_hits else None
+                    ),
+                    average_excess_pct=(
+                        sum(label_excess) / len(label_excess) if label_excess else None
+                    ),
+                    beat_rate_pct=(
+                        Decimal(sum(label_beats)) / len(label_beats) * 100 if label_beats else None
                     ),
                 )
             )

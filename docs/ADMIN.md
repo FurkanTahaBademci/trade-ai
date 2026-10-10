@@ -85,6 +85,15 @@ Oturum ayrıntıları:
   HTTPS zorunludur. Coolify ve `ops/Caddyfile` örneği TLS sertifikasını
   otomatik alır. `http://localhost` yalnızca yerel kullanımda kabul edilebilir.
 
+### İzleme listesi ve bildirimler
+
+Ziyaretçilerin izleme listesi yalnızca kendi tarayıcılarında kalır. Yönetici
+girişliyken liste sunucuya senkronlanır (`/api/watchlist`). Telegram ve webhook
+bildirimleri şu hisselerin etiket değişimlerini izler: paper portföydeki
+pozisyonlar, bu liste ve `/sistem` ekranındaki "izlenen hisseler" ayarı. İlk
+girişte o tarayıcıdaki liste sunucudakiyle birleştirilir. Sonraki açılışlarda
+sunucudaki liste esas alınır.
+
 ## Hangi durumda ne olur?
 
 ### Web (`/sistem`, `/backtest`)

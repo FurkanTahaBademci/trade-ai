@@ -25,11 +25,18 @@ def pos(ticker="AAAA", qty=100, cost=100, last=100, peak=None):
     return PositionState(ticker, D(qty), D(cost), D(last), None if peak is None else D(peak))
 
 
-def test_defaults_keep_existing_behaviour():
+def test_application_defaults_enable_conservative_risk_rules():
     cfg = RiskConfig.from_settings(Settings())
     assert cfg.max_position_weight == D("0.10")
-    assert cfg.stop_loss_pct == cfg.take_profit_pct == cfg.trailing_stop_pct == 0
-    assert cfg.max_sector_weight == 0 and not cfg.rebalance_enabled
+    assert cfg.stop_loss_pct == 15
+    assert cfg.take_profit_pct == cfg.trailing_stop_pct == 0
+    assert cfg.max_sector_weight == D("0.30") and cfg.rebalance_enabled
+    assert evaluate_exit(pos(last=84), cfg)[0] == "stop_loss"
+    assert evaluate_exit(pos(last=1000), cfg) is None
+
+
+def test_bare_risk_config_keeps_rules_disabled():
+    cfg = RiskConfig()
     # kurallar kapaliyken buyuk kayip/kazanc bile cikis uretmez
     assert evaluate_exit(pos(last=10), cfg) is None
     assert evaluate_exit(pos(last=1000), cfg) is None

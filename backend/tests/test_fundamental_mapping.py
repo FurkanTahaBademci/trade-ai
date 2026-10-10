@@ -125,3 +125,27 @@ def test_period_query_accepts_financial_periods_and_rejects_other_values():
         assert client.get("/api/fundamentals/THYAO?period=4").status_code == 422
     finally:
         app.dependency_overrides.pop(get_db, None)
+
+
+def test_ticker_rotation_covers_whole_universe_not_first_letters():
+    from datetime import UTC, datetime, timedelta
+
+    from app.collectors.fundamentals import prioritize_tickers
+
+    now = datetime(2026, 10, 10, tzinfo=UTC)
+    active = {"AKSA", "ASELS", "PGSUS", "THYAO", "ZOREN", "ACP"}
+    selected = prioritize_tickers(
+        active,
+        last_fetched={
+            "AKSA": now - timedelta(days=1),  # taze -> atlanir
+            "ASELS": now - timedelta(days=30),
+            "ZOREN": now - timedelta(days=9),
+        },
+        relevant={"THYAO", "AKSA"},
+        cooling_down={"ACP"},
+        now=now,
+        limit=3,
+    )
+
+    # Hic cekilmemisler once (gundemdeki THYAO en basta), sonra en eski cekilen.
+    assert selected == ["THYAO", "PGSUS", "ASELS"]

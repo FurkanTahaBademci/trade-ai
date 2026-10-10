@@ -56,6 +56,7 @@ export function MarketHeatmap({ data }: { data: MarketHeatmapData | null }) {
   function getStockBg(stock: MarketHeatmapStock) {
     if (metric === "score") {
       const s = stock.composite_score;
+      if (s == null) return "bg-[var(--surface-raised)] border-[var(--border)] text-[var(--text-muted)]";
       if (s >= 75) return "bg-[var(--positive-soft)] border-[color-mix(in_srgb,var(--positive)_40%,transparent)] text-[var(--positive)]";
       if (s >= 60) return "bg-[color-mix(in_srgb,var(--positive)_15%,transparent)] border-[color-mix(in_srgb,var(--positive)_25%,transparent)] text-[var(--positive)]";
       if (s <= 35) return "bg-[var(--negative-soft)] border-[color-mix(in_srgb,var(--negative)_40%,transparent)] text-[var(--negative)]";
@@ -219,7 +220,7 @@ export function MarketHeatmap({ data }: { data: MarketHeatmapData | null }) {
                   )}\nGünlük Değişim: ${formatPercent(
                     stock.change_pct,
                     true
-                  )}\nSinyal: ${stock.composite_score} (${signalName(stock.signal_label)})`}
+                  )}\nSinyal: ${stock.composite_score == null ? "skor yok" : `${Math.round(stock.composite_score)} (${signalName(stock.signal_label ?? "")})`}`}
                 >
                   <span className="truncate text-xs font-bold leading-tight tracking-tight">
                     {stock.ticker}
@@ -234,9 +235,9 @@ export function MarketHeatmap({ data }: { data: MarketHeatmapData | null }) {
                       </>
                     ) : (
                       <>
-                        <span className="font-bold">{Math.round(stock.composite_score)}</span>
+                        <span className="font-bold">{stock.composite_score == null ? "—" : Math.round(stock.composite_score)}</span>
                         <span className="mt-1 text-[8px] opacity-75 truncate">
-                          {signalName(stock.signal_label)}
+                          {stock.signal_label ? signalName(stock.signal_label) : "Skor yok"}
                         </span>
                       </>
                     )}

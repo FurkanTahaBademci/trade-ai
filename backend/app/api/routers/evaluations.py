@@ -22,7 +22,9 @@ async def list_evaluations(
     source_id: Annotated[int | None, Query(ge=1)] = None,
     ticker: Annotated[str | None, Query(min_length=1, max_length=16)] = None,
     tier: Annotated[int | None, Query(ge=1, le=2)] = None,
-    status: Annotated[Literal["running", "succeeded", "failed"] | None, Query()] = None,
+    status: Annotated[
+        Literal["running", "succeeded", "failed", "filtered"] | None, Query()
+    ] = None,
     before: Annotated[
         datetime | None, Query(description="Cursor: bu tarihten eski degerlendirmeler")
     ] = None,
@@ -45,6 +47,9 @@ async def list_evaluations(
         stmt = stmt.where(LlmEvaluation.tier == tier)
     if status:
         stmt = stmt.where(LlmEvaluation.status == status)
+    else:
+        # On filtrenin eledigi haberler LLM ciktisi degildir; acikca istenmedikce gizlenir.
+        stmt = stmt.where(LlmEvaluation.status != "filtered")
     if before and before_id:
         stmt = stmt.where(
             or_(

@@ -4,7 +4,7 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import cast, or_, select
+from sqlalchemy import and_, cast, or_, select
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -70,10 +70,34 @@ async def list_calendar_events(
             )
 
     if wanted - {EventType.PPK}:
+        # Govde metni ve ekler gerekmez; yalniz siniflandirma kolonlari cekilir.
         stmt = (
-            select(KapDisclosure)
-            .where(KapDisclosure.published_at >= start)
-            .where(KapDisclosure.published_at < end + timedelta(days=1))
+            select(
+                KapDisclosure.disclosure_index,
+                KapDisclosure.published_at,
+                KapDisclosure.kap_title,
+                KapDisclosure.subject,
+                KapDisclosure.disclosure_class,
+                KapDisclosure.ticker_codes,
+                KapDisclosure.event_date,
+                KapDisclosure.event_detail,
+            )
+            # Olay tarihi biliniyorsa (genel kurul, hak kullanim) olay o gune yerlesir;
+            # yayin tarihi pencere disinda kalsa bile gosterilir.
+            .where(
+                or_(
+                    and_(
+                        KapDisclosure.event_date.is_not(None),
+                        KapDisclosure.event_date >= start,
+                        KapDisclosure.event_date <= end,
+                    ),
+                    and_(
+                        KapDisclosure.event_date.is_(None),
+                        KapDisclosure.published_at >= start,
+                        KapDisclosure.published_at < end + timedelta(days=1),
+                    ),
+                )
+            )
         )
         patterns = [f"%{stem}%" for stem in KAP_PREFILTER_STEMS]
         text_filters = [KapDisclosure.kap_title.ilike(p) for p in patterns]
@@ -85,23 +109,25 @@ async def list_calendar_events(
         stmt = stmt.order_by(KapDisclosure.published_at, KapDisclosure.disclosure_index).limit(
             KAP_ROW_LIMIT
         )
-        for row in (await db.execute(stmt)).scalars().unique().all():
+        for row in (await db.execute(stmt)).all():
             result = classify_disclosure(
                 title=row.kap_title, subject=row.subject, disclosure_class=row.disclosure_class
             )
             if result is None or result.event_type not in wanted:
                 continue
+            event_day = row.event_date or row.published_at.date()
             events.append(
                 CalendarEventOut(
                     id=f"kap-{row.disclosure_index}",
-                    date=row.published_at.date(),
+                    date=event_day,
                     type=result.event_type,
                     type_label=EVENT_LABELS[result.event_type],
                     title=row.subject or row.kap_title,
-                    detail=result.detail,
+                    detail=row.event_detail or result.detail,
                     source="KAP",
                     tickers=list(row.ticker_codes or []),
                     disclosure_index=row.disclosure_index,
+                    upcoming=row.event_date is not None and event_day >= today,
                 )
             )
 

@@ -31,12 +31,12 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const query = new URLSearchParams({ start, end });
   for (const type of types) query.append("types", type);
   if (ticker) query.set("ticker", ticker);
-  const result = await apiGet<CalendarEvent[]>(`/api/calendar?${query}`, []);
+  const result = await apiGet<CalendarEvent[]>(`/api/calendar?${query}`, [], { revalidate: 300 });
   const groups = groupByDate(result.data);
   const [year, mon] = month.split("-").map(Number);
   const today = new Date().toISOString().slice(0, 10);
 
-  return <><PageHeader eyebrow="Türkiye · Olay takvimi" title="Piyasa Takvimi" description="TCMB PPK toplantıları ile KAP bildirimlerinden türetilen finansal rapor, temettü, genel kurul ve sermaye artırımı olayları. KAP olayları bildirimin yayın tarihine göre gösterilir." actions={<div className="flex flex-wrap items-center gap-2">
+  return <><PageHeader eyebrow="Türkiye · Olay takvimi" title="Piyasa Takvimi" description="TCMB PPK toplantıları ile KAP bildirimlerinden türetilen finansal rapor, temettü, genel kurul ve sermaye artırımı olayları. Genel kurullar toplantı gününe, temettüler hak kullanım (paysuz işlem) gününe yerleşir; tarihi çıkarılamayan bildirimler yayın tarihinde görünür." actions={<div className="flex flex-wrap items-center gap-2">
     <Link href={href(shiftMonth(month, -1), types, ticker)} className="pill" aria-label="Önceki ay">←</Link>
     <span className="pill pill-primary"><Icon name="calendar" size={12}/>{MONTHS[mon - 1]} {year}</span>
     <Link href={href(shiftMonth(month, 1), types, ticker)} className="pill" aria-label="Sonraki ay">→</Link>

@@ -52,3 +52,5 @@ class SignalHorizonStatOut(BaseModel):
     observation_count: int
     average_return_pct: float | None
     hit_rate_pct: float | None
+    average_excess_pct: float | None = None
+    beat_rate_pct: float | None = None

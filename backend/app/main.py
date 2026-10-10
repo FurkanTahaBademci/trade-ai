@@ -28,6 +28,7 @@ from app.api.routers import (
     schedules,
     signals,
     system,
+    watchlist,
 )
 from app.api.routers import (
     settings as settings_router,
@@ -86,6 +87,7 @@ app.include_router(system.router)
 app.include_router(markets.router)
 app.include_router(briefing.router)
 app.include_router(calendar.router)
+app.include_router(watchlist.router)
 
 
 @app.get("/")

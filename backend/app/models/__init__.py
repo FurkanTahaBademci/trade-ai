@@ -17,12 +17,13 @@ from app.models.institutional import (
 from app.models.instrument import Instrument
 from app.models.kap import KapAttachment, KapDisclosure
 from app.models.llm_evaluation import LlmEvaluation
-from app.models.macro import MonetaryPolicyDecision
+from app.models.macro import MacroSeriesPoint, MonetaryPolicyDecision
 from app.models.news import NewsArticle
 from app.models.paper import PaperPortfolio, PaperPortfolioSnapshot, PaperPosition, PaperTrade
 from app.models.price import PriceDaily
 from app.models.schedule import CollectorSchedule, ScheduleAuditLog
 from app.models.signal import CompositeSignalSnapshot
+from app.models.watchlist import WatchlistItem
 
 __all__ = [
     "AnalystConsensus",
@@ -42,6 +43,7 @@ __all__ = [
     "KapAttachment",
     "KapDisclosure",
     "LlmEvaluation",
+    "MacroSeriesPoint",
     "MonetaryPolicyDecision",
     "NewsArticle",
     "PaperPortfolio",
@@ -50,4 +52,5 @@ __all__ = [
     "PaperTrade",
     "PriceDaily",
     "ScheduleAuditLog",
+    "WatchlistItem",
 ]

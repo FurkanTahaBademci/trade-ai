@@ -82,7 +82,7 @@ def test_consensus_uses_latest_row_per_institution_and_direct_source_on_tie():
             "ticker": "THYAO",
             "institution": "Deniz Yatırım",
             "source": "halkaarztakvimi",
-            "recommendation_date": date(2026, 8, 2),
+            "recommendation_date": date(2026, 8, 1),
             "recommendation_normalized": "HOLD",
             "target_price": Decimal(350),
         },
@@ -99,6 +99,61 @@ def test_consensus_uses_latest_row_per_institution_and_direct_source_on_tie():
     assert result["median_target"] == Decimal(400)
     assert result["recommendation_score"] == Decimal(75)
     assert result["implied_upside_pct"] == Decimal("33.33333333333333333333333330")
+    assert result["average_age_days"] == Decimal(37)
+
+
+def _recommendation(institution: str, when: date, vote: str, target: int) -> dict:
+    return {
+        "ticker": "THYAO",
+        "institution": institution,
+        "source": "isyatirim",
+        "recommendation_date": when,
+        "recommendation_normalized": vote,
+        "target_price": Decimal(target),
+    }
+
+
+def test_consensus_drops_recommendations_older_than_max_age():
+    rows = [
+        _recommendation("A", date(2026, 1, 5), "BUY", 600),
+        _recommendation("B", date(2026, 9, 1), "HOLD", 300),
+    ]
+
+    result = calculate_consensus(
+        rows, market_prices={"THYAO": Decimal(300)}, as_of_date=date(2026, 9, 7)
+    )[0]
+
+    assert result["institution_count"] == 1
+    assert result["average_target"] == Decimal(300)
+    assert result["recommendation_score"] == Decimal(50)
+
+
+def test_consensus_weights_fresh_recommendations_more():
+    rows = [
+        _recommendation("Eski", date(2026, 6, 9), "BUY", 500),
+        _recommendation("Yeni", date(2026, 9, 7), "SELL", 200),
+    ]
+
+    result = calculate_consensus(
+        rows, market_prices={"THYAO": Decimal(300)}, as_of_date=date(2026, 9, 7)
+    )[0]
+
+    # 90 gunluk yari omur: eski tavsiye yeni tavsiyenin yarisi kadar agirlik alir.
+    assert result["average_target"] == Decimal(300)
+    assert result["recommendation_score"] == Decimal(100) / 3
+
+
+def test_consensus_ignores_recommendations_dated_after_as_of():
+    rows = [
+        _recommendation("A", date(2026, 9, 1), "HOLD", 300),
+        _recommendation("B", date(2026, 9, 10), "BUY", 600),
+    ]
+
+    result = calculate_consensus(
+        rows, market_prices={"THYAO": Decimal(300)}, as_of_date=date(2026, 9, 7)
+    )[0]
+
+    assert result["institution_count"] == 1
 
 
 def _fund_rows() -> list[dict]:

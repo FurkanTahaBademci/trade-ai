@@ -21,14 +21,14 @@ from app.alerts.channels import AlertMessage, configured_channels, deliver
 from app.core.config import Settings
 from app.core.dynamic_settings import resolve_settings
 from app.core.redis import get_redis
-from app.models import CompositeSignalSnapshot, PaperPortfolio, PaperPosition
+from app.models import CompositeSignalSnapshot, PaperPortfolio, PaperPosition, WatchlistItem
+from app.signals.service import MODEL_VERSION as SIGNAL_MODEL_VERSION
 
 logger = structlog.get_logger(__name__)
 
 SENT_KEY_PREFIX = "alerts:sent:"
 LABEL_STATE_KEY = "alerts:label_state"
 EVENT_TTL_SECONDS = 7 * 24 * 60 * 60
-SIGNAL_MODEL_VERSION = "v1"
 LABEL_TEXT = {
     "VERY_POSITIVE": "Çok olumlu",
     "POSITIVE": "Olumlu",
@@ -156,7 +156,7 @@ async def _load_scores(session: AsyncSession) -> tuple[date | None, dict[str, di
 
 
 async def _watched_tickers(session: AsyncSession, settings: Settings) -> set[str]:
-    """Aktif paper portfoylerdeki pozisyonlar + ayarlardaki ek izleme listesi."""
+    """Aktif paper pozisyonlari + web izleme listesi + ayarlardaki ek hisseler."""
     held = (
         await session.scalars(
             select(PaperPosition.ticker)
@@ -164,7 +164,8 @@ async def _watched_tickers(session: AsyncSession, settings: Settings) -> set[str
             .where(PaperPortfolio.status == "ACTIVE")
         )
     ).all()
-    return set(held) | parse_watch_tickers(settings.alerts_watch_tickers)
+    listed = (await session.scalars(select(WatchlistItem.ticker))).all()
+    return set(held) | set(listed) | parse_watch_tickers(settings.alerts_watch_tickers)
 
 
 async def evaluate_signal_alerts(

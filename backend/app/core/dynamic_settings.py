@@ -74,8 +74,14 @@ ALERT_SCORE_CHOICES: tuple[tuple[str, str], ...] = (
 )
 
 
-def _pct_choices(values: tuple[int, ...], off_label: str) -> tuple[tuple[str, str], ...]:
-    return tuple((str(v), off_label if v == 0 else f"%{v}") for v in values)
+def _pct_choices(
+    values: tuple[int, ...], off_label: str, recommended: int | None = None
+) -> tuple[tuple[str, str], ...]:
+    def label(v: int) -> str:
+        text = off_label if v == 0 else f"%{v}"
+        return f"{text} · önerilen" if v == recommended else text
+
+    return tuple((str(v), label(v)) for v in values)
 
 
 PAPER_INT_FIELDS = {
@@ -136,35 +142,35 @@ MANAGED_SETTINGS: tuple[SettingSpec, ...] = (
         "Paper Zarar-Kes",
         "choice",
         "paper_stop_loss_pct",
-        _pct_choices((0, 5, 8, 10, 15, 20), "Kapalı · önerilen"),
+        _pct_choices((0, 5, 8, 10, 15, 20), "Kapalı", recommended=15),
     ),
     SettingSpec(
         "paper_take_profit_pct",
         "Paper Kâr-Al",
         "choice",
         "paper_take_profit_pct",
-        _pct_choices((0, 10, 20, 30, 50), "Kapalı · önerilen"),
+        _pct_choices((0, 10, 20, 30, 50), "Kapalı", recommended=0),
     ),
     SettingSpec(
         "paper_trailing_stop_pct",
         "Paper Trailing Stop",
         "choice",
         "paper_trailing_stop_pct",
-        _pct_choices((0, 5, 8, 10, 15), "Kapalı · önerilen"),
+        _pct_choices((0, 5, 8, 10, 15), "Kapalı", recommended=0),
     ),
     SettingSpec(
         "paper_max_position_weight_pct",
         "Paper Tek Pozisyon Maks. Ağırlık",
         "choice",
         "paper_max_position_weight_pct",
-        _pct_choices((5, 8, 10, 15, 20), ""),
+        _pct_choices((5, 8, 10, 15, 20), "", recommended=10),
     ),
     SettingSpec(
         "paper_max_sector_weight_pct",
         "Paper Sektör Konsantrasyon Limiti",
         "choice",
         "paper_max_sector_weight_pct",
-        _pct_choices((0, 20, 30, 40, 50), "Sınırsız · önerilen"),
+        _pct_choices((0, 20, 30, 40, 50), "Sınırsız", recommended=30),
     ),
     SettingSpec(
         "paper_rebalance_enabled",

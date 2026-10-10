@@ -59,3 +59,21 @@ class MonetaryPolicyDecision(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+
+class MacroSeriesPoint(Base):
+    """TCMB EVDS'den gelen makro seri gozlemi (kur, TUFE endeksi)."""
+
+    __tablename__ = "macro_series_point"
+    __table_args__ = (
+        UniqueConstraint("series_code", "date", name="uq_macro_series_point_identity"),
+        Index("ix_macro_series_point_series_date", "series_code", "date"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    series_code: Mapped[str] = mapped_column(String(32))
+    date: Mapped[date] = mapped_column(Date)
+    value: Mapped[Decimal] = mapped_column(Numeric(20, 6))
+    fetched_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )

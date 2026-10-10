@@ -39,6 +39,7 @@ class AnalystConsensusOut(BaseModel):
     implied_upside_pct: float | None
     target_dispersion: float | None
     recommendation_score: float | None
+    average_age_days: float | None = None
     source_breakdown: dict
     computed_at: datetime
 

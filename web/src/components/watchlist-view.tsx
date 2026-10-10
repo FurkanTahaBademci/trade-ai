@@ -8,11 +8,12 @@ import { buildCsv, downloadCsv } from "@/lib/csv";
 import { EmptyState } from "@/components/ui";
 import { Icon } from "@/components/icon";
 import { WatchlistStar } from "@/components/watchlist-star";
-import { useWatchlist } from "@/lib/watchlist";
+import { useWatchlist, useWatchlistSyncState } from "@/lib/watchlist";
 import { fetchMarketFeed } from "@/lib/market-feed";
 
 export function WatchlistView() {
   const { tickers } = useWatchlist();
+  const syncState = useWatchlistSyncState();
   const [items, setItems] = useState<MarketFeedItem[] | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [reloadVersion, setReloadVersion] = useState(0);
@@ -45,7 +46,7 @@ export function WatchlistView() {
     downloadCsv("izleme-listesi.csv", buildCsv(["Hisse", "Şirket", "Bileşik skor", "Etiket"], watched.map((item) => [item.ticker, item.name, item.composite_score == null ? null : Math.round(item.composite_score), item.signal_label ? signalName(item.signal_label) : null])));
   }
 
-  return <><div className="mb-3"><button type="button" onClick={exportCsv} className="pill transition hover:text-[var(--text)]"><Icon name="download" size={12}/>CSV indir</button></div>{missing.length > 0 &&<div className="mb-3 rounded border px-4 py-3 text-xs text-[var(--warning)]" style={{ borderColor: "color-mix(in srgb, var(--warning) 25%, transparent)", background: "var(--warning-soft)" }}>{missing.join(", ")} aktif piyasa evreninde bulunamadı.</div>}<div className="table-shell overflow-x-auto"><table className="data-table min-w-[560px]"><thead><tr><th className="w-10"><span className="sr-only">İşlem</span></th><th>Hisse</th><th>Şirket</th><th>Bileşik skor</th><th className="w-10"><span className="sr-only">İşlem</span></th></tr></thead><tbody>
+  return <><div className="mb-3 flex flex-wrap items-center gap-2"><button type="button" onClick={exportCsv} className="pill transition hover:text-[var(--text)]"><Icon name="download" size={12}/>CSV indir</button><SyncBadge state={syncState}/></div>{missing.length > 0 &&<div className="mb-3 rounded border px-4 py-3 text-xs text-[var(--warning)]" style={{ borderColor: "color-mix(in srgb, var(--warning) 25%, transparent)", background: "var(--warning-soft)" }}>{missing.join(", ")} aktif piyasa evreninde bulunamadı.</div>}<div className="table-shell overflow-x-auto"><table className="data-table min-w-[560px]"><thead><tr><th className="w-10"><span className="sr-only">İşlem</span></th><th>Hisse</th><th>Şirket</th><th>Bileşik skor</th><th className="w-10"><span className="sr-only">İşlem</span></th></tr></thead><tbody>
     {watched.map((item) => <tr key={item.ticker}>
       <td><WatchlistStar ticker={item.ticker} size={16}/></td>
       <td><Link href={`/piyasalar/${item.ticker}`} className="terminal-mono font-semibold text-[var(--primary)]">{item.ticker}</Link></td>
@@ -54,4 +55,11 @@ export function WatchlistView() {
       <td><Link href={`/piyasalar/${item.ticker}`} aria-label={`${item.ticker} detayını aç`} className="text-[var(--text-muted)]"><Icon name="chevron" size={16}/></Link></td>
     </tr>)}
   </tbody></table></div></>;
+}
+
+function SyncBadge({ state }: { state: ReturnType<typeof useWatchlistSyncState> }) {
+  if (state === "unknown") return null;
+  return state === "synced"
+    ? <span className="pill pill-positive">Sunucuyla senkron · bildirimlere dahil</span>
+    : <span className="pill">Yalnız bu tarayıcıda · bildirimler için yönetici girişi gerekir</span>;
 }

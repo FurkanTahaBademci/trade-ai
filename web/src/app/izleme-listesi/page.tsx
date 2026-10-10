@@ -6,7 +6,7 @@ export const metadata: Metadata = { title: "İzleme Listesi" };
 
 export default function WatchlistPage() {
   return <>
-    <PageHeader eyebrow="Kişisel · Yalnız bu tarayıcıda saklanır" title="İzleme Listesi" description="Takip etmek istediğiniz hisseleri hisse sayfalarındaki veya listelerdeki yıldıza tıklayarak ekleyin."/>
+    <PageHeader eyebrow="Kişisel izleme listesi" title="İzleme Listesi" description="Takip etmek istediğiniz hisseleri hisse sayfalarındaki veya listelerdeki yıldıza tıklayarak ekleyin."/>
     <WatchlistView/>
   </>;
 }

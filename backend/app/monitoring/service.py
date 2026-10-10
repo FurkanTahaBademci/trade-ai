@@ -19,15 +19,16 @@ logger = structlog.get_logger(__name__)
 # esikler kullanilir. Degerler saniye cinsindendir.
 COLLECTOR_POLICIES: dict[str, tuple[str, int]] = {
     "kap": ("KAP bildirimleri", 20 * 60),
-    "news": ("Haber akisi", 20 * 60),
+    "news": ("Haber akışı", 20 * 60),
     "instruments": ("Hisse evreni", 72 * 60 * 60),
-    "prices": ("EOD fiyatlari", 80 * 60 * 60),
+    "prices": ("EOD fiyatları", 80 * 60 * 60),
     "index_prices": ("BIST100 endeksi", 80 * 60 * 60),
     "fundamentals": ("Temel analiz", 80 * 60 * 60),
-    "analysts": ("Analist gorusleri", 80 * 60 * 60),
-    "institutional_reports": ("Kurum raporlari", 80 * 60 * 60),
-    "fund_flows": ("TEFAS fon akimi", 96 * 60 * 60),
-    "tcmb_policy": ("TCMB faiz kararlari", 72 * 60 * 60),
+    "analysts": ("Analist görüşleri", 80 * 60 * 60),
+    "institutional_reports": ("Kurum raporları", 80 * 60 * 60),
+    "fund_flows": ("TEFAS fon akımı", 96 * 60 * 60),
+    "tcmb_policy": ("TCMB faiz kararları", 72 * 60 * 60),
+    "evds": ("TCMB makro serileri", 96 * 60 * 60),
 }
 WORKER_MAX_AGE_SECONDS = 10 * 60
 

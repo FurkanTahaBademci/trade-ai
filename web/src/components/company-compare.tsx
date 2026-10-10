@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { CompanyComparisonData, CompanyCompareStock } from "@/lib/types";
-import { formatMoney, formatPercent, signalName } from "@/lib/format";
+import { formatMoney, formatNumber, formatPercent, signalName } from "@/lib/format";
 import { normalizeTicker } from "@/lib/turkish";
 import { Icon } from "./icon";
 
@@ -330,7 +330,7 @@ export function CompanyCompareView({ initialData }: { initialData: CompanyCompar
                   <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color.stroke }} />
                   <span className="font-bold">{c.ticker}</span>
                   <span className="text-[10px] text-[var(--text-muted)]">
-                    (Skor: {c.signal.composite_score} · {signalName(c.signal.label)})
+                    (Skor: {formatNumber(c.signal.composite_score, 0)} · {signalName(c.signal.label)})
                   </span>
                 </div>
               );
@@ -513,7 +513,7 @@ export function CompanyCompareView({ initialData }: { initialData: CompanyCompar
                 <td className="p-3.5 font-medium text-[var(--text-secondary)]">Son Fiyat</td>
                 {companies.map((c) => (
                   <td key={c.ticker} className="p-3.5 font-semibold text-[var(--text)]">
-                    ₺{c.price.last_price.toFixed(2)}
+                    {formatMoney(c.price.last_price)}
                   </td>
                 ))}
               </tr>
@@ -643,7 +643,7 @@ export function CompanyCompareView({ initialData }: { initialData: CompanyCompar
                               : "pill-neutral"
                           }`}
                         >
-                          {c.signal.composite_score} / 100 ({signalName(c.signal.label)})
+                          {formatNumber(c.signal.composite_score, 0)} / 100 ({signalName(c.signal.label)})
                         </span>
                       </td>
                     ))}
@@ -654,7 +654,7 @@ export function CompanyCompareView({ initialData }: { initialData: CompanyCompar
                     </td>
                     {companies.map((c) => (
                       <td key={c.ticker} className="p-3.5 font-medium text-[var(--text)]">
-                        {c.consensus.target_price ? `₺${c.consensus.target_price.toFixed(2)}` : "—"}
+                        {formatMoney(c.consensus.target_price)}
                       </td>
                     ))}
                   </tr>

@@ -22,6 +22,7 @@ from app.monitoring.service import monitor_system
 from app.scheduling.service import dispatch_due_schedules
 from app.tasks.jobs import (
     collect_analysts,
+    collect_evds,
     collect_fund_flows,
     collect_fundamentals,
     collect_index_prices,
@@ -69,7 +70,7 @@ class WorkerSettings:
         func(collect_index_prices, timeout=1200, name="collect_index_prices"),
         collect_kap,
         collect_news,
-        collect_fundamentals,
+        func(collect_fundamentals, timeout=3600, name="collect_fundamentals"),
         collect_analysts,
         collect_fund_flows,
         collect_institutional_reports,
@@ -77,6 +78,7 @@ class WorkerSettings:
         compute_signals,
         run_paper_portfolio,
         collect_tcmb_policy,
+        collect_evds,
         monitor_system,
         evaluate_alerts,
     ]

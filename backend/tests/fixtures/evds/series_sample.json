@@ -1,0 +1,10 @@
+{
+ "_note": "SENTETIK ornek - belgelenen EVDS bicimiyle uretildi, gercek yanit degil. Anahtar alininca 'run_once evds --save-fixture' ile degistirin.",
+ "totalCount": 4,
+ "items": [
+  {"Tarih": "01-09-2026", "TP_DK_USD_A_YTL": "41.2500", "TP_DK_EUR_A_YTL": "48.1000", "TP_FG_J0": null, "UNIXTIME": {"$numberLong": "1788220800"}},
+  {"Tarih": "02-09-2026", "TP_DK_USD_A_YTL": "41.3100", "TP_DK_EUR_A_YTL": null, "TP_FG_J0": null, "UNIXTIME": {"$numberLong": "1788307200"}},
+  {"Tarih": "2025-9", "TP_DK_USD_A_YTL": null, "TP_DK_EUR_A_YTL": null, "TP_FG_J0": "3300.10", "UNIXTIME": {"$numberLong": "1756684800"}},
+  {"Tarih": "2026-9", "TP_DK_USD_A_YTL": null, "TP_DK_EUR_A_YTL": null, "TP_FG_J0": "4290.13", "UNIXTIME": {"$numberLong": "1788220800"}}
+ ]
+}

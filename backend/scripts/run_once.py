@@ -11,8 +11,12 @@ Kullanim:
     python -m scripts.run_once institutional-reports --max-pages 2
     python -m scripts.run_once fund-flows --fund-kind YAT --days 7
     python -m scripts.run_once signals --tickers THYAO,ASELS
+    python -m scripts.run_once signals --days 120          # her islem gunu icin geriye donuk
     python -m scripts.run_once paper
+    python -m scripts.run_once kap-event-dates             # takvim olay tarihlerini doldur
     python -m scripts.run_once tcmb-policy --years 2025,2026
+    python -m scripts.run_once evds                         # EVDS_API_KEY gerekir
+    python -m scripts.run_once evds --save-fixture          # gercek yaniti fixture'a yaz
     python -m scripts.run_once prices --tickers THYAO,ASELS,GARAN --days 30
     python -m scripts.run_once prices                    # tum aktif hisseler, 3 yil backfill
     python -m scripts.run_once index-prices --days 30
@@ -156,11 +160,100 @@ async def run_fund_flows(fund_kind: str, days: int | None) -> dict:
         return await collector.run_tracked()
 
 
-async def run_signals(tickers: list[str] | None) -> dict:
+async def run_signals(tickers: list[str] | None, days: int | None = None) -> dict:
+    from sqlalchemy import select
+
+    from app.models import IndexDaily
     from app.signals.service import run_signal_engine
 
+    if not days:
+        async with session_factory() as session:
+            return await run_signal_engine(session, tickers=tickers)
+
+    # Geriye donuk doldurma: her islem gunu o gun bilinen veriyle hesaplanir.
+    start = datetime.now(ZoneInfo("Europe/Istanbul")).date() - timedelta(days=days)
     async with session_factory() as session:
-        return await run_signal_engine(session, tickers=tickers)
+        trading_days = list(
+            (
+                await session.scalars(
+                    select(IndexDaily.date)
+                    .where(IndexDaily.index_code == "XU100", IndexDaily.date >= start)
+                    .order_by(IndexDaily.date)
+                )
+            ).all()
+        )
+    totals = {"days": len(trading_days), "snapshots": 0, "new": 0, "updated": 0}
+    for day in trading_days:
+        async with session_factory() as session:
+            result = await run_signal_engine(session, tickers=tickers, as_of_date=day)
+        for key in ("snapshots", "new", "updated"):
+            totals[key] += result[key]
+        logger.info("signals_backfill_day", **result)
+    return totals
+
+
+async def run_kap_event_dates() -> dict:
+    """Govdesi olan eski KAP bildirimlerinden olay tarihini (yeniden) cikarir."""
+    from sqlalchemy import or_, select, update
+
+    from app.market_calendar.classifier import KAP_PREFILTER_STEMS
+    from app.market_calendar.event_dates import disclosure_event_date
+    from app.models import KapDisclosure
+
+    patterns = [f"%{stem}%" for stem in KAP_PREFILTER_STEMS]
+    scanned = updated = 0
+    async with session_factory() as session:
+        rows = (
+            await session.execute(
+                select(
+                    KapDisclosure.disclosure_index,
+                    KapDisclosure.kap_title,
+                    KapDisclosure.subject,
+                    KapDisclosure.disclosure_class,
+                    KapDisclosure.body_text,
+                    KapDisclosure.event_date,
+                ).where(
+                    KapDisclosure.body_text.is_not(None),
+                    or_(
+                        *[KapDisclosure.kap_title.ilike(p) for p in patterns],
+                        *[KapDisclosure.subject.ilike(p) for p in patterns],
+                    ),
+                )
+            )
+        ).all()
+        for row in rows:
+            scanned += 1
+            event = disclosure_event_date(
+                title=row.kap_title,
+                subject=row.subject,
+                disclosure_class=row.disclosure_class,
+                body_text=row.body_text,
+            )
+            new_date = event.event_date if event else None
+            if new_date == row.event_date:
+                continue
+            await session.execute(
+                update(KapDisclosure)
+                .where(KapDisclosure.disclosure_index == row.disclosure_index)
+                .values(event_date=new_date, event_detail=event.detail if event else None)
+            )
+            updated += 1
+        await session.commit()
+    return {"scanned": scanned, "updated": updated}
+
+
+async def run_evds(save_fixture: bool) -> dict:
+    from pathlib import Path
+
+    from app.collectors.evds import EvdsCollector
+    from app.collectors.evds import save_fixture as write_fixture
+
+    async with session_factory() as session, EvdsCollector(session) as collector:
+        if save_fixture:
+            path = Path("tests/fixtures/evds/series_sample.json")
+            write_fixture(await collector.fetch_raw(), path)
+            return {"fixture": str(path)}
+        return await collector.run_tracked()
 
 
 async def run_paper() -> dict:
@@ -181,6 +274,8 @@ async def run_tcmb_policy(years: list[int] | None, refresh: bool) -> dict:
 
 
 COLLECTORS = {
+    "evds": lambda args: run_evds(args.save_fixture),
+    "kap-event-dates": lambda args: run_kap_event_dates(),
     "analysts": lambda args: run_analysts(),
     "institutional-reports": lambda args: run_institutional_reports(args.max_pages),
     "fund-flows": lambda args: run_fund_flows(args.fund_kind, args.days),
@@ -200,7 +295,9 @@ COLLECTORS = {
         days=args.days,
         chunk_size=args.chunk_size,
     ),
-    "signals": lambda args: run_signals(args.tickers.split(",") if args.tickers else None),
+    "signals": lambda args: run_signals(
+        args.tickers.split(",") if args.tickers else None, args.days
+    ),
     "tcmb-policy": lambda args: run_tcmb_policy(
         [int(year) for year in args.years.split(",")] if args.years else None,
         args.refresh,
@@ -245,6 +342,11 @@ def main() -> None:
         choices=["YAT", "EMK", "BYF", "GYF", "GSYF"],
         default="YAT",
         help="TEFAS fon tipi (varsayilan: YAT).",
+    )
+    parser.add_argument(
+        "--save-fixture",
+        action="store_true",
+        help="evds: gercek yaniti tests/fixtures/evds/series_sample.json'a yaz.",
     )
     args = parser.parse_args()
 

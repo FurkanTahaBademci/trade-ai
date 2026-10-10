@@ -33,6 +33,7 @@ from app.models import (
     LlmEvaluation,
     NewsArticle,
 )
+from app.signals.service import MODEL_VERSION
 
 logger = structlog.get_logger("system")
 
@@ -117,14 +118,19 @@ async def get_system_stats(
         await db.scalar(select(func.count(KapDisclosure.disclosure_index))) or 0
     )
 
-    latest_signal_date = await db.scalar(select(func.max(CompositeSignalSnapshot.as_of_date)))
+    latest_signal_date = await db.scalar(
+        select(func.max(CompositeSignalSnapshot.as_of_date)).where(
+            CompositeSignalSnapshot.model_version == MODEL_VERSION
+        )
+    )
     signals_total = 0
     signals_by_label: dict[str, int] = {}
     if latest_signal_date is not None:
         signals_total = int(
             await db.scalar(
                 select(func.count(CompositeSignalSnapshot.id)).where(
-                    CompositeSignalSnapshot.as_of_date == latest_signal_date
+                    CompositeSignalSnapshot.as_of_date == latest_signal_date,
+                    CompositeSignalSnapshot.model_version == MODEL_VERSION,
                 )
             )
             or 0
@@ -133,16 +139,24 @@ async def get_system_stats(
             select(
                 CompositeSignalSnapshot.signal_label, func.count(CompositeSignalSnapshot.id)
             )
-            .where(CompositeSignalSnapshot.as_of_date == latest_signal_date)
+            .where(
+                CompositeSignalSnapshot.as_of_date == latest_signal_date,
+                CompositeSignalSnapshot.model_version == MODEL_VERSION,
+            )
             .group_by(CompositeSignalSnapshot.signal_label)
         )
         signals_by_label = {str(row[0]): int(row[1]) for row in signal_label_rows}
 
-    evaluations_total = int(await db.scalar(select(func.count(LlmEvaluation.id))) or 0)
-    evaluation_source_rows = await db.execute(
-        select(LlmEvaluation.source_type, func.count(LlmEvaluation.id)).group_by(
-            LlmEvaluation.source_type
+    evaluations_total = int(
+        await db.scalar(
+            select(func.count(LlmEvaluation.id)).where(LlmEvaluation.status != "filtered")
         )
+        or 0
+    )
+    evaluation_source_rows = await db.execute(
+        select(LlmEvaluation.source_type, func.count(LlmEvaluation.id))
+        .where(LlmEvaluation.status != "filtered")
+        .group_by(LlmEvaluation.source_type)
     )
     evaluations_by_source = {str(row[0]): int(row[1]) for row in evaluation_source_rows}
 

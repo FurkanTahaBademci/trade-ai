@@ -13,7 +13,7 @@ export type CompositeSignal = { id: number; ticker: string; as_of_date: string; 
 export type SignalHistoryPoint = { as_of_date: string; composite_score: number; signal_label: CompositeSignal["signal_label"]; confidence: number; component_scores: Record<string, number> };
 export type SignalDriver = { kind: "news" | "kap" | "analyst" | string; title: string; occurred_at: string | null; effect: number; href: string };
 export type SignalHistory = { ticker: string; points: SignalHistoryPoint[]; drivers: SignalDriver[] };
-export type SignalHorizonStat ={ horizon: number; label: string; observation_count: number; average_return_pct: number | null; hit_rate_pct: number | null };
+export type SignalHorizonStat ={ horizon: number; label: string; observation_count: number; average_return_pct: number | null; hit_rate_pct: number | null; average_excess_pct?: number | null; beat_rate_pct?: number | null };
 export type CalendarEventType = "PPK" | "FINANCIAL_REPORT" | "DIVIDEND" | "GENERAL_ASSEMBLY" | "CAPITAL_INCREASE";
 export type CalendarEvent = { id: string; date: string; type: CalendarEventType; type_label: string; title: string; detail: string | null; source: "TCMB" | "KAP"; tickers: string[]; disclosure_index: number | null; upcoming: boolean };
 export type MarketFeedItem = { ticker: string; name: string; composite_score: number | null; signal_label: string | null };
@@ -51,8 +51,8 @@ export type MarketHeatmapStock = {
   change_pct: number;
   volume_try: number;
   market_cap_try: number;
-  composite_score: number;
-  signal_label: string;
+  composite_score: number | null;
+  signal_label: string | null;
 };
 
 export type MarketHeatmapSector = {
@@ -163,3 +163,4 @@ export type CompanyComparisonData = {
   normalized_chart: Array<{ date: string; [ticker: string]: number | string }>;
   dimensions: Array<{ key: string; label: string }>;
 };
+export type MacroSeries = { code: string; label: string; latest_date: string | null; latest_value: number | null; change_pct: number | null; yoy_pct: number | null; history: { date: string; value: number }[] };

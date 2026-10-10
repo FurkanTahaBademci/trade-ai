@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -11,12 +12,20 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.collectors.base import BaseCollector, CollectorError
+from app.core.redis import get_redis
 from app.models import FinancialFact, FundamentalSnapshot, Instrument, LlmEvaluation
 
 FINANCIALS_URL = (
     "https://www.isyatirim.com.tr/_layouts/15/IsYatirim.Website/Common/Data.aspx/MaliTablo"
 )
 FINANCIAL_GROUPS = ("XI_29", "UFRS", "UFRS_K")
+# Tablolar ceyreklik degisir; tum evren gunluk partilerle dondurulur.
+REFRESH_AFTER_DAYS = 7
+DAILY_BATCH_SIZE = 120
+# Is Yatirim'da tablosu olmayan kodlar (borclanma araci ihraccilari vb.) her
+# gun sirayi tikamasin diye bir sure atlanir.
+FAILED_TICKER_COOLDOWN_SECONDS = 14 * 24 * 60 * 60
+_FAILED_KEY_PREFIX = "fundamentals:failed:"
 PERIODS = (3, 6, 9, 12)
 
 ITEM_CODES = {
@@ -34,6 +43,10 @@ ITEM_CODES = {
     "operating_cash_flow": "4C",
     "free_cash_flow": "4CB",
 }
+
+
+class NoFinancialsError(CollectorError):
+    """Bu kod icin desteklenen hicbir finansal tablo grubu yok (gecici hata degil)."""
 
 
 def _decimal(value: object) -> Decimal | None:
@@ -256,6 +269,38 @@ def build_snapshots(facts: list[FinancialFact | dict[str, Any]]) -> list[dict]:
     return snapshots
 
 
+def prioritize_tickers(
+    active: set[str],
+    *,
+    last_fetched: dict[str, datetime],
+    relevant: set[str],
+    cooling_down: set[str],
+    now: datetime,
+    limit: int = DAILY_BATCH_SIZE,
+) -> list[str]:
+    """Hic cekilmemis > gundemdeki > en eski cekilen sirasiyla bir parti secer.
+
+    Eski surum gundemdeki hisseleri alfabetik siralayip ilk 50'yi aliyordu;
+    bu yuzden alfabenin sonundaki buyuk hisseler (THYAO, PGSUS) hic islenmedi.
+    """
+    fresh_after = now - timedelta(days=REFRESH_AFTER_DAYS)
+    due = [
+        ticker
+        for ticker in active - cooling_down
+        if last_fetched.get(ticker) is None or last_fetched[ticker] < fresh_after
+    ]
+    epoch = datetime.min.replace(tzinfo=UTC)
+    due.sort(
+        key=lambda ticker: (
+            last_fetched.get(ticker) is not None,
+            ticker not in relevant,
+            last_fetched.get(ticker) or epoch,
+            ticker,
+        )
+    )
+    return due[:limit]
+
+
 class FundamentalsCollector(BaseCollector):
     name = "fundamentals"
 
@@ -284,17 +329,49 @@ class FundamentalsCollector(BaseCollector):
         )
         if self._tickers:
             return sorted(set(self._tickers) & active)
-        since = datetime.now(UTC) - timedelta(days=30)
+        now = datetime.now(UTC)
         rows = (
             await self._session.scalars(
                 select(LlmEvaluation.ticker_codes).where(
                     LlmEvaluation.status == "succeeded",
                     LlmEvaluation.relevance_score >= 60,
-                    LlmEvaluation.completed_at >= since,
+                    LlmEvaluation.completed_at >= now - timedelta(days=30),
                 )
             )
         ).all()
-        return sorted({ticker for codes in rows for ticker in codes if ticker in active})[:50]
+        last_fetched = dict(
+            (
+                await self._session.execute(
+                    select(FinancialFact.ticker, func.max(FinancialFact.fetched_at)).group_by(
+                        FinancialFact.ticker
+                    )
+                )
+            ).all()
+        )
+        return prioritize_tickers(
+            active,
+            last_fetched=last_fetched,
+            relevant={ticker for codes in rows for ticker in codes or []},
+            cooling_down=await self._cooling_down(active),
+            now=now,
+        )
+
+    @staticmethod
+    async def _cooling_down(tickers: set[str]) -> set[str]:
+        try:
+            redis = get_redis()
+            ordered = sorted(tickers)
+            flags = await redis.mget([f"{_FAILED_KEY_PREFIX}{ticker}" for ticker in ordered])
+        except Exception:  # noqa: BLE001 - Redis yoksa yalnizca atlama yapilmaz
+            return set()
+        return {ticker for ticker, flag in zip(ordered, flags, strict=True) if flag}
+
+    @staticmethod
+    async def _mark_failed(ticker: str) -> None:
+        with contextlib.suppress(Exception):
+            await get_redis().set(
+                f"{_FAILED_KEY_PREFIX}{ticker}", "1", ex=FAILED_TICKER_COOLDOWN_SECONDS
+            )
 
     @staticmethod
     def _params(ticker: str, group: str, year: int) -> dict:
@@ -319,7 +396,7 @@ class FundamentalsCollector(BaseCollector):
                 if rows:
                     cached[year] = payload
                     return group, cached
-        raise CollectorError(f"{ticker} icin desteklenen finansal tablo grubu bulunamadi")
+        raise NoFinancialsError(f"{ticker} icin desteklenen finansal tablo grubu bulunamadi")
 
     async def run(self) -> dict:
         tickers = await self._resolve_tickers()
@@ -424,6 +501,8 @@ class FundamentalsCollector(BaseCollector):
                 await self._session.rollback()
                 failures[ticker] = str(exc)
                 self.log.error("fundamentals_ticker_failed", ticker=ticker, error=str(exc))
+                if isinstance(exc, NoFinancialsError) and not self._tickers:
+                    await self._mark_failed(ticker)
 
         return {
             "requested": len(tickers),

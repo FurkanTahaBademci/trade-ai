@@ -78,3 +78,25 @@ def test_all_fixture_items_produce_stable_results():
     for fields in rows:
         assert fields["ticker"], "bos ticker sizmis olamaz"
         assert fields["kap_member_oid"], "kap_member_oid zorunlu"
+
+
+def _kap_item(stock_code: str, *, pay: str = "1") -> dict:
+    return {
+        "kapMemberOid": "oid-1",
+        "kapMemberTitle": "ORNEK A.S.",
+        "kapMemberState": "A",
+        "stockCode": stock_code,
+        "payIslemDurumu": pay,
+    }
+
+
+def test_debt_issuer_code_next_to_equity_ticker_is_inactive():
+    rows = {row["ticker"]: row["is_active"] for row in map_kap_item_to_instrument_fields(
+        _kap_item("A1CAP, ACP")
+    )}
+    assert rows == {"A1CAP": True, "ACP": False}
+
+
+def test_member_without_traded_shares_is_inactive():
+    rows = map_kap_item_to_instrument_fields(_kap_item("ADB, ADBNK", pay="0"))
+    assert [row["is_active"] for row in rows] == [False, False]

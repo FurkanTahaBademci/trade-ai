@@ -15,7 +15,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.csv_export import csv_response
 from app.core.db import get_db
 from app.core.redis import get_redis
-from app.models import AnalystRecommendation, CompositeSignalSnapshot, LlmEvaluation, PriceDaily
+from app.models import (
+    AnalystRecommendation,
+    CompositeSignalSnapshot,
+    IndexDaily,
+    LlmEvaluation,
+    PriceDaily,
+)
 from app.schemas.signal import (
     CompositeSignalOut,
     SignalHistoryOut,
@@ -32,6 +38,7 @@ from app.signals.service import MODEL_VERSION
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/signals", tags=["signals"])
+BENCHMARK_INDEX = "XU100"
 
 
 class SignalLabel(StrEnum):
@@ -54,10 +61,17 @@ async def list_latest_signals(
     after_id: Annotated[int | None, Query(ge=1)] = None,
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
 ) -> list[CompositeSignalSnapshot]:
-    target_date = as_of or await db.scalar(select(func.max(CompositeSignalSnapshot.as_of_date)))
+    target_date = as_of or await db.scalar(
+        select(func.max(CompositeSignalSnapshot.as_of_date)).where(
+            CompositeSignalSnapshot.model_version == MODEL_VERSION
+        )
+    )
     if target_date is None:
         return []
-    stmt = select(CompositeSignalSnapshot).where(CompositeSignalSnapshot.as_of_date == target_date)
+    stmt = select(CompositeSignalSnapshot).where(
+        CompositeSignalSnapshot.as_of_date == target_date,
+        CompositeSignalSnapshot.model_version == MODEL_VERSION,
+    )
     if ticker:
         stmt = stmt.where(CompositeSignalSnapshot.ticker == ticker.upper())
     if label:
@@ -100,7 +114,7 @@ async def list_latest_signals(
 @router.get("/accuracy", response_model=list[SignalHorizonStatOut])
 async def signal_accuracy_report(
     db: Annotated[AsyncSession, Depends(get_db)],
-    model_version: Annotated[str, Query()] = "v1",
+    model_version: Annotated[str, Query()] = MODEL_VERSION,
 ) -> list[SignalHorizonStatOut]:
     """Gecmis sinyallerin gercek ileri getirisiyle karsilastirilmasi.
 
@@ -108,7 +122,7 @@ async def signal_accuracy_report(
     segmenti oldugundan asagidaki /{ticker} route'undan ONCE tanimlanmali,
     aksi halde "accuracy" bir ticker kodu sanilip yakalanir.
     """
-    cache_key = f"signals:accuracy:{model_version}"
+    cache_key = f"signals:accuracy:v2:{model_version}"
     redis = get_redis()
     try:
         cached = await redis.get(cache_key)
@@ -130,14 +144,27 @@ async def signal_accuracy_report(
     ).all()
     tickers = {row.ticker for row in signal_rows}
     price_points: list[PricePoint] = []
+    # Ilk sinyalden onceki fiyatlar hesaba girmez; yillarca geriye giden tum
+    # fiyat gecmisini cekmek soguk onbellekte istegi saniyelerce uzatiyordu.
+    first_signal = min((row.as_of_date for row in signal_rows), default=None)
     if tickers:
         price_stmt = (
             select(PriceDaily.ticker, PriceDaily.date, PriceDaily.close)
-            .where(PriceDaily.ticker.in_(tickers))
+            .where(PriceDaily.ticker.in_(tickers), PriceDaily.date >= first_signal)
             .order_by(PriceDaily.ticker, PriceDaily.date)
         )
         price_rows = (await db.execute(price_stmt)).all()
         price_points = [PricePoint(row.ticker, row.date, row.close) for row in price_rows]
+    benchmark_rows = (
+        await db.execute(
+            select(IndexDaily.date, IndexDaily.value)
+            .where(
+                IndexDaily.index_code == BENCHMARK_INDEX,
+                IndexDaily.date >= (first_signal or date.min),
+            )
+            .order_by(IndexDaily.date)
+        )
+    ).all()
 
     stats = compute_signal_accuracy(
         [
@@ -146,12 +173,14 @@ async def signal_accuracy_report(
         ],
         price_points,
         horizons=DEFAULT_HORIZONS,
+        benchmark=[(row.date, row.value) for row in benchmark_rows],
     )
     validated = [SignalHorizonStatOut.model_validate(item) for item in stats]
     try:
+        # Ileri getiriler gun sonu fiyatiyla degisir; saatlik tazelik yeterli.
         await redis.setex(
             cache_key,
-            900,
+            3600,
             json.dumps([item.model_dump(mode="json") for item in validated]),
         )
     except RedisError as exc:
@@ -318,7 +347,10 @@ async def signal_history(
 ) -> list[CompositeSignalSnapshot]:
     stmt = (
         select(CompositeSignalSnapshot)
-        .where(CompositeSignalSnapshot.ticker == ticker.upper())
+        .where(
+            CompositeSignalSnapshot.ticker == ticker.upper(),
+            CompositeSignalSnapshot.model_version == MODEL_VERSION,
+        )
         .order_by(CompositeSignalSnapshot.as_of_date.desc())
         .limit(limit)
     )

@@ -61,6 +61,19 @@ def test_dunya_fixture_maps_all_entries_with_explicit_offset():
     assert rows[0]["canonical_url"].startswith("https://www.dunya.com/")
 
 
+@pytest.mark.parametrize("source", ["dunya", "foreks"])
+def test_cdata_entities_are_fully_decoded(source):
+    parsed = feedparser.parse((FIXTURES / f"{source}_sample.xml").read_bytes())
+
+    rows = [map_news_entry(source, entry, set()) for entry in parsed.entries]
+
+    for row in rows:
+        for text in (row["title"], row["summary"] or ""):
+            assert "&#039;" not in text
+            assert "&amp;" not in text
+            assert "&quot;" not in text
+
+
 def test_foreks_fixture_maps_all_entries_and_keeps_author():
     parsed = feedparser.parse((FIXTURES / "foreks_sample.xml").read_bytes())
 

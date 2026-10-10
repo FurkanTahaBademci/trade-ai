@@ -86,6 +86,7 @@ class AnalystConsensus(Base):
     implied_upside_pct: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
     target_dispersion: Mapped[Decimal | None] = mapped_column(Numeric(12, 8), nullable=True)
     recommendation_score: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
+    average_age_days: Mapped[Decimal | None] = mapped_column(Numeric(8, 2), nullable=True)
     source_breakdown: Mapped[dict] = mapped_column(INSTITUTIONAL_JSON_TYPE)
     computed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

@@ -37,7 +37,7 @@ class LlmEvaluation(Base):
         CheckConstraint("source_type IN ('news', 'kap')", name="ck_llm_evaluation_source_type"),
         CheckConstraint("tier IN (1, 2)", name="ck_llm_evaluation_tier"),
         CheckConstraint(
-            "status IN ('running', 'succeeded', 'failed')",
+            "status IN ('running', 'succeeded', 'failed', 'filtered')",
             name="ck_llm_evaluation_status",
         ),
         CheckConstraint(

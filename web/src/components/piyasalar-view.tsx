@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import type { Instrument, MarketHeatmapData } from "@/lib/types";
+import { useMemo, useState } from "react";
+import type { Instrument, MarketHeatmapData, MarketHeatmapStock } from "@/lib/types";
 import { InstrumentList } from "./instrument-list";
 import { MarketHeatmap } from "./market-heatmap";
 import { Icon } from "./icon";
@@ -14,6 +14,11 @@ export function PiyasalarView({
   heatmap: MarketHeatmapData | null;
 }) {
   const [view, setView] = useState<"heatmap" | "table">("table");
+  const quotes = useMemo(() => {
+    const map: Record<string, MarketHeatmapStock> = {};
+    for (const sector of heatmap?.sectors ?? []) for (const stock of sector.stocks) map[stock.ticker] = stock;
+    return map;
+  }, [heatmap]);
 
   return (
     <div className="space-y-4">
@@ -59,7 +64,7 @@ export function PiyasalarView({
       {view === "heatmap" ? (
         <MarketHeatmap data={heatmap} />
       ) : (
-        <InstrumentList instruments={instruments} />
+        <InstrumentList instruments={instruments} quotes={quotes} />
       )}
     </div>
   );

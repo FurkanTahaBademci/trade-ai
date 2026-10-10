@@ -35,15 +35,18 @@ from app.paper.risk import (
     plan_position_actions,
     update_high_water,
 )
+from app.signals.service import MODEL_VERSION as SIGNAL_MODEL_VERSION
 
-STRATEGY_VERSION = "paper-v1"
-SIGNAL_MODEL_VERSION = "v1"
+STRATEGY_VERSION = "paper-v2"
 DEFAULT_PORTFOLIO_NAME = "Ana Paper Portföy"
 DEFAULT_INITIAL_CASH = Decimal(1000000)
 ENTRY_SCORE = Decimal(75)
 EXIT_SCORE = Decimal(40)
 MIN_CONFIDENCE = Decimal("0.25")
 MAX_POSITIONS = 10
+# Tek bir haber/kanit ayni gun portfoyun buyuk kismini doldurmasin; bos slotlar
+# gunler icine yayilir.
+MAX_NEW_ENTRIES_PER_DAY = 3
 MAX_POSITION_WEIGHT = Decimal("0.10")
 FEE_RATE = Decimal("0.001")
 SLIPPAGE_RATE = Decimal("0.0005")
@@ -354,7 +357,7 @@ async def run_paper_portfolio(
         entries = select_entry_signals(
             signals,
             held_tickers=set(open_positions),
-            slots=max(0, MAX_POSITIONS - len(open_positions)),
+            slots=min(MAX_NEW_ENTRIES_PER_DAY, max(0, MAX_POSITIONS - len(open_positions))),
         )
         sector_values: dict[str, Decimal] = {}
         for ticker, position in open_positions.items():
@@ -413,8 +416,8 @@ async def run_paper_portfolio(
                     fee_amount=order.fee_amount,
                     realized_pnl=None,
                     reason=(
-                        f"Bilesik skor {signal.composite_score} >= {ENTRY_SCORE}; "
-                        f"guven {signal.confidence}"
+                        f"Bileşik skor {float(signal.composite_score):.1f} ≥ {ENTRY_SCORE}; "
+                        f"güven %{float(signal.confidence) * 100:.0f}"
                     ),
                     exit_reason=None,
                 )

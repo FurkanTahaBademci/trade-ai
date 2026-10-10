@@ -29,6 +29,7 @@ from sqlalchemy.orm import aliased
 from app.core.config import Settings, get_settings
 from app.core.dynamic_settings import resolve_settings
 from app.llm.quota import get_provider_pause, quota_pause
+from app.llm.relevance import is_market_relevant
 from app.models import Instrument, KapDisclosure, LlmEvaluation, NewsArticle
 from app.schemas.llm import (
     LlmTier1BatchResult,
@@ -724,7 +725,58 @@ class LlmEvaluationService:
                 documents[key] = document
                 retry_keys.add(key)
 
+        documents = await self._filter_off_topic_news(documents, model=model)
         return _prioritize_documents(documents, retry_keys)
+
+    async def _filter_off_topic_news(
+        self, documents: dict[tuple[str, int, str], SourceDocument], *, model: str
+    ) -> dict[tuple[str, int, str], SourceDocument]:
+        """Piyasa disi haberleri 'filtered' olarak kaydeder ve LLM listesinden cikarir."""
+        kept: dict[tuple[str, int, str], SourceDocument] = {}
+        filtered: list[LlmEvaluation] = []
+        now = datetime.now(UTC)
+        for key, document in documents.items():
+            payload = document.payload
+            if document.source_type != "news" or is_market_relevant(
+                payload.get("title"), payload.get("summary"), payload.get("known_ticker_codes")
+            ):
+                kept[key] = document
+                continue
+            filtered.append(
+                LlmEvaluation(
+                    evaluation_key=evaluation_key(
+                        document,
+                        tier=1,
+                        model=model,
+                        api_mode=self._settings.gemini_api_mode,
+                    ),
+                    source_type=document.source_type,
+                    source_id=document.source_id,
+                    content_hash=document.content_hash,
+                    prompt_version=PROMPT_VERSION,
+                    tier=1,
+                    provider="rule",
+                    api_mode=self._settings.gemini_api_mode,
+                    model=model,
+                    status="filtered",
+                    attempt_count=0,
+                    input_document=payload,
+                    ticker_codes=[],
+                    requires_tier2=False,
+                    summary="Kural tabanlı ön filtre: piyasa dışı konu",
+                    started_at=now,
+                    completed_at=now,
+                )
+            )
+        if filtered:
+            for record in filtered:
+                if await self._existing(record.evaluation_key) is None:
+                    self._session.add(record)
+            try:
+                await self._session.commit()
+            except IntegrityError:
+                await self._session.rollback()
+        return kept
 
     async def _load_document(self, source_type: str, source_id: int) -> SourceDocument | None:
         if source_type == "news":
@@ -794,7 +846,7 @@ class LlmEvaluationService:
     def _can_attempt(record: LlmEvaluation | None, max_attempts: int) -> bool:
         if record is None:
             return True
-        if record.status == "succeeded" or record.attempt_count >= max_attempts:
+        if record.status in {"succeeded", "filtered"} or record.attempt_count >= max_attempts:
             return False
         if record.status == "running":
             stale_before = datetime.now(UTC) - timedelta(minutes=30)

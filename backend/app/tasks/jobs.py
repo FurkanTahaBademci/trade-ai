@@ -135,6 +135,13 @@ async def run_paper_portfolio(ctx: dict) -> dict:
         return await execute_paper_portfolio(session)
 
 
+async def collect_evds(ctx: dict) -> dict:
+    from app.collectors.evds import EvdsCollector
+
+    async with session_factory() as session, EvdsCollector(session) as collector:
+        return await collector.run_tracked()
+
+
 async def collect_tcmb_policy(ctx: dict) -> dict:
     from app.collectors.tcmb_policy import TcmbPolicyCollector
 

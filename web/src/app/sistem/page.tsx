@@ -16,7 +16,7 @@ const stateText = {
   error: "Hata",
   pending: "İlk çalışma bekleniyor",
 };
-const scheduleOrder = ["news", "kap", "evaluations", "signals", "prices", "instruments", "fundamentals", "analysts", "institutional_reports", "fund_flows", "tcmb_policy", "paper_portfolio"];
+const scheduleOrder = ["news", "kap", "evaluations", "signals", "prices", "instruments", "fundamentals", "analysts", "institutional_reports", "fund_flows", "tcmb_policy", "evds", "paper_portfolio"];
 
 function StatePill({ state }: { state: ComponentHealth["state"] }) {
   const tone = state === "healthy" ? "pill-positive" : state === "error" ? "pill-negative" : "";

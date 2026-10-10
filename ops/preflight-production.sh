@@ -98,7 +98,7 @@ else
   fail "Docker Compose yapilandirmasi gecersiz"
 fi
 
-for optional_name in GEMINI_API_KEY N8N_WEBHOOK_URL; do
+for optional_name in GEMINI_API_KEY EVDS_API_KEY N8N_WEBHOOK_URL; do
   if [ -n "$(setting "$optional_name")" ]; then
     pass "$optional_name opsiyonel entegrasyonu yapilandirildi"
   else

@@ -8,6 +8,7 @@ kullanir; sirket adindan tahmin yapmaz.
 from __future__ import annotations
 
 import hashlib
+import html
 import json
 import re
 from dataclasses import dataclass
@@ -83,7 +84,12 @@ def html_to_text(value: str) -> str:
     parser = _TextParser()
     parser.feed(value)
     parser.close()
-    return re.sub(r"\s+", " ", "".join(parser.parts)).strip()
+    text = "".join(parser.parts)
+    # Bazi kaynaklar (Dunya, Foreks) CDATA icine entity koyar; feedparser bunu
+    # `&amp;#039;` olarak birakir, tek gecis sonrasi `&#039;` kalir.
+    if "&" in text:
+        text = html.unescape(text)
+    return re.sub(r"\s+", " ", text).strip()
 
 
 def canonicalize_url(value: str) -> str:

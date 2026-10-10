@@ -20,9 +20,9 @@ from app.models import (
     PriceDaily,
 )
 from app.schemas.backtest import BacktestCreate
+from app.signals.service import MODEL_VERSION as SIGNAL_MODEL_VERSION
 
 STRATEGY_VERSION = "backtest-v1"
-SIGNAL_MODEL_VERSION = "v1"
 
 
 def _decimal(value: float | Decimal) -> Decimal:

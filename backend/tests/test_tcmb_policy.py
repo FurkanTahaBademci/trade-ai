@@ -10,7 +10,7 @@ FIXTURES = Path(__file__).parent / "fixtures" / "tcmb_policy"
 
 
 def test_calendar_parser_reads_published_and_scheduled_decisions():
-    rows = parse_calendar((FIXTURES / "calendar_2026.html").read_text())
+    rows = parse_calendar((FIXTURES / "calendar_2026.html").read_text(encoding="utf-8"))
 
     assert rows[0] == (
         date(2026, 1, 22),
@@ -22,7 +22,7 @@ def test_calendar_parser_reads_published_and_scheduled_decisions():
 
 def test_decision_parser_maps_hold_and_corridor_rates():
     result = map_decision(
-        (FIXTURES / "decision_2026_28.html").read_text(),
+        (FIXTURES / "decision_2026_28.html").read_text(encoding="utf-8"),
         decision_date=date(2026, 7, 23),
         source_url="https://www.tcmb.gov.tr/example",
     )

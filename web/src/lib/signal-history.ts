@@ -1,7 +1,7 @@
 import { extractChartDate } from "./chart-data";
 import type { SignalHistoryPoint } from "./types";
 
-export const COMPONENT_KEYS = ["llm", "fundamental", "analyst", "fund_flow"] as const;
+export const COMPONENT_KEYS = ["llm", "fundamental", "analyst", "momentum"] as const;
 
 // Gecersiz/yinelenen gunleri eler, eskiden yeniye dizer.
 export function normalizeHistory(source: SignalHistoryPoint[]): SignalHistoryPoint[] {

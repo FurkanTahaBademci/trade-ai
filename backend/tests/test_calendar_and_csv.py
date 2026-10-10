@@ -89,6 +89,8 @@ async def test_calendar_endpoint_merges_ppk_and_kap_events():
             subject=None,
             disclosure_class="DG",
             ticker_codes=["THYAO"],
+            event_date=None,
+            event_detail=None,
         ),
         SimpleNamespace(
             disclosure_index=8,
@@ -97,6 +99,8 @@ async def test_calendar_endpoint_merges_ppk_and_kap_events():
             subject=None,
             disclosure_class="ODA",
             ticker_codes=["ASELS"],
+            event_date=None,
+            event_detail=None,
         ),
     ]
     db = AsyncMock()
@@ -104,7 +108,7 @@ async def test_calendar_endpoint_merges_ppk_and_kap_events():
     scalars.all.return_value = [decision]
     db.scalars.return_value = scalars
     result = MagicMock()
-    result.scalars.return_value.unique.return_value.all.return_value = kap_rows
+    result.all.return_value = kap_rows
     db.execute.return_value = result
 
     events = await list_calendar_events(
@@ -118,7 +122,7 @@ async def test_calendar_endpoint_merges_ppk_and_kap_events():
 async def test_calendar_type_filter_skips_ppk_query():
     db = AsyncMock()
     result = MagicMock()
-    result.scalars.return_value.unique.return_value.all.return_value = []
+    result.all.return_value = []
     db.execute.return_value = result
     events = await list_calendar_events(
         db=db,
@@ -129,3 +133,32 @@ async def test_calendar_type_filter_skips_ppk_query():
     )
     assert events == []
     db.scalars.assert_not_called()
+
+
+async def test_calendar_places_kap_event_on_extracted_event_date():
+    row = SimpleNamespace(
+        disclosure_index=9,
+        published_at=datetime(2026, 9, 2, 9, 0, tzinfo=UTC),
+        kap_title="Kar Payı Dağıtım İşlemlerine İlişkin Bildirim",
+        subject=None,
+        disclosure_class="ODA",
+        ticker_codes=["GUBRF"],
+        event_date=date(2099, 10, 14),
+        event_detail="Hak kullanım 14.10.2099 · ödeme 16.10.2099",
+    )
+    db = AsyncMock()
+    result = MagicMock()
+    result.all.return_value = [row]
+    db.execute.return_value = result
+
+    events = await list_calendar_events(
+        db=db,
+        start=date(2099, 10, 1),
+        end=date(2099, 10, 31),
+        types=[EventType.DIVIDEND],
+        ticker=None,
+    )
+
+    assert events[0].date == date(2099, 10, 14)
+    assert events[0].detail == "Hak kullanım 14.10.2099 · ödeme 16.10.2099"
+    assert events[0].upcoming is True
