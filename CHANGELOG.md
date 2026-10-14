@@ -9,6 +9,8 @@ bu bölümü yeni sürüm numarasıyla kapatır.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-14
+
 ### Eklendi
 
 - **Sürüm gösterimi:** sol menünün en altında çalışan sürüm (`v0.3.0`) ve
