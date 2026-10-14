@@ -43,6 +43,8 @@ def test_monitoring_failure_does_not_misreport_redis_outage(monkeypatch):
     )
     response = TestClient(app).get("/health/detailed")
     assert response.json() == {
+        "version": health.__version__,
+        "commit": health.source_commit(),
         "db": "ok",
         "redis": "ok",
         "monitoring": None,
@@ -57,3 +59,14 @@ def test_readiness_does_not_wait_for_collectors(monkeypatch):
     monkeypatch.setattr(health, "get_monitoring_report", monitoring)
     assert TestClient(app).get("/health/ready").status_code == 200
     monitoring.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [("", None), ("ABCDEF1234567890", "abcdef1"), ("not-a-sha", None), ("abc12", None)],
+)
+def test_health_reports_version_and_short_source_commit(monkeypatch, raw, expected):
+    monkeypatch.setattr(health, "get_settings", lambda: type("S", (), {"source_commit": raw})())
+    body = TestClient(app).get("/health").json()
+    assert body["version"] == health.__version__
+    assert body["commit"] == expected

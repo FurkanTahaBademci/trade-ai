@@ -53,6 +53,10 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      args:
+        # Coolify: "Include Source Commit in Build" acikken dolar; bos kalirsa
+        # arayuz yalniz surum numarasini gosterir.
+        SOURCE_COMMIT: ${SOURCE_COMMIT:-}
     restart: unless-stopped
     init: true
     read_only: true
@@ -89,6 +93,10 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      args:
+        # Coolify: "Include Source Commit in Build" acikken dolar; bos kalirsa
+        # arayuz yalniz surum numarasini gosterir.
+        SOURCE_COMMIT: ${SOURCE_COMMIT:-}
     restart: unless-stopped
     init: true
     read_only: true
@@ -120,6 +128,10 @@ services:
     build:
       context: ./web
       dockerfile: Dockerfile
+      args:
+        # Coolify: "Include Source Commit in Build" acikken dolar; bos kalirsa
+        # arayuz yalniz surum numarasini gosterir.
+        SOURCE_COMMIT: ${SOURCE_COMMIT:-}
     restart: unless-stopped
     init: true
     read_only: true

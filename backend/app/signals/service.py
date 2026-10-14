@@ -21,6 +21,7 @@ V1'den farklar (v2 yayinlanmadan v3'e birlestirildi):
 
 from __future__ import annotations
 
+import calendar
 from bisect import bisect_right
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
@@ -31,6 +32,7 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import load_only
 
 from app.collectors.analysts import ANALYST_MAX_AGE_DAYS, calculate_consensus
 from app.models import (
@@ -62,6 +64,9 @@ MIN_COMPONENTS = 2
 FULL_CONFIDENCE = Decimal("0.60")
 # Ortalama tavsiye yasi bu kadar gun oldugunda analist guveni yariya iner.
 ANALYST_CONFIDENCE_HALF_LIFE_DAYS = 120
+# Donem sonundan sonra finansal tablonun kamuya acik oldugu kesin kabul edilen
+# gun sayisi (SPK konsolide ilan sureleri + uzatmalara karsi guvenlik payi).
+FINANCIALS_PUBLIC_LAG_DAYS = {3: 70, 6: 80, 9: 70, 12: 100}
 
 
 @dataclass(frozen=True)
@@ -249,6 +254,26 @@ def score_momentum(
     )
 
 
+def fundamental_public_date(year: int, period: int) -> date:
+    """Donem tablosunun en gec kamuya acik oldugu tarih (ihtiyatli tahmin)."""
+    month = min(max(period, 1), 12)
+    period_end = date(year, month, calendar.monthrange(year, month)[1])
+    return period_end + timedelta(days=FINANCIALS_PUBLIC_LAG_DAYS.get(period, 100))
+
+
+def fundamental_known_at(row: Any, *, as_of: date, now: datetime) -> bool:
+    """Gecmis bir gun icin temel analiz satiri o gun biliniyor muydu?
+
+    `computed_at` her haftalik yenilemede guncellenir; tek basina kullanilirsa
+    geriye donuk hesapta neredeyse hic temel analiz bileseni kalmaz. Sistem satiri
+    o gun gormus olabilir (computed_at) ya da ilan suresi dolmus olabilir.
+    """
+    computed_at = getattr(row, "computed_at", None)
+    if computed_at is not None and _aware(computed_at) <= now:
+        return True
+    return fundamental_public_date(row.year, row.period) <= as_of
+
+
 def build_composite_signal(
     ticker: str,
     components: dict[str, ComponentResult],
@@ -317,10 +342,27 @@ async def run_signal_engine(
     if requested:
         active &= requested
 
+    # Skorlama yalniz bu kolonlari okur; girdi belgesi, ham yanit ve gerekce gibi
+    # buyuk metin kolonlari her 10 dakikada (ve backfill'de gun basina) cekilmez.
+    llm_columns = load_only(
+        LlmEvaluation.id,
+        LlmEvaluation.ticker_codes,
+        LlmEvaluation.source_type,
+        LlmEvaluation.source_id,
+        LlmEvaluation.tier,
+        LlmEvaluation.confidence,
+        LlmEvaluation.sentiment_score,
+        LlmEvaluation.impact_score,
+        LlmEvaluation.relevance_score,
+        LlmEvaluation.completed_at,
+        LlmEvaluation.created_at,
+    )
     llm_rows = list(
         (
             await session.scalars(
-                select(LlmEvaluation).where(
+                select(LlmEvaluation)
+                .options(llm_columns)
+                .where(
                     LlmEvaluation.status == "succeeded",
                     LlmEvaluation.created_at
                     >= datetime.combine(as_of, time.min, tzinfo=UTC)
@@ -330,16 +372,17 @@ async def run_signal_engine(
             )
         ).all()
     )
-    fundamental_rows = list(
-        (
+    fundamental_rows = [
+        row
+        for row in (
             await session.scalars(
                 select(FundamentalSnapshot).where(
                     FundamentalSnapshot.fundamental_score.is_not(None),
-                    FundamentalSnapshot.computed_at <= now,
                 )
             )
         ).all()
-    )
+        if fundamental_known_at(row, as_of=as_of, now=now)
+    ]
     # Konsensus tablosu UI icin gunluk bir ozettir; skor motoru o tarihte
     # gecerli tavsiyelerden ayni formulle anlik hesaplar (geriye donuk
     # hesaplarda da yas agirligi ve bakis-onyargisi korumasi gecerli olur).
@@ -357,7 +400,9 @@ async def run_signal_engine(
     price_rows = (
         await session.execute(
             select(PriceDaily.ticker, PriceDaily.close)
-            .where(PriceDaily.date <= as_of)
+            # Alt sinir tum fiyat gecmisini (yillar) taramayi onler; 30 gundur
+            # islem gormeyen hissede analist getiri potansiyeli zaten anlamsizdir.
+            .where(PriceDaily.date <= as_of, PriceDaily.date >= as_of - timedelta(days=30))
             .distinct(PriceDaily.ticker)
             .order_by(PriceDaily.ticker, PriceDaily.date.desc())
         )
@@ -470,3 +515,60 @@ async def run_signal_engine(
         "updated": len(existing),
         "skipped_low_coverage": skipped_low_coverage,
     }
+
+
+# --- Gecmis doldurma -------------------------------------------------------
+
+# Dogruluk tablosu ve backtest gecmis skorlara ihtiyac duyar. Yeni bir model
+# surumu yayinlandiginda gecmisi elle doldurmak (run_once signals --days N)
+# unutulursa bu ekranlar haftalarca bos kalir; worker her sinyal kosusunda
+# eksik gunlerden kucuk bir partiyi doldurur.
+BACKFILL_LOOKBACK_DAYS = 180
+BACKFILL_BATCH_DAYS = 5
+
+
+def select_backfill_days(
+    trading_days: set[date],
+    existing_days: set[date],
+    attempted_days: set[date],
+    *,
+    batch: int = BACKFILL_BATCH_DAYS,
+) -> tuple[list[date], int]:
+    """Doldurulacak gunler (yeniden eskiye) ve kalan eksik gun sayisi.
+
+    Hic snapshot uretmeyen gunler (ornegin veri olmayan erken gunler) her kosuda
+    yeniden denenmesin diye `attempted_days` disarida birakilir.
+    """
+    missing = sorted(trading_days - existing_days - attempted_days, reverse=True)
+    return missing[:batch], max(len(missing) - batch, 0)
+
+
+async def missing_signal_days(
+    session: AsyncSession, *, today: date, lookback_days: int = BACKFILL_LOOKBACK_DAYS
+) -> tuple[set[date], set[date]]:
+    """Pencere icindeki XU100 islem gunleri ve bu model surumunde skoru olan gunler."""
+    start = today - timedelta(days=lookback_days)
+    trading_days = set(
+        (
+            await session.scalars(
+                select(IndexDaily.date).where(
+                    IndexDaily.index_code == BENCHMARK_INDEX,
+                    IndexDaily.date >= start,
+                    IndexDaily.date < today,
+                )
+            )
+        ).all()
+    )
+    existing_days = set(
+        (
+            await session.scalars(
+                select(CompositeSignalSnapshot.as_of_date)
+                .where(
+                    CompositeSignalSnapshot.model_version == MODEL_VERSION,
+                    CompositeSignalSnapshot.as_of_date >= start,
+                )
+                .distinct()
+            )
+        ).all()
+    )
+    return trading_days, existing_days

@@ -87,6 +87,7 @@ async def get_monitoring_report(
         for key in (
             f"collector:{name}:last_success",
             f"collector:{name}:last_error",
+            f"collector:{name}:skipped",
         )
     ]
     values = await client.mget([*keys, "worker:last_heartbeat"])
@@ -95,11 +96,19 @@ async def get_monitoring_report(
     for index, name in enumerate(names):
         label, max_age = COLLECTOR_POLICIES[name]
         status = evaluate_freshness(
-            last_success=values[index * 2],
-            last_error=values[index * 2 + 1],
+            last_success=values[index * 3],
+            last_error=values[index * 3 + 1],
             max_age_seconds=max_age,
             now=now,
         )
+        skipped = values[index * 3 + 2]
+        if skipped and status["state"] == "healthy":
+            # Son kosu calisti ama yapilandirma eksik oldugu icin veri toplamadi.
+            status = {
+                **status,
+                "state": "disabled",
+                "detail": skipped.split(" | ", 1)[-1],
+            }
         collectors[name] = {"name": name, "label": label, **status}
 
     worker_status = evaluate_freshness(

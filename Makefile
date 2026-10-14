@@ -4,7 +4,7 @@ init:
 	./ops/init-env.sh
 
 dev:
-	docker compose up -d --build
+	SOURCE_COMMIT=$$(git rev-parse HEAD 2>/dev/null) docker compose up -d --build
 
 down:
 	docker compose down

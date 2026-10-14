@@ -6,12 +6,14 @@ import { useEffect, useRef, useState } from "react";
 import { Icon, type IconName } from "./icon";
 import { CommandPalette } from "./command-palette";
 import { ThemeToggle } from "./theme-toggle";
+import { APP_COMMIT, fullVersion, versionLabel } from "@/lib/build-info";
 
 
 const nav: { label: string; href: string; icon: IconName }[] = [
   { label: "Genel Bakış", href: "/", icon: "home" },
   { label: "Piyasalar", href: "/piyasalar", icon: "markets" },
   { label: "Karşılaştır", href: "/karsilastir", icon: "activity" },
+  { label: "Hisse Tarayıcı", href: "/tarayici", icon: "search" },
   { label: "İzleme Listesi", href: "/izleme-listesi", icon: "star" },
   { label: "Bileşik Sinyaller", href: "/sinyaller", icon: "activity" },
   { label: "Paper Portföy", href: "/portfoy", icon: "trend" },
@@ -30,7 +32,7 @@ function Brand() {
 }
 
 const groups = [
-  { label: "01 / PİYASA", routes: ["/", "/piyasalar", "/izleme-listesi", "/karsilastir"] },
+  { label: "01 / PİYASA", routes: ["/", "/piyasalar", "/tarayici", "/izleme-listesi", "/karsilastir"] },
   { label: "02 / ARAŞTIRMA", routes: ["/sinyaller", "/haberler", "/kap", "/analizler", "/makro", "/takvim", "/kurumsal"] },
   { label: "03 / STRATEJİ", routes: ["/portfoy", "/backtest"] },
   { label: "04 / OPERASYON", routes: ["/sistem"] },
@@ -74,7 +76,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         const protectedRoute = item.href === "/sistem" || item.href === "/backtest";
         return <Link key={item.href} href={item.href} prefetch={protectedRoute ? false : undefined} aria-current={active ? "page" : undefined} onClick={() => setOpen(false)} className={`flex min-h-9 items-center gap-2.5 border-l-2 px-3 py-2 text-xs font-medium transition-colors ${active ? "border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary)]" : "border-transparent text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)]"}`}><Icon name={item.icon} size={15}/>{item.label}</Link>;
       })}</div>)}</nav>
-      <div className="shrink-0 border-t border-[var(--border)] px-4 py-3 text-[10px] leading-5 text-[var(--text-muted)]"><p className="terminal-mono text-[var(--text-secondary)]">BIST / TRY / EOD</p><p>Paper işlem · Simülasyon</p></div>
+      <div className="shrink-0 border-t border-[var(--border)] px-4 py-3 text-[10px] leading-5 text-[var(--text-muted)]"><p className="terminal-mono text-[var(--text-secondary)]">BIST / TRY / EOD</p><p>Paper işlem · Simülasyon</p><p className="terminal-mono mt-1.5 flex items-center gap-1.5" title={`Sürüm ${fullVersion()}`}><span className="rounded border border-[var(--border)] px-1.5 text-[var(--text-secondary)]">{versionLabel()}</span>{APP_COMMIT && <span>{APP_COMMIT}</span>}</p></div>
     </aside>
     <div className="min-w-0 lg:pl-[208px]">
       <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-[var(--border)] bg-[var(--background)] px-4 lg:px-5">

@@ -44,6 +44,10 @@ SCHEDULE_DEFINITIONS: tuple[ScheduleDefinition, ...] = (
     ),
     ScheduleDefinition("paper_portfolio", "Paper portföy", "run_paper_portfolio", 1440, 60, 18, 46),
     ScheduleDefinition("fund_flows", "TEFAS fon akımı", "collect_fund_flows", 1440, 60, 20),
+    # Fiyat (18:30), endeks (18:35) ve paper portfoy (18:46) islerinden sonra.
+    ScheduleDefinition(
+        "daily_digest", "Günlük özet bildirimi", "send_daily_digest", 1440, 60, 19, 15
+    ),
     # TCMB gosterge kurlari 15:30 civari yayimlanir.
     ScheduleDefinition("evds", "TCMB makro serileri", "collect_evds", 1440, 60, 16, 45),
 )

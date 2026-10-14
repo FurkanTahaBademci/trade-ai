@@ -9,6 +9,7 @@ def test_compare_and_optimized_routes_registered():
     assert "/api/markets/compare" in paths
     assert "/api/markets/heatmap" in paths
     assert "/api/signals/accuracy" in paths
+    assert "/api/signals/movers" in paths
     assert "/api/instruments" in paths
 
 

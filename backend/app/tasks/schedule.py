@@ -15,6 +15,7 @@ from arq import cron
 from arq.connections import RedisSettings
 from arq.worker import func
 
+from app.alerts.digest import send_daily_digest
 from app.alerts.service import evaluate_alerts
 from app.core.config import get_settings
 from app.core.redis import get_redis
@@ -81,6 +82,7 @@ class WorkerSettings:
         collect_evds,
         monitor_system,
         evaluate_alerts,
+        send_daily_digest,
     ]
     cron_jobs: ClassVar[list] = [
         cron(heartbeat, minute=set(range(0, 60, 5))),  # her 5 dakikada bir

@@ -1,5 +1,6 @@
 """Bilesik skor siralamasi ve ticker gecmisi endpoint'leri."""
 
+import asyncio
 import json
 import logging
 from datetime import date, timedelta
@@ -26,6 +27,7 @@ from app.schemas.signal import (
     CompositeSignalOut,
     SignalHistoryOut,
     SignalHorizonStatOut,
+    SignalMoversOut,
 )
 from app.signals.accuracy import (
     DEFAULT_HORIZONS,
@@ -34,6 +36,7 @@ from app.signals.accuracy import (
     compute_signal_accuracy,
 )
 from app.signals.history import evaluation_driver, rank_drivers, recommendation_driver
+from app.signals.movers import load_signal_movers
 from app.signals.service import MODEL_VERSION
 
 logger = logging.getLogger(__name__)
@@ -166,7 +169,10 @@ async def signal_accuracy_report(
         )
     ).all()
 
-    stats = compute_signal_accuracy(
+    # Yuz binlerce gozlem uzerinde saf Python hesap; soguk onbellekte olay
+    # dongusunu bloklayip diger tum istekleri bekletmesin diye thread'de calisir.
+    stats = await asyncio.to_thread(
+        compute_signal_accuracy,
         [
             SignalObservation(row.ticker, row.as_of_date, row.composite_score, row.signal_label)
             for row in signal_rows
@@ -186,6 +192,19 @@ async def signal_accuracy_report(
     except RedisError as exc:
         logger.debug("Redis cache write error: %s", exc)
     return validated
+
+
+@router.get("/movers", response_model=SignalMoversOut)
+async def signal_movers(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    days: Annotated[int, Query(ge=1, le=90)] = 7,
+    limit: Annotated[int, Query(ge=1, le=50)] = 10,
+) -> SignalMoversOut:
+    """Son skor ile `days` takvim gunu onceki skor arasindaki en buyuk degisimler.
+
+    Literal "/movers" segmenti /{ticker} route'larindan once tanimlanmali.
+    """
+    return await load_signal_movers(db, days=days, limit=limit)
 
 
 @router.get("/{ticker}/history", response_model=SignalHistoryOut)

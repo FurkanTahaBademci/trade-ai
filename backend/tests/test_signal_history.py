@@ -88,3 +88,44 @@ async def test_history_endpoint_empty_state():
         out = await signal_score_history("XXXX", db=db, start=None, end=None, limit=30)
     assert out.points == [] and out.drivers == []
     db.scalar.assert_not_called()
+
+
+def test_backfill_selects_newest_missing_days_and_skips_attempted():
+    from app.signals.service import select_backfill_days
+
+    trading = {date(2026, 10, day) for day in (1, 2, 5, 6, 7, 8, 9)}
+    existing = {date(2026, 10, 9)}
+    attempted = {date(2026, 10, 8)}
+
+    days, remaining = select_backfill_days(trading, existing, attempted, batch=2)
+
+    assert days == [date(2026, 10, 7), date(2026, 10, 6)]
+    assert remaining == 3
+
+
+def test_backfill_is_done_when_every_day_has_scores():
+    from app.signals.service import select_backfill_days
+
+    trading = {date(2026, 10, 1), date(2026, 10, 2)}
+    assert select_backfill_days(trading, trading, set()) == ([], 0)
+
+
+def test_fundamental_rows_are_known_after_filing_deadline_or_when_seen():
+    from app.signals.service import fundamental_known_at, fundamental_public_date
+
+    assert fundamental_public_date(2026, 6) == date(2026, 9, 18)
+    assert fundamental_public_date(2025, 12) == date(2026, 4, 10)
+
+    # Haftalik yenileme computed_at'i bugune tasidi; gecmis gun icin ilan suresi esas.
+    refreshed = SimpleNamespace(
+        year=2026, period=3, computed_at=datetime(2026, 10, 14, 7, tzinfo=UTC)
+    )
+    before_deadline = datetime(2026, 6, 1, 23, 59, tzinfo=UTC)
+    after_deadline = datetime(2026, 6, 15, 23, 59, tzinfo=UTC)
+    assert not fundamental_known_at(refreshed, as_of=date(2026, 6, 1), now=before_deadline)
+    assert fundamental_known_at(refreshed, as_of=date(2026, 6, 15), now=after_deadline)
+
+    # Sistem satiri ilan suresinden once gormusse o gunden itibaren bilinir.
+    early = SimpleNamespace(year=2026, period=6, computed_at=datetime(2026, 8, 5, tzinfo=UTC))
+    now = datetime(2026, 8, 6, 23, tzinfo=UTC)
+    assert fundamental_known_at(early, as_of=date(2026, 8, 6), now=now)

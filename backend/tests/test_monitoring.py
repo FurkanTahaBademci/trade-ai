@@ -138,3 +138,22 @@ async def test_webhook_alert_respects_cooldown(monkeypatch):
 
     assert result["reason"] == "deduplicated"
     assert client.calls == []
+
+
+async def test_collector_that_skips_for_missing_config_is_disabled_not_healthy():
+    now = datetime(2026, 9, 7, 12, tzinfo=UTC)
+    recent = (now - timedelta(minutes=1)).isoformat()
+    redis = FakeRedis(
+        {
+            "collector:evds:last_success": recent,
+            "collector:evds:skipped": f"{recent} | EVDS_API_KEY tanimli degil",
+            "worker:last_heartbeat": recent,
+        }
+    )
+
+    report = await service.get_monitoring_report(redis, now=now)
+
+    evds = report["collectors"]["evds"]
+    assert evds["state"] == "disabled"
+    assert evds["detail"] == "EVDS_API_KEY tanimli degil"
+    assert report["problem_count"] == 0

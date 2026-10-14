@@ -20,6 +20,7 @@ trade-ai iki katmanlı yapılandırma kullanır:
 |---|---|---|
 | `ENVIRONMENT` | `development` | `production` olduğunda güvenlik kontrolleri sıkılaşır (ör. `ADMIN_API_TOKEN` zorunlu olur). |
 | `LOG_LEVEL` | `INFO` | Backend log seviyesi. |
+| `SOURCE_COMMIT` | boş | Elle ayarlanmaz. İmajın derlendiği commit; `docker-compose.yml` build argümanı olarak geçirir (Coolify'da "Include Source Commit in Build", yerelde `make dev`). Sol menüde ve `/health` yanıtında sürümün yanında görünür. |
 | `TZ` | `Europe/Istanbul` | Zamanlanmış işlerin ve tarihlerin saat dilimi. |
 | `CORS_ORIGINS` | `http://localhost:3000` | API'ye tarayıcıdan erişebilecek originler, virgülle ayrılır. Production'da gerçek HTTPS domaini yazın. |
 | `ALLOWED_HOSTS` | `localhost,127.0.0.1,api` | API'nin kabul ettiği `Host` başlıkları. Docker'daki iç ad `api` her zaman listede kalmalıdır. |
@@ -111,7 +112,10 @@ Aşağıdaki ayarlar yönetim girişinden sonra `/sistem` ekranından değiştir
   %15, kâr-al ve takip eden stop kapalı, tek pozisyon %10, sektör %30,
   yeniden dengeleme açık. Ekrandan kaydedilen değer varsayılanın önüne geçer.
 - **Bildirimler:** açık/kapalı, Telegram bot token ve chat ID, webhook URL,
-  izlenen hisseler, yüksek skor eşiği.
+  izlenen hisseler, yüksek skor eşiği, günlük özet. Günlük özet açıksa her
+  işlem günü 19:15'te (takvimden değiştirilebilir) BIST100, paper portföy,
+  günün işlemleri ve skor hareketleri tek mesajla gönderilir; aynı gün için
+  ikinci kez gönderilmez.
 - **Sistem uyarıları:** N8N webhook URL.
 
 Gizli değerler ekranda yalnızca son dört karakteriyle gösterilir.
@@ -126,4 +130,4 @@ PostgreSQL'de kalıcıdır.
 |---|---|
 | KAP bildirimleri, haber akışı | 5 dakika |
 | AI değerlendirmeleri, bileşik sinyaller | 10 dakika |
-| Hisse evreni, temel analiz, analist görüşleri, EOD fiyatlar, paper portföy, TEFAS fon akımı ve diğer günlük işler | Günde bir (belirli saatte) |
+| Hisse evreni, temel analiz, analist görüşleri, EOD fiyatlar, paper portföy, TEFAS fon akımı, günlük özet bildirimi ve diğer günlük işler | Günde bir (belirli saatte) |

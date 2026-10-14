@@ -8,9 +8,10 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime, timedelta
 from decimal import ROUND_FLOOR, ROUND_HALF_UP, Decimal
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -21,6 +22,7 @@ from app.core.dynamic_settings import resolve_settings
 from app.core.sectors import resolve_sector
 from app.models import (
     CompositeSignalSnapshot,
+    IndexDaily,
     Instrument,
     PaperPortfolio,
     PaperPortfolioSnapshot,
@@ -37,7 +39,10 @@ from app.paper.risk import (
 )
 from app.signals.service import MODEL_VERSION as SIGNAL_MODEL_VERSION
 
-STRATEGY_VERSION = "paper-v2"
+# v3: islemler yalniz islem gunlerinde ve sinyal gununden SONRAKI kapanista
+# yapilir (backtest ile ayni kural). v2 ayni gunun kapanisinda, kapanistan sonra
+# gelen haberlerle hesaplanmis skorla ve hafta sonlari da islem yapiyordu.
+STRATEGY_VERSION = "paper-v3"
 DEFAULT_PORTFOLIO_NAME = "Ana Paper Portföy"
 DEFAULT_INITIAL_CASH = Decimal(1000000)
 ENTRY_SCORE = Decimal(75)
@@ -51,6 +56,11 @@ MAX_POSITION_WEIGHT = Decimal("0.10")
 FEE_RATE = Decimal("0.001")
 SLIPPAGE_RATE = Decimal("0.0005")
 MIN_TRADE_VALUE = Decimal(1000)
+BENCHMARK_INDEX = "XU100"
+# Kacirilan islem gunleri (worker kesintisi, gec gelen fiyat) sirayla telafi edilir.
+MAX_CATCH_UP_DAYS = 5
+# Pozisyon degerlemesinde (islem degil) kabul edilen en eski fiyat.
+MAX_MARK_STALE_DAYS = 7
 
 
 @dataclass(frozen=True)
@@ -126,6 +136,28 @@ def select_entry_signals(signals: list[Any], *, held_tickers: set[str], slots: i
     return sorted(eligible, key=lambda row: (-_decimal(row.composite_score), row.ticker))[:slots]
 
 
+def entry_slots(*, open_count: int, bought_today: int) -> int:
+    """Yeni pozisyon kotasi: gunluk sinir o gun daha once yapilan alimlari da sayar."""
+    return max(0, min(MAX_NEW_ENTRIES_PER_DAY - bought_today, MAX_POSITIONS - open_count))
+
+
+def pending_execution_days(
+    trading_days: list[date], last_processed: date | None, *, limit: int = MAX_CATCH_UP_DAYS
+) -> list[date]:
+    """Henuz islenmemis islem gunleri (eskiden yeniye).
+
+    Portfoy hic islenmemisse yalniz son islem gunu doner; gecmis gunler toplu
+    olarak yeniden oynatilmaz. Islenecek gun yoksa (hafta sonu, ayni gun ikinci
+    kosu) bos liste doner ve kosu hicbir sey yazmaz.
+    """
+    ordered = sorted(set(trading_days))
+    if not ordered:
+        return []
+    if last_processed is None:
+        return ordered[-1:]
+    return [day for day in ordered if day > last_processed][-limit:]
+
+
 async def _get_or_create_portfolio(
     session: AsyncSession, name: str, initial_cash: Decimal
 ) -> PaperPortfolio:
@@ -185,30 +217,95 @@ async def run_paper_portfolio(
     as_of_date: date | None = None,
     risk_config: RiskConfig | None = None,
 ) -> dict[str, Any]:
-    target_date = as_of_date or await session.scalar(
+    """Islenmemis her islem gunu icin bir onceki sinyalle o gunun kapanisinda islem yapar.
+
+    `as_of_date` verilirse yalniz o gun islenir (elle yeniden oynatma).
+    """
+    has_signals = await session.scalar(
         select(func.max(CompositeSignalSnapshot.as_of_date)).where(
             CompositeSignalSnapshot.model_version == SIGNAL_MODEL_VERSION
         )
     )
-    if target_date is None:
+    if has_signals is None:
         return {"portfolio": portfolio_name, "status": "no_signals", "trades": 0}
 
     portfolio = await _get_or_create_portfolio(session, portfolio_name, initial_cash)
     risk = risk_config or await load_risk_config()
-    signals = list(
-        (
-            await session.scalars(
-                select(CompositeSignalSnapshot)
-                .where(
-                    CompositeSignalSnapshot.as_of_date == target_date,
-                    CompositeSignalSnapshot.model_version == SIGNAL_MODEL_VERSION,
-                )
-                .order_by(
-                    CompositeSignalSnapshot.composite_score.desc(),
-                    CompositeSignalSnapshot.ticker,
-                )
+    if as_of_date is not None:
+        days = [as_of_date]
+    else:
+        today = datetime.now(ZoneInfo(get_settings().tz)).date()
+        last_processed = await session.scalar(
+            select(func.max(PaperPortfolioSnapshot.snapshot_date)).where(
+                PaperPortfolioSnapshot.portfolio_id == portfolio.id
             )
-        ).all()
+        )
+        trading_days = list(
+            (
+                await session.scalars(
+                    select(IndexDaily.date).where(
+                        IndexDaily.index_code == BENCHMARK_INDEX,
+                        IndexDaily.date <= today,
+                        IndexDaily.date >= today - timedelta(days=30),
+                    )
+                )
+            ).all()
+        )
+        days = pending_execution_days(trading_days, last_processed)
+
+    results = [await _run_day(session, portfolio, day, risk) for day in days]
+    if not results:
+        await session.commit()
+        return {
+            "portfolio_id": portfolio.id,
+            "portfolio": portfolio.name,
+            "strategy_version": STRATEGY_VERSION,
+            "status": "up_to_date",
+            "days": [],
+            "trades": 0,
+        }
+    latest = results[-1]
+    return {
+        **latest,
+        "days": [item["as_of_date"] for item in results],
+        "buys": sum(item["buys"] for item in results),
+        "sells": sum(item["sells"] for item in results),
+        "trades": sum(item["trades"] for item in results),
+    }
+
+
+async def _run_day(
+    session: AsyncSession,
+    portfolio: PaperPortfolio,
+    execution_date: date,
+    risk: RiskConfig,
+) -> dict[str, Any]:
+    # Yurutme gunu skoru kapanistan sonra gelen haberleri de icerir; bu yuzden
+    # bir onceki sinyal gununun (hafta sonu dahil) son skoru kullanilir.
+    signal_date = await session.scalar(
+        select(func.max(CompositeSignalSnapshot.as_of_date)).where(
+            CompositeSignalSnapshot.model_version == SIGNAL_MODEL_VERSION,
+            CompositeSignalSnapshot.as_of_date < execution_date,
+        )
+    )
+    signals = (
+        list(
+            (
+                await session.scalars(
+                    select(CompositeSignalSnapshot)
+                    .where(
+                        CompositeSignalSnapshot.as_of_date == signal_date,
+                        CompositeSignalSnapshot.model_version == SIGNAL_MODEL_VERSION,
+                    )
+                    .order_by(
+                        CompositeSignalSnapshot.composite_score.desc(),
+                        CompositeSignalSnapshot.ticker,
+                    )
+                )
+            ).all()
+        )
+        if signal_date is not None
+        else []
     )
     signal_by_ticker = {row.ticker: row for row in signals}
     positions = list(
@@ -220,11 +317,18 @@ async def run_paper_portfolio(
     )
     position_by_ticker = {row.ticker: row for row in positions}
     price_tickers = set(signal_by_ticker) | set(position_by_ticker)
-    prices = await _latest_prices(session, price_tickers, target_date)
-    fresh_prices = {
+    prices = await _latest_prices(session, price_tickers, execution_date)
+    mark_prices = {
         ticker: price
         for ticker, (price_date, price) in prices.items()
-        if 0 <= (target_date - price_date).days <= 7
+        if 0 <= (execution_date - price_date).days <= MAX_MARK_STALE_DAYS
+    }
+    # Islem yalniz o gunun kapanisiyla yapilir; islem gormeyen hisse eski fiyattan
+    # alinip satilmaz (yalniz degerlenir).
+    trade_prices = {
+        ticker: price
+        for ticker, (price_date, price) in prices.items()
+        if price_date == execution_date
     }
 
     names = dict(
@@ -240,29 +344,29 @@ async def run_paper_portfolio(
     def sector_of(ticker: str) -> str:
         return resolve_sector(ticker, names.get(ticker))
 
-    possible_keys = {
-        execution_key(portfolio.id, ticker, target_date, side, STRATEGY_VERSION)
-        for ticker in price_tickers
-        for side in ("BUY", "SELL")
-    }
-    existing_keys = set(
-        (
-            await session.scalars(
-                select(PaperTrade.execution_key).where(PaperTrade.execution_key.in_(possible_keys))
+    # Ayni gunun onceki kosularinda (strateji surumunden bagimsiz) yapilan islemler.
+    traded_today = (
+        await session.execute(
+            select(PaperTrade.ticker, PaperTrade.side).where(
+                PaperTrade.portfolio_id == portfolio.id,
+                PaperTrade.trade_date == execution_date,
             )
-        ).all()
-    )
+        )
+    ).all()
+    sold_today = {row.ticker for row in traded_today if row.side == "SELL"}
+    bought_today = {row.ticker for row in traded_today if row.side == "BUY"}
 
     cash = _decimal(portfolio.cash_balance)
     realized_total = _decimal(portfolio.realized_pnl)
     fee_total = _decimal(portfolio.total_fees)
     trades: list[PaperTrade] = []
-    sold: set[str] = set()
+    sold: set[str] = set()  # bu kosuda kismen veya tamamen satilanlar
+    closed: set[str] = set()  # tamamen satilip silinenler
 
     # Once mevcut pozisyonlari son EOD fiyatina tasir (trailing icin zirveyi gunceller).
     states: list[PositionState] = []
     for ticker, position in sorted(position_by_ticker.items()):
-        close = fresh_prices.get(ticker)
+        close = mark_prices.get(ticker)
         if close is None:
             continue
         quantity = _decimal(position.quantity)
@@ -275,9 +379,10 @@ async def run_paper_portfolio(
             close,
             average_cost,
         )
-        states.append(
-            PositionState(ticker, quantity, average_cost, close, position.high_water_price)
-        )
+        if ticker in trade_prices:
+            states.append(
+                PositionState(ticker, quantity, average_cost, close, position.high_water_price)
+            )
     marked_equity = cash + sum(
         (_decimal(position.market_value) for position in position_by_ticker.values()),
         Decimal(0),
@@ -293,12 +398,7 @@ async def run_paper_portfolio(
             exit_score=EXIT_SCORE,
             equity=marked_equity,
             cfg=risk,
-            skip_tickers={
-                ticker
-                for ticker in position_by_ticker
-                if execution_key(portfolio.id, ticker, target_date, "SELL", STRATEGY_VERSION)
-                in existing_keys
-            },
+            skip_tickers=sold_today | bought_today,
         )
         if portfolio.status == "ACTIVE"
         else []
@@ -306,10 +406,10 @@ async def run_paper_portfolio(
     for action in actions:
         ticker = action.ticker
         position = position_by_ticker[ticker]
-        close = fresh_prices[ticker]
+        close = trade_prices[ticker]
         average_cost = _decimal(position.average_cost)
         signal = signal_by_ticker.get(ticker)
-        key = execution_key(portfolio.id, ticker, target_date, "SELL", STRATEGY_VERSION)
+        key = execution_key(portfolio.id, ticker, execution_date, "SELL", STRATEGY_VERSION)
         order = plan_sell(ticker, close_price=close, quantity=action.quantity)
         if order is None:
             continue
@@ -324,7 +424,7 @@ async def run_paper_portfolio(
                 ticker=ticker,
                 signal_snapshot_id=signal.id if signal is not None else None,
                 strategy_version=STRATEGY_VERSION,
-                trade_date=target_date,
+                trade_date=execution_date,
                 side="SELL",
                 quantity=order.quantity,
                 price=order.price,
@@ -335,29 +435,33 @@ async def run_paper_portfolio(
                 exit_reason=action.reason_code,
             )
         )
+        sold.add(ticker)
         remaining = _decimal(position.quantity) - order.quantity
         if remaining <= 0:
             await session.delete(position)
-            sold.add(ticker)
+            closed.add(ticker)
         else:
             position.quantity = remaining
             position.market_value = _money(remaining * close)
             position.unrealized_pnl = _money((close - average_cost) * remaining)
 
     open_positions = {
-        ticker: position for ticker, position in position_by_ticker.items() if ticker not in sold
+        ticker: position for ticker, position in position_by_ticker.items() if ticker not in closed
     }
     positions_value = sum(
         (_decimal(position.market_value) for position in open_positions.values()), Decimal(0)
     )
     equity_before_entries = cash + positions_value
 
-    # Guclu sinyaller arasindan bos slot kadar esit-riskli yeni pozisyon acar.
+    # Guclu sinyaller arasindan bos slot kadar esit-riskli yeni pozisyon acar. Ayni
+    # gun satilan hisse (zarar-kes sonrasi skor hala yuksek olsa da) geri alinmaz;
+    # aksi halde ayni flush'ta yeni pozisyonun INSERT'u eskinin DELETE'inden once
+    # calisip (portfoy, hisse) tekligini bozar ve tum kosu geri alinir.
     if portfolio.status == "ACTIVE":
         entries = select_entry_signals(
-            signals,
-            held_tickers=set(open_positions),
-            slots=min(MAX_NEW_ENTRIES_PER_DAY, max(0, MAX_POSITIONS - len(open_positions))),
+            [row for row in signals if row.ticker in trade_prices],
+            held_tickers=set(open_positions) | sold | sold_today | bought_today,
+            slots=entry_slots(open_count=len(open_positions), bought_today=len(bought_today)),
         )
         sector_values: dict[str, Decimal] = {}
         for ticker, position in open_positions.items():
@@ -366,12 +470,10 @@ async def run_paper_portfolio(
                 position.market_value
             )
         for signal in entries:
-            close = fresh_prices.get(signal.ticker)
-            if close is None:
-                continue
-            key = execution_key(portfolio.id, signal.ticker, target_date, "BUY", STRATEGY_VERSION)
-            if key in existing_keys:
-                continue
+            close = trade_prices[signal.ticker]
+            key = execution_key(
+                portfolio.id, signal.ticker, execution_date, "BUY", STRATEGY_VERSION
+            )
             sector = sector_of(signal.ticker)
             target_budget = entry_budget(
                 ticker_sector=sector,
@@ -408,7 +510,7 @@ async def run_paper_portfolio(
                     ticker=signal.ticker,
                     signal_snapshot_id=signal.id,
                     strategy_version=STRATEGY_VERSION,
-                    trade_date=target_date,
+                    trade_date=execution_date,
                     side="BUY",
                     quantity=order.quantity,
                     price=order.price,
@@ -417,7 +519,8 @@ async def run_paper_portfolio(
                     realized_pnl=None,
                     reason=(
                         f"Bileşik skor {float(signal.composite_score):.1f} ≥ {ENTRY_SCORE}; "
-                        f"güven %{float(signal.confidence) * 100:.0f}"
+                        f"güven %{float(signal.confidence) * 100:.0f}; "
+                        f"sinyal {signal_date:%d.%m.%Y}"
                     ),
                     exit_reason=None,
                 )
@@ -446,7 +549,7 @@ async def run_paper_portfolio(
     }
     snapshot_fields = {
         "portfolio_id": portfolio.id,
-        "snapshot_date": target_date,
+        "snapshot_date": execution_date,
         "cash_balance": _money(cash),
         "positions_value": _money(positions_value),
         "total_equity": _money(equity),
@@ -476,7 +579,8 @@ async def run_paper_portfolio(
         "portfolio_id": portfolio.id,
         "portfolio": portfolio.name,
         "strategy_version": STRATEGY_VERSION,
-        "as_of_date": target_date.isoformat(),
+        "as_of_date": execution_date.isoformat(),
+        "signal_date": signal_date.isoformat() if signal_date else None,
         "signals": len(signals),
         "buys": sum(trade.side == "BUY" for trade in trades),
         "sells": sum(trade.side == "SELL" for trade in trades),

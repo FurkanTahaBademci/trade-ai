@@ -145,6 +145,16 @@ class BaseCollector:
         try:
             result = await self.run()
             await redis.set(f"collector:{self.name}:last_success", datetime.now(UTC).isoformat())
+            # Yapilandirma eksikligi (ornegin API anahtari yok) yuzunden hic is
+            # yapmayan kosu "saglikli" gorunmesin; izleme bunu devre disi gosterir.
+            skipped = result.get("skipped") if isinstance(result, dict) else None
+            if skipped:
+                await redis.set(
+                    f"collector:{self.name}:skipped",
+                    f"{datetime.now(UTC).isoformat()} | {skipped}",
+                )
+            else:
+                await redis.delete(f"collector:{self.name}:skipped")
             source_failures = result.get("source_failures") if isinstance(result, dict) else None
             if isinstance(source_failures, dict) and source_failures:
                 failed_sources = ", ".join(sorted(str(source) for source in source_failures))

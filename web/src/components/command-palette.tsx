@@ -7,7 +7,7 @@ import { fetchMarketFeed, searchMarketFeed } from "@/lib/market-feed";
 import { foldTurkish } from "@/lib/turkish";
 import { Icon } from "./icon";
 
-const PAGES = [{ label: "Takvim", href: "/takvim" }];
+const PAGES = [{ label: "Hisse Tarayıcı", href: "/tarayici" }, { label: "Takvim", href: "/takvim" }];
 
 export function CommandPalette() {
   const router = useRouter();

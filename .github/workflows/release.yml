@@ -1,6 +1,7 @@
 name: Release
 
-# vX.Y.Z etiketi push edilince: testler + sizinti denetimi, sonra GitHub Release.
+# vX.Y.Z etiketi push edilince: testler + sizinti denetimi, GitHub Release ve
+# (yapilandirildiysa) Coolify uzerinden canliya alma.
 # Etiketi elle degil `make release VERSION=X.Y.Z` ile olusturun (docs/RELEASING.md).
 
 on:
@@ -54,3 +55,19 @@ jobs:
             gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" \
               --notes-file "$RUNNER_TEMP/notes.md" --verify-tag
           fi
+
+      # Istege bagli: Coolify'da otomatik dagitim kapatilip deploy webhook'u repo
+      # secret'i olarak tanimlanirsa canliya yalniz testlerden gecmis, etiketli
+      # surumler cikar (docs/RELEASING.md). Secret yoksa adim atlanir.
+      - name: Canliya al (Coolify)
+        env:
+          COOLIFY_DEPLOY_WEBHOOK: ${{ secrets.COOLIFY_DEPLOY_WEBHOOK }}
+          COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
+        run: |
+          if [ -z "$COOLIFY_DEPLOY_WEBHOOK" ]; then
+            echo "COOLIFY_DEPLOY_WEBHOOK tanimli degil; canliya alma adimi atlandi."
+            exit 0
+          fi
+          curl --fail --silent --show-error --max-time 60 \
+            -H "Authorization: Bearer $COOLIFY_API_TOKEN" "$COOLIFY_DEPLOY_WEBHOOK" >/dev/null
+          echo "$GITHUB_REF_NAME icin Coolify dagitimi tetiklendi."

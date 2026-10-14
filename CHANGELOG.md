@@ -9,6 +9,90 @@ bu bölümü yeni sürüm numarasıyla kapatır.
 
 ## [Unreleased]
 
+### Eklendi
+
+- **Sürüm gösterimi:** sol menünün en altında çalışan sürüm (`v0.3.0`) ve
+  biliniyorsa kısa commit. Web ve API `/health` yanıtları `version` ve
+  `commit` döndürür; `/sistem` web ile API farklı sürümdeyse uyarır. Yeni
+  sürüm yayınlandığında açık sekmeler ilk gezinmede tamamen yenilenir.
+- Yayın iş akışı, `COOLIFY_DEPLOY_WEBHOOK` ve `COOLIFY_API_TOKEN` repo
+  secret'ları tanımlıysa testlerden geçen sürümü Coolify'da canlıya alır.
+  Auto Deploy kapatılarak canlıya yalnız etiketli sürümler çıkarılabilir
+  (bkz. `docs/RELEASING.md`).
+- Docker imajlarında derlenen commit (`SOURCE_COMMIT` build argümanı) ve OCI
+  etiketleri.
+- **Hisse Tarayıcı (`/tarayici`):** tüm BIST evrenini bileşik skor, sinyal,
+  sektör, piyasa değeri, F/K (son 12 ay), PD/DD, ROE, gelir büyümesi, 1 aylık
+  getiri ve analist potansiyeline göre filtreleme; sütunlara göre sıralama,
+  hazır taramalar ("Ucuz ve güçlü skor", "Analist favorileri", "Momentum
+  liderleri", "Kârlı büyüme", "Büyük şirketler") ve CSV. Filtreler adres
+  çubuğunda tutulur, taramalar paylaşılabilir. Yeni uç noktalar:
+  `GET /api/markets/screener` ve `GET /api/markets/screener.csv`.
+- **Günlük özet bildirimi:** işlem günü sonunda Telegram/webhook'a BIST100,
+  paper portföy, günün işlemleri, skoru en çok değişen ve en yüksek skorlu
+  hisseler. `/sistem` → Ayarlar → "Günlük Özet Bildirimi" ile açılır
+  (varsayılan kapalı); takvimde "Günlük özet bildirimi" işi olarak görünür.
+- **Skor hareketleri:** `/sinyaller` sayfasında son gün, hafta veya ayda
+  bileşik skoru en çok yükselen ve düşen hisseler (etiket değişimiyle).
+  Yeni uç nokta: `GET /api/signals/movers?days=7&limit=10`.
+- Hisse sayfasında F/K ve PD/DD. F/K son 12 ay (TTM) net kârıyla hesaplanır;
+  `GET /api/fundamentals/{ticker}` yanıtına `ttm_net_income` ve `ttm_basis`
+  alanları eklendi.
+- Sinyaller sayfasında Negatif ve Çok negatif filtreleri.
+- Haber ve KAP detayında ilgili AI değerlendirmesine, AI analiz detayında
+  kaynak habere/bildirime bağlantı.
+- Paper portföy sayfasında gerçekleşen K/Z ve satış işlemlerinin K/Z'si.
+- Sistem Sağlığı'nda "Devre dışı" durumu: yapılandırma eksikliği nedeniyle
+  hiç veri toplamayan toplayıcı (örneğin `EVDS_API_KEY` tanımlı değilken
+  EVDS) artık "Sağlıklı" görünmez.
+
+### Değişti
+
+- **Paper portföy `paper-v3`.** İşlemler yalnız işlem günlerinde (XU100
+  takvimi) ve sinyal gününden sonraki kapanışta yapılır; backtest ile aynı
+  kural. v2 aynı günün kapanışında, kapanıştan sonra gelen haberlerle
+  hesaplanmış skorla ve hafta sonları da (cuma kapanışından) işlem yapıyordu.
+  Kaçırılan işlem günleri (en fazla 5) sırayla telafi edilir. Geçmiş işlemler
+  değişmez.
+- v3 skor geçmişi elle komut beklemeden doldurulur: worker her sinyal
+  koşusunda son 180 günün eksik günlerinden 5'ini hesaplar. Sinyal doğruluğu
+  tablosu ve backtest yükseltmeden birkaç saat sonra dolar.
+- Geçmiş bir gün için skor hesaplanırken finansal tablo, SPK ilan süresi
+  (güvenlik payıyla) dolmuşsa o gün biliniyor kabul edilir. Önceden haftalık
+  yenileme zaman damgasını güncellediği için geriye dönük skorlarda temel
+  analiz bileşeni neredeyse hiç yoktu. Bugünün skoru değişmez.
+- Backtest ve sinyal doğruluğu hesapları API'nin olay döngüsünü bloklamaz;
+  uzun bir backtest sırasında diğer sayfalar yanıt vermeye devam eder.
+  Backtest motorundaki doğrusal olmayan tarama kaldırıldı.
+- Sinyal motoru her koşuda LLM değerlendirmelerinin büyük metin kolonlarını
+  ve tüm fiyat geçmişini okumaz.
+
+### Düzeltildi
+
+- Hisse sayfasında finansal oranlar (gelir/kâr büyümesi, marjlar, özsermaye
+  kârlılığı) 100 kat küçük gösteriliyordu (+%40 yerine +0,4%).
+- Karşılaştırmada F/K, yıl içi kümülatif dönem kârıyla hesaplandığı için
+  ara dönemlerde 2–4 kat büyük çıkıyordu.
+- Paper portföyde zarar-kes/kâr-al ile satılan hissenin skoru hâlâ yüksekse
+  aynı koşuda yeniden alınmaya çalışılıyor, koşu benzersizlik hatasıyla
+  tamamen geri alınıyordu (satış dahil).
+- Paper portföy aynı gün ikinci kez çalıştırıldığında ("Şimdi çalıştır")
+  günlük 3 yeni pozisyon sınırı yeniden açılıyordu.
+- Karşılaştırma sayfasında hisse eklemek/çıkarmak veya hazır grup seçmek
+  URL'yi değiştiriyor ama ekrandaki karşılaştırma güncellenmiyordu.
+- TCMB faiz kararı toplayıcısında tek bir karar sayfasının hatası tüm koşuyu
+  düşürüyordu; artık kısmi hata olarak raporlanır, diğer kararlar kaydedilir.
+- Hisse sayfası API'ye ulaşamadığında "Şirket bilgisi yükleniyor" yerine
+  hizmet uyarısı gösterir.
+- Ana sayfada bileşik skor listesinin alt başlığı ("Güncel teknik görünüm").
+
+### Yükseltme notu
+
+- Canlı ortamda eksik görünen TCMB kararları için bir kez:
+  `docker compose exec api python -m scripts.run_once tcmb-policy --refresh`.
+- Mevcut paper portföy bir sonraki işlem gününden itibaren `paper-v3`
+  kuralıyla devam eder; ek işlem gerekmez.
+
 ## [0.2.0] - 2026-10-10
 
 ### Eklendi

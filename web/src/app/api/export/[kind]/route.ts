@@ -16,6 +16,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       const value = incoming.get(name);
       if (value) outgoing.set(name, value);
     }
+  } else if (kind === "screener") {
+    path = "/api/markets/screener.csv";
+    for (const name of ["q", "sector", "min_score", "max_pe", "max_pb", "min_roe", "min_revenue_growth", "min_upside", "min_change_1m", "min_market_cap", "sort", "order", "limit"]) {
+      const value = incoming.get(name);
+      if (value) outgoing.set(name, value);
+    }
+    for (const label of incoming.getAll("label")) outgoing.append("label", label);
   } else if (kind === "paper-trades") {
     const portfolioId = incoming.get("portfolio_id") ?? "";
     if (!/^[1-9]\d{0,15}$/.test(portfolioId)) return NextResponse.json({ detail: "Geçersiz portföy." }, { status: 400 });

@@ -8,11 +8,17 @@ FROM node:22-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+# next.config.mjs surum etiketinin yanina kisa commit'i yazar (sol menu, /health).
+ARG SOURCE_COMMIT=""
 # Projede henuz statik asset olmasa da runner COPY adimi deterministik kalsin.
 RUN mkdir -p public && npm run build
 
 FROM node:22-alpine AS runner
 WORKDIR /app
+ARG SOURCE_COMMIT=""
+LABEL org.opencontainers.image.title="trade-ai-web" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.revision="${SOURCE_COMMIT}"
 ENV NODE_ENV=production
 ENV HOSTNAME=0.0.0.0
 COPY --from=builder /app/.next/standalone ./

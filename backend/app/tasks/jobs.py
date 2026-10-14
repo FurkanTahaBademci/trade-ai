@@ -6,12 +6,15 @@ cagriliyor. Boylece collector'lar hem CLI'dan (`scripts/run_once.py`) hem
 worker'dan ayni kod yolunu kullanir.
 """
 
-from datetime import datetime, timedelta
+import contextlib
+from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import structlog
+from redis.exceptions import RedisError
 
 from app.core.db import session_factory
+from app.core.redis import get_redis
 
 logger = structlog.get_logger(__name__)
 
@@ -122,10 +125,40 @@ async def collect_institutional_reports(ctx: dict) -> dict:
 
 
 async def compute_signals(ctx: dict) -> dict:
-    from app.signals.service import run_signal_engine
+    from app.signals.service import (
+        MODEL_VERSION,
+        missing_signal_days,
+        run_signal_engine,
+        select_backfill_days,
+    )
 
     async with session_factory() as session:
-        return await run_signal_engine(session)
+        result = await run_signal_engine(session)
+        trading_days, existing_days = await missing_signal_days(
+            session, today=date.fromisoformat(result["as_of_date"])
+        )
+
+    # Eksik gecmis gunlerden kucuk bir parti; her gun o tarihte bilinen veriyle
+    # hesaplanir ve upsert oldugu icin tekrar calismasi zararsizdir.
+    attempted_key = f"signals:backfill:attempted:{MODEL_VERSION}"
+    redis = get_redis()
+    try:
+        attempted = {date.fromisoformat(item) for item in await redis.smembers(attempted_key)}
+    except (RedisError, ValueError):
+        attempted = set()
+    days, remaining = select_backfill_days(trading_days, existing_days, attempted)
+    for day in days:
+        async with session_factory() as session:
+            await run_signal_engine(session, as_of_date=day)
+        with contextlib.suppress(RedisError):
+            await redis.sadd(attempted_key, day.isoformat())
+    if days:
+        logger.info(
+            "signals_history_backfill",
+            days=[day.isoformat() for day in days],
+            remaining=remaining,
+        )
+    return {**result, "backfilled_days": len(days), "backfill_remaining": remaining}
 
 
 async def run_paper_portfolio(ctx: dict) -> dict:

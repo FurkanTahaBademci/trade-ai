@@ -1,5 +1,6 @@
 """Veritabanindan tarihsel girdileri okuyup backtest sonucunu kalicilastirir."""
 
+import asyncio
 from decimal import Decimal
 
 from sqlalchemy import select
@@ -80,7 +81,10 @@ async def create_backtest_run(session: AsyncSession, request: BacktestCreate) ->
         fee_rate=_decimal(request.fee_rate),
         slippage_rate=_decimal(request.slippage_rate),
     )
-    result = run_backtest(
+    # Saf ve CPU yogun hesap: olay dongusunu (tek uvicorn sureci) bloklamasin diye
+    # ayri thread'de calisir; aksi halde uzun bir test suresince tum API yanit vermez.
+    result = await asyncio.to_thread(
+        run_backtest,
         [
             BacktestSignal(
                 ticker=row.ticker,

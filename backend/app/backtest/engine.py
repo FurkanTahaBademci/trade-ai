@@ -8,6 +8,7 @@ kaynagi acilis fiyati saglamadigindan bu varsayim acik ve muhafazakar tutulur.
 from __future__ import annotations
 
 import math
+from bisect import bisect_right
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date
@@ -139,15 +140,16 @@ def _execution_events(
     events: dict[date, dict[str, BacktestSignal]] = defaultdict(dict)
     skipped = 0
     for signal in sorted(signals, key=lambda row: (row.signal_date, row.ticker)):
-        execution_date = next(
-            (
-                candidate
-                for candidate in ticker_dates.get(signal.ticker, [])
-                if candidate > signal.signal_date
-                and (candidate - signal.signal_date).days <= max_delay_days
-            ),
-            None,
-        )
+        dates = ticker_dates.get(signal.ticker, [])
+        # Sinyal gununden sonraki ilk islem gunu (ikili arama; dogrusal tarama
+        # uzun araliklarda sinyal x fiyat gunu kadar yineleme yapiyordu).
+        index = bisect_right(dates, signal.signal_date)
+        execution_date = dates[index] if index < len(dates) else None
+        if (
+            execution_date is not None
+            and (execution_date - signal.signal_date).days > max_delay_days
+        ):
+            execution_date = None
         if execution_date is None:
             skipped += 1
             continue
@@ -229,6 +231,9 @@ def run_backtest(
         (price.price_date, price.ticker): _decimal(price.close) for price in valid_prices
     }
     market_dates = sorted({price.price_date for price in valid_prices})
+    closes_by_date: dict[date, list[tuple[str, Decimal]]] = defaultdict(list)
+    for (price_date, ticker), close in price_by_key.items():
+        closes_by_date[price_date].append((ticker, close))
     events, skipped = _execution_events(
         signals, valid_prices, active_config.max_execution_delay_days
     )
@@ -240,9 +245,8 @@ def run_backtest(
     points: list[BacktestPoint] = []
 
     for market_date in market_dates:
-        for (price_date, ticker), close in price_by_key.items():
-            if price_date == market_date:
-                last_prices[ticker] = close
+        for ticker, close in closes_by_date[market_date]:
+            last_prices[ticker] = close
 
         event_rows = events.get(market_date, [])
         for signal in sorted(event_rows, key=lambda row: row.ticker):

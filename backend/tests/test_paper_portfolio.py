@@ -8,7 +8,9 @@ from app.main import app
 from app.paper.service import (
     FEE_RATE,
     SLIPPAGE_RATE,
+    entry_slots,
     execution_key,
+    pending_execution_days,
     plan_buy,
     plan_sell,
     select_entry_signals,
@@ -80,3 +82,23 @@ def test_paper_routes_are_registered():
     assert "/api/paper/portfolios/{portfolio_id}/positions" in paths
     assert "/api/paper/portfolios/{portfolio_id}/trades" in paths
     assert "/api/paper/portfolios/{portfolio_id}/performance" in paths
+
+
+def test_entry_slots_count_buys_already_made_today():
+    # Gunluk 3 alim siniri ayni gunun ikinci kosusunda yeniden acilmaz.
+    assert entry_slots(open_count=5, bought_today=0) == 3
+    assert entry_slots(open_count=8, bought_today=3) == 0
+    assert entry_slots(open_count=6, bought_today=1) == 2
+    assert entry_slots(open_count=9, bought_today=0) == 1
+
+
+def test_pending_execution_days_processes_only_new_trading_days():
+    days = [date(2026, 10, 8), date(2026, 10, 9), date(2026, 10, 12), date(2026, 10, 13)]
+
+    # Ilk kosu yalniz son islem gunu; gecmis toplu yeniden oynatilmaz.
+    assert pending_execution_days(days, None) == [date(2026, 10, 13)]
+    # Kacirilan gunler eskiden yeniye telafi edilir.
+    assert pending_execution_days(days, date(2026, 10, 8)) == days[1:]
+    # Hafta sonu / ayni gun ikinci kosu: islenecek gun yok.
+    assert pending_execution_days(days, date(2026, 10, 13)) == []
+    assert pending_execution_days(days, date(2026, 10, 1), limit=2) == days[-2:]

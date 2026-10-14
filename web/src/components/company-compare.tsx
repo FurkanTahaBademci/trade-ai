@@ -25,7 +25,9 @@ const PRESET_COMPARISONS = [
 
 export function CompanyCompareView({ initialData }: { initialData: CompanyComparisonData | null }) {
   const router = useRouter();
-  const [data, setData] = useState<CompanyComparisonData | null>(initialData);
+  // Hisse ekleme/çıkarma URL'yi değiştirir ve sunucu yeni veriyle yeniden render
+  // eder; veri state'e kopyalanırsa istemci bileşeni eski karşılaştırmada kalır.
+  const data = initialData;
   const [newTickerInput, setNewTickerInput] = useState("");
   const [activeTab, setActiveTab] = useState<"all" | "multiples" | "consensus" | "chart">("all");
 

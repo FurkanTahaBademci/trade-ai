@@ -7,11 +7,13 @@
 """
 
 import asyncio
+import re
 
 import structlog
 from fastapi import APIRouter, Response
 
 from app import __version__
+from app.core.config import get_settings
 from app.core.db import ping_db
 from app.core.redis import ping_redis
 from app.monitoring.service import get_monitoring_report
@@ -21,14 +23,26 @@ logger = structlog.get_logger(__name__)
 router = APIRouter(tags=["health"])
 
 
+def source_commit() -> str | None:
+    """Imajin derlendigi commit'in kisa hali; bilinmiyorsa None."""
+    value = get_settings().source_commit.strip()
+    return value[:7].lower() if re.fullmatch(r"[0-9a-fA-F]{7,40}", value) else None
+
+
 @router.get("/health")
 async def health() -> dict:
-    return {"status": "ok", "version": __version__}
+    return {"status": "ok", "version": __version__, "commit": source_commit()}
 
 
 @router.get("/health/detailed")
 async def health_detailed() -> dict:
-    result: dict = {"db": "unknown", "redis": "unknown", "monitoring": None}
+    result: dict = {
+        "version": __version__,
+        "commit": source_commit(),
+        "db": "unknown",
+        "redis": "unknown",
+        "monitoring": None,
+    }
 
     try:
         await asyncio.wait_for(ping_db(), timeout=2)

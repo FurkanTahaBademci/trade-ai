@@ -198,6 +198,12 @@ MANAGED_SETTINGS: tuple[SettingSpec, ...] = (
         "alerts_watch_tickers",
     ),
     SettingSpec(
+        "alerts_daily_digest_enabled",
+        "Günlük Özet Bildirimi",
+        "boolean",
+        "alerts_daily_digest_enabled",
+    ),
+    SettingSpec(
         "alerts_high_score_threshold",
         "Yüksek Skor Bildirim Eşiği",
         "choice",

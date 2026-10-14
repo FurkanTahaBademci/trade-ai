@@ -23,17 +23,19 @@ işletir.
   sınıflandırma. Önce ucuz bir model tüm kaynakları tarar, yüksek etkili olanlar
   daha güçlü bir modelle ikinci kez incelenir. Varsayılan olarak kapalıdır;
   günlük token bütçesiyle korunur.
-- **Bileşik sinyal:** Haber/KAP duygusu, temel analiz, analist konsensüsü ve fon
-  akımını birleştiren sürümlü 0–100 skor, skor geçmişi ve isabet ölçümü.
+- **Bileşik sinyal:** Haber/KAP duygusu, temel analiz, analist konsensüsü ve
+  BIST100'e göre fiyat momentumunu birleştiren sürümlü 0–100 skor, skor
+  geçmişi, skor hareketleri ve isabet ölçümü.
 - **Paper portföy ve backtest:** Komisyon ve kayma hesaplı sanal portföy;
   stop-loss, take-profit, takip eden stop ve ağırlık sınırları. Stratejinin
   geçmiş veride BIST100'e karşı testi.
-- **Dashboard:** Piyasalar, sinyaller, haberler, KAP, AI analizleri, kurumsal
-  görüş, makro/faiz, piyasa takvimi, hisse karşılaştırma, izleme listesi,
-  portföy ve CSV dışa aktarma. Açık/koyu tema ve mobil uyumlu arayüz.
+- **Dashboard:** Piyasalar, hisse tarayıcı, sinyaller, haberler, KAP, AI
+  analizleri, kurumsal görüş, makro/faiz, piyasa takvimi, hisse karşılaştırma,
+  izleme listesi, portföy ve CSV dışa aktarma. Açık/koyu tema ve mobil uyumlu
+  arayüz.
 - **Yönetim:** Tarama takvimi, çalışma zamanı ayarları, bildirimler
-  (Telegram/webhook) ve veri kalitesi izleme. Hepsi yönetici girişiyle korunan
-  `/sistem` ekranından yönetilir.
+  (Telegram/webhook, günlük özet) ve veri kalitesi izleme. Hepsi yönetici
+  girişiyle korunan `/sistem` ekranından yönetilir.
 
 ## Mimari
 
@@ -140,7 +142,8 @@ yönetilir (`--primary`, `--background`, `--positive`, `--negative`…).
 
 Sürüm numarası kök dizindeki [`VERSION`](VERSION) dosyasındadır ve
 [Semantic Versioning](https://semver.org/lang/tr/) kurallarını izler. Çalışan
-sürüm `GET /health` yanıtında görünür. Değişiklikler
+sürüm sol menünün en altında ve `GET /health` yanıtında görünür. Yayın ve
+canlıya alma adımları: [docs/RELEASING.md](docs/RELEASING.md). Değişiklikler
 [CHANGELOG.md](CHANGELOG.md) dosyasında listelenir.
 
 ## Veri kaynakları

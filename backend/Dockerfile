@@ -26,6 +26,14 @@ RUN groupadd --system tradeai && useradd --system --gid tradeai --home-dir /app 
     && chown -R tradeai:tradeai /app
 USER tradeai
 
+# Derlenen commit (/health yaniti, imaj etiketi). docker-compose.yml doldurur;
+# kod katmanlarinin onbellegini bozmamak icin en sonda tanimlanir.
+ARG SOURCE_COMMIT=""
+ENV SOURCE_COMMIT=${SOURCE_COMMIT}
+LABEL org.opencontainers.image.title="trade-ai-backend" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.revision="${SOURCE_COMMIT}"
+
 EXPOSE 8000
 
 # Varsayilan komut api icindir; worker servisi compose'da command override eder.

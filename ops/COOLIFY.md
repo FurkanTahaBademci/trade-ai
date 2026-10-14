@@ -51,6 +51,10 @@ Variables/Secrets alanında runtime değişkeni olarak tut.
    API private kalıyorsa web için `/health`, ana sayfalar ve KAP ek indirme
    rotasını kontrol et; API/DB health'i Coolify container health durumundan izle.
 5. `/sistem` ekranında worker, PostgreSQL, Redis ve veri hatlarının durumunu kontrol et.
+6. Canlıya yalnız etiketli sürümlerin çıkması için Auto Deploy'u kapatıp yayın
+   iş akışını Coolify deploy webhook'una bağla ve "Include Source Commit in
+   Build" seçeneğini aç ([RELEASING.md](../docs/RELEASING.md#canlıya-yalnız-sürüm-çıkarma-coolify)).
+   Dağıtımdan sonra sol menünün altındaki sürüm ve commit'i kontrol et.
 
 ### Sağlık kontrolleri
 

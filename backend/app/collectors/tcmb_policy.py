@@ -301,14 +301,23 @@ class TcmbPolicyCollector(BaseCollector):
         ).all()
         existing = {item.decision_date: item.status for item in existing_rows}
         fields: list[dict] = []
+        source_failures: dict[str, str] = {}
         for decision_date, source_url in sorted(rows.items()):
             if source_url:
                 if existing.get(decision_date) == "PUBLISHED" and not self.refresh:
                     continue
-                detail = (await self.get_bytes(source_url)).decode("utf-8", "replace")
-                fields.append(
-                    map_decision(detail, decision_date=decision_date, source_url=source_url)
-                )
+                # Tek bir karar sayfasinin hatasi tum kosuyu (ve sonraki kararlari)
+                # dusurmesin; basarisiz gun bir sonraki kosuda yeniden denenir.
+                try:
+                    detail = (await self.get_bytes(source_url)).decode("utf-8", "replace")
+                    fields.append(
+                        map_decision(detail, decision_date=decision_date, source_url=source_url)
+                    )
+                except Exception as exc:  # noqa: BLE001 - kismi hata olarak raporlanir
+                    source_failures[decision_date.isoformat()] = repr(exc)
+                    self.log.warning(
+                        "tcmb_decision_failed", decision_date=decision_date.isoformat()
+                    )
             else:
                 fields.append(
                     {
@@ -352,4 +361,5 @@ class TcmbPolicyCollector(BaseCollector):
             "scheduled": sum(source_url is None for source_url in rows.values()),
             "details_fetched": sum(item["status"] == "PUBLISHED" for item in fields),
             "new": len(set(rows) - set(existing)),
+            "source_failures": source_failures,
         }

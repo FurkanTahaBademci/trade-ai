@@ -54,3 +54,19 @@ class SignalHorizonStatOut(BaseModel):
     hit_rate_pct: float | None
     average_excess_pct: float | None = None
     beat_rate_pct: float | None = None
+
+
+class SignalMoverOut(BaseModel):
+    ticker: str
+    composite_score: float
+    previous_score: float
+    change: float
+    signal_label: str
+    previous_label: str
+
+
+class SignalMoversOut(BaseModel):
+    as_of_date: date | None
+    base_date: date | None
+    risers: list[SignalMoverOut]
+    fallers: list[SignalMoverOut]

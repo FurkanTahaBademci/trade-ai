@@ -7,19 +7,23 @@ import logging
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from redis.exceptions import RedisError
 from sqlalchemy import desc, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.csv_export import csv_response
 from app.core.db import get_db
 from app.core.redis import get_redis
 from app.core.sectors import resolve_sector
+from app.core.valuation import price_multiple, trailing_net_income
 from app.models.fundamental import FundamentalSnapshot
 from app.models.institutional import AnalystConsensus
 from app.models.instrument import Instrument
 from app.models.price import PriceDaily
 from app.models.signal import CompositeSignalSnapshot
+from app.schemas.screener import ScreenerOut, ScreenerRowOut
+from app.screener.service import SORT_FIELDS, ScreenerFilters, load_screener_rows, screen_rows
 from app.signals.service import MODEL_VERSION
 
 logger = logging.getLogger(__name__)
@@ -273,18 +277,22 @@ async def compare_companies(
             }
         )
 
-    # 3. Temel Analiz Snapshot'lari (En son donem)
+    # 3. Temel Analiz Snapshot'lari: en son donem + TTM kar icin onceki yil donemleri
     fund_map: dict[str, FundamentalSnapshot] = {}
-    for t in cleaned_tickers:
-        f_stmt = (
+    net_income_history: dict[str, dict[tuple[int, int], float | None]] = {}
+    f_rows = (
+        await db.scalars(
             select(FundamentalSnapshot)
-            .where(FundamentalSnapshot.ticker == t)
+            .where(FundamentalSnapshot.ticker.in_(cleaned_tickers))
             .order_by(desc(FundamentalSnapshot.year), desc(FundamentalSnapshot.period))
-            .limit(1)
         )
-        f_row = await db.scalar(f_stmt)
-        if f_row:
-            fund_map[t] = f_row
+    ).all()
+    for f_row in f_rows:
+        latest_row = fund_map.setdefault(f_row.ticker, f_row)
+        if f_row.financial_group == latest_row.financial_group:
+            net_income_history.setdefault(f_row.ticker, {})[(f_row.year, f_row.period)] = (
+                float(f_row.net_income) if f_row.net_income is not None else None
+            )
 
     # 4. Analist Konsensuslari
     consensus_map: dict[str, AnalystConsensus] = {}
@@ -363,15 +371,22 @@ async def compare_companies(
             float(fund.fundamental_score) if fund and fund.fundamental_score is not None else None
         )
 
-        # Tahmini F/K ve PD/DD
-        pe_ratio = (
-            round(latest_mc / net_income, 2)
-            if (latest_mc > 0 and net_income and net_income > 0)
+        # F/K son 12 ay kariyla; donem kari yil ici kumulatif oldugundan dogrudan
+        # bolmek ara donemlerde carpani sisirir (bkz. app/core/valuation.py).
+        ttm_net_income = (
+            trailing_net_income(
+                year=fund.year,
+                period=fund.period,
+                net_income=net_income,
+                history=net_income_history.get(ticker, {}),
+            )[0]
+            if fund
             else None
         )
-        pb_ratio = (
-            round(latest_mc / equity, 2) if (latest_mc > 0 and equity and equity > 0) else None
-        )
+        pe = price_multiple(latest_mc, ttm_net_income)
+        pb = price_multiple(latest_mc, equity)
+        pe_ratio = round(pe, 2) if pe is not None else None
+        pb_ratio = round(pb, 2) if pb is not None else None
 
         # Analist konsensus metrikleri
         target_price = float(cons.average_target) if cons and cons.average_target else None
@@ -429,6 +444,7 @@ async def compare_companies(
                     "pb_ratio": pb_ratio,
                     "revenue_try": revenue,
                     "net_income_try": net_income,
+                    "ttm_net_income_try": ttm_net_income,
                     "net_margin_pct": round(net_margin, 2) if net_margin is not None else None,
                     "roe_pct": round(roe, 2) if roe is not None else None,
                     "debt_to_equity": round(debt_to_equity, 2)
@@ -517,3 +533,114 @@ async def compare_companies(
         logger.debug("Redis cache write error: %s", exc)
 
     return response_payload
+
+
+# --- Hisse tarayici ----------------------------------------------------------
+
+SCREENER_CACHE_KEY = "markets:screener:v1"
+SCREENER_LABELS = {"VERY_POSITIVE", "POSITIVE", "NEUTRAL", "NEGATIVE", "VERY_NEGATIVE"}
+
+
+def screener_filters(
+    q: Annotated[str | None, Query(max_length=64, description="Kod veya şirket adı")] = None,
+    sector: Annotated[str | None, Query(max_length=64)] = None,
+    label: Annotated[list[str] | None, Query(description="Sinyal etiketi; tekrarlanabilir")] = None,
+    min_score: Annotated[float | None, Query(ge=0, le=100)] = None,
+    max_pe: Annotated[float | None, Query(gt=0)] = None,
+    max_pb: Annotated[float | None, Query(gt=0)] = None,
+    min_roe: Annotated[float | None, Query(description="Yüzde, ör. 25")] = None,
+    min_revenue_growth: Annotated[float | None, Query(description="Yüzde")] = None,
+    min_upside: Annotated[float | None, Query(description="Yüzde")] = None,
+    min_change_1m: Annotated[float | None, Query(description="Yüzde")] = None,
+    min_market_cap: Annotated[float | None, Query(ge=0, description="TRY")] = None,
+    sort: Annotated[str, Query(pattern=f"^({'|'.join(SORT_FIELDS)})$")] = "composite_score",
+    order: Annotated[str, Query(pattern="^(asc|desc)$")] = "desc",
+    limit: Annotated[int, Query(ge=1, le=1000)] = 100,
+) -> ScreenerFilters:
+    labels = tuple(item for item in (label or []) if item in SCREENER_LABELS)
+    if label and not labels:
+        raise HTTPException(status_code=422, detail="Geçersiz sinyal etiketi.")
+    return ScreenerFilters(
+        query=q,
+        sector=sector,
+        labels=labels,
+        min_score=min_score,
+        max_pe=max_pe,
+        max_pb=max_pb,
+        min_roe=min_roe,
+        min_revenue_growth=min_revenue_growth,
+        min_upside=min_upside,
+        min_change_1m=min_change_1m,
+        min_market_cap=min_market_cap,
+        sort=sort,
+        order=order,
+        limit=limit,
+    )
+
+
+async def _screener_dataset(db: AsyncSession) -> dict[str, Any]:
+    """Tum evrenin tarayici satirlari; fiyat/skor gun icinde seyrek degistigi icin 5 dk onbellek."""
+    redis = get_redis()
+    try:
+        cached = await redis.get(SCREENER_CACHE_KEY)
+        if cached:
+            return json.loads(cached)
+    except (RedisError, json.JSONDecodeError, TypeError) as exc:
+        logger.debug("Redis cache miss or read error: %s", exc)
+    as_of, rows = await load_screener_rows(db)
+    payload = {"as_of_date": as_of.isoformat() if as_of else None, "rows": rows}
+    try:
+        await redis.setex(SCREENER_CACHE_KEY, 300, json.dumps(payload))
+    except RedisError as exc:
+        logger.debug("Redis cache write error: %s", exc)
+    return payload
+
+
+@router.get("/screener", response_model=ScreenerOut)
+async def stock_screener(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    filters: Annotated[ScreenerFilters, Depends(screener_filters)],
+) -> ScreenerOut:
+    """Skor, degerleme, karlilik, buyume, momentum ve analist kriterleriyle hisse tarama."""
+    dataset = await _screener_dataset(db)
+    matched = screen_rows(dataset["rows"], filters)
+    return ScreenerOut(
+        as_of_date=dataset["as_of_date"],
+        total=len(dataset["rows"]),
+        matched=len(matched),
+        sectors=sorted({row["sector"] for row in dataset["rows"]}),
+        rows=[ScreenerRowOut.model_validate(row) for row in matched[: filters.limit]],
+    )
+
+
+@router.get("/screener.csv")
+async def stock_screener_csv(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    filters: Annotated[ScreenerFilters, Depends(screener_filters)],
+) -> Response:
+    dataset = await _screener_dataset(db)
+    rows = screen_rows(dataset["rows"], filters)[: filters.limit]
+    columns = [
+        ("ticker", "Hisse"),
+        ("name", "Şirket"),
+        ("sector", "Sektör"),
+        ("last_price", "Son fiyat"),
+        ("change_1d_pct", "Günlük %"),
+        ("change_1m_pct", "1 ay %"),
+        ("change_3m_pct", "3 ay %"),
+        ("market_cap_try", "Piyasa değeri"),
+        ("composite_score", "Bileşik skor"),
+        ("signal_label", "Etiket"),
+        ("pe_ratio", "F/K (TTM)"),
+        ("pb_ratio", "PD/DD"),
+        ("roe_pct", "ROE %"),
+        ("revenue_yoy_pct", "Gelir büyümesi %"),
+        ("net_income_yoy_pct", "Net kâr büyümesi %"),
+        ("upside_pct", "Analist potansiyeli %"),
+        ("fundamental_period", "Finansal dönem"),
+    ]
+    return csv_response(
+        f"tarayici-{dataset['as_of_date'] or 'bos'}.csv",
+        [label for _, label in columns],
+        [[row.get(key) for key, _ in columns] for row in rows],
+    )

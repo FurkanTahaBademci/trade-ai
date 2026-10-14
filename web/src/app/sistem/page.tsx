@@ -5,6 +5,7 @@ import type { CollectorSchedule, ComponentHealth, LlmOperationsReport, SettingSt
 import { formatBytes, formatDate, relativeTime } from "@/lib/format";
 import { signalCoverage } from "@/lib/system-metrics";
 import { EmptyState, PageHeader, ServiceNotice, SectionTitle } from "@/components/ui";
+import { APP_COMMIT, APP_VERSION, versionSkew } from "@/lib/build-info";
 import { LogoutButton } from "@/components/logout-button";
 import { clearSettingAction, runScheduleAction, testAlertsAction, testGeminiAction, toggleScheduleAction, updateScheduleAction, updateSettingAction, vacuumStorageAction } from "./actions";
 
@@ -15,8 +16,9 @@ const stateText = {
   stale: "Gecikmiş",
   error: "Hata",
   pending: "İlk çalışma bekleniyor",
+  disabled: "Devre dışı",
 };
-const scheduleOrder = ["news", "kap", "evaluations", "signals", "prices", "instruments", "fundamentals", "analysts", "institutional_reports", "fund_flows", "tcmb_policy", "evds", "paper_portfolio"];
+const scheduleOrder = ["news", "kap", "evaluations", "signals", "prices", "instruments", "fundamentals", "analysts", "institutional_reports", "fund_flows", "tcmb_policy", "evds", "paper_portfolio", "daily_digest"];
 
 function StatePill({ state }: { state: ComponentHealth["state"] }) {
   const tone = state === "healthy" ? "pill-positive" : state === "error" ? "pill-negative" : "";
@@ -25,19 +27,21 @@ function StatePill({ state }: { state: ComponentHealth["state"] }) {
 
 function ComponentRow({ item }: { item: ComponentHealth }) {
   const age = item.last_success ? relativeTime(item.last_success) : "Henüz başarı kaydı yok";
-  return <div className="flex flex-col gap-3 border-t px-4 py-3 first:border-t-0 sm:flex-row sm:items-center" style={{ borderColor: "var(--border)" }}><div className="min-w-0 flex-1"><p className="text-sm font-semibold">{item.label}</p><p className="mt-1 text-[11px] text-[var(--text-muted)]">Son başarılı çalışma: {age}</p></div><StatePill state={item.state}/></div>;
+  return <div className="flex flex-col gap-3 border-t px-4 py-3 first:border-t-0 sm:flex-row sm:items-center" style={{ borderColor: "var(--border)" }}><div className="min-w-0 flex-1"><p className="text-sm font-semibold">{item.label}</p><p className="mt-1 text-[11px] text-[var(--text-muted)]">{item.state === "disabled" && item.detail ? `Veri toplanmıyor: ${item.detail}` : `Son başarılı çalışma: ${age}`}</p></div><StatePill state={item.state}/></div>;
 }
 
 export default async function SystemPage({ searchParams }: { searchParams: Promise<{ result?: string; message?: string }> }) {
   const [health, schedules, settings, storage, llm, stats] = await Promise.all([apiGet<SystemHealth | null>("/health/detailed", null), apiGet<CollectorSchedule[]>("/api/schedules", []), apiGet<SettingStatus[]>("/api/settings", []), apiGet<StorageReport | null>("/api/system/storage", null), apiGet<LlmOperationsReport | null>("/api/system/llm", null), apiGet<SystemStats | null>("/api/system/stats", null, { revalidate: 60 })]);
   const notice = await searchParams;
   const report = health.data?.monitoring;
+  const skew = versionSkew(APP_VERSION, health.data?.version);
   const components = report ? [report.worker, ...Object.values(report.collectors)] : [];
   const healthy = components.filter((item) => item.state === "healthy").length;
+  const disabled = components.filter((item) => item.state === "disabled").length;
 
-  return <><PageHeader eyebrow="Operasyon · Canlı durum" title="Sistem Sağlığı" description="Altyapı bağlantıları, worker heartbeat'i ve veri toplama takvimlerini tek ekrandan yönetin." actions={<div className="flex items-center gap-2">{health.data && <StatePill state={llm.data?.provider_pause ? "error" : health.data.status === "ok" ? "healthy" : "stale"}/>}<LogoutButton/></div>}/><ServiceNotice show={!health.ok || !schedules.ok || !llm.ok}/>
+  return <><PageHeader eyebrow="Operasyon · Canlı durum" title="Sistem Sağlığı" description="Altyapı bağlantıları, worker heartbeat'i ve veri toplama takvimlerini tek ekrandan yönetin." actions={<div className="flex items-center gap-2"><span className="pill terminal-mono" title={`Web ${APP_VERSION}${APP_COMMIT ? `+${APP_COMMIT}` : ""} · API ${health.data?.version ?? "—"}${health.data?.commit ? `+${health.data.commit}` : ""}`}>v{APP_VERSION}</span>{health.data && <StatePill state={llm.data?.provider_pause ? "error" : health.data.status === "ok" ? "healthy" : "stale"}/>}<LogoutButton/></div>}/><ServiceNotice show={!health.ok || !schedules.ok || !llm.ok}/>{skew && <div role="status" className="mb-6 rounded border px-4 py-3 text-xs text-[var(--warning)]" style={{ borderColor: "color-mix(in srgb, var(--warning) 30%, transparent)", background: "var(--warning-soft)" }}>Sürüm uyuşmazlığı: {skew}. Dağıtım yarım kalmış olabilir; web ve API aynı sürümden derlenmeli.</div>}
     {notice.message && <div className={`mb-5 rounded border px-4 py-3 text-sm ${notice.result === "ok" ? "text-[var(--positive)]" : "text-[var(--negative)]"}`} style={{ borderColor: notice.result === "ok" ? "var(--positive)" : "var(--negative)", background: notice.result === "ok" ? "var(--positive-soft)" : "var(--negative-soft)" }}>{notice.message}</div>}
-    {!report ? <div className="panel-flat"><EmptyState title="Sağlık verisi alınamadı" description="API ve Redis bağlantısı kurulduğunda bileşen durumları burada görünecek."/></div> : <><div className="mb-6 grid gap-3 sm:grid-cols-3"><Metric label="Sağlıklı bileşen" value={`${healthy}/${components.length}`}/><Metric label="Sorun" value={String(report.problem_count)} tone={report.problem_count === 0 ? "positive" : "warning"}/><Metric label="İlk çalışma bekleyen" value={String(report.pending_count)} tone={report.pending_count === 0 ? "positive" : "warning"}/></div>
+    {!report ? <div className="panel-flat"><EmptyState title="Sağlık verisi alınamadı" description="API ve Redis bağlantısı kurulduğunda bileşen durumları burada görünecek."/></div> : <><div className="mb-6 grid gap-3 sm:grid-cols-3"><Metric label="Sağlıklı bileşen" value={`${healthy}/${components.length - disabled}`} meta={disabled ? `${disabled} bileşen devre dışı` : undefined}/><Metric label="Sorun" value={String(report.problem_count)} tone={report.problem_count === 0 ? "positive" : "warning"}/><Metric label="İlk çalışma bekleyen" value={String(report.pending_count)} tone={report.pending_count === 0 ? "positive" : "warning"}/></div>
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(300px,.6fr)]"><section><SectionTitle title="Veri hatları" subtitle="Kaynak bazında tazelik ve hata durumu"/><div className="panel-flat overflow-hidden">{components.map((item) => <ComponentRow key={item.name} item={item}/>)}</div></section><aside><SectionTitle title="Altyapı" subtitle="Bağlantı kontrolleri"/><div className="panel-flat overflow-hidden"><Infrastructure label="PostgreSQL" state={health.data?.db}/><Infrastructure label="Redis" state={health.data?.redis}/><div className="border-t p-4 text-[11px] leading-5 text-[var(--text-muted)]" style={{ borderColor: "var(--border)" }}>Gecikmiş veya hatalı bileşenler, <code>N8N_WEBHOOK_URL</code> tanımlıysa saatlik tekrar sınırıyla webhook'a bildirilir.</div></div></aside></div></>}
     <section className="mt-8"><SectionTitle title="Veri kapsamı" subtitle="Aktif enstrüman evreninin güncel bileşik skor kapsamı"/>{stats.data ? <SignalCoveragePanel stats={stats.data}/> : <div className="panel-flat"><EmptyState title="Kapsam bilgisi alınamadı"/></div>}</section>
     <section className="mt-8"><SectionTitle title="AI analiz hattı" subtitle="Günlük token bütçesi, seçili model ve iş kuyruğu"/>{!llm.data ? <div className="panel-flat"><EmptyState title="AI operasyon bilgisi alınamadı"/></div> : <LlmOperations report={llm.data}/>}</section>
@@ -104,7 +108,7 @@ function SettingCard({ item }: { item: SettingStatus }) {
 function AlertsTestPanel({ settings }: { settings: SettingStatus[] }) {
   const enabled = settings.find((item) => item.key === "alerts_enabled")?.preview === "true";
   const channels = ["alerts_telegram_bot_token", "alerts_webhook_url"].filter((key) => settings.find((item) => item.key === key)?.is_set).length;
-  return <div className="panel-flat mt-4 p-5"><div className="flex flex-col gap-4 sm:flex-row sm:items-center"><div className="min-w-0 flex-1"><h3 className="text-sm font-semibold">Bildirim testi</h3><p className="mt-1 text-xs leading-5 text-[var(--text-muted)]">Yapılandırılmış Telegram ve webhook kanallarına tek bir test mesajı gönderir. Skor etiketi değişimi, sistem sağlığı ve yüksek skor bildirimleri her 10 dakikada bir değerlendirilir; aynı olay iki kez gönderilmez.</p><p className="mt-2 font-mono text-[11px] text-[var(--text-secondary)]">{enabled ? "Etkin" : "Kapalı"} · {channels} kanal yapılandırıldı</p></div><form action={testAlertsAction}><button className="rounded border px-3 py-2 text-xs font-semibold transition hover:bg-[var(--surface-hover)]" style={{ borderColor: "var(--border)" }}>Test mesajı gönder</button></form></div></div>;
+  return <div className="panel-flat mt-4 p-5"><div className="flex flex-col gap-4 sm:flex-row sm:items-center"><div className="min-w-0 flex-1"><h3 className="text-sm font-semibold">Bildirim testi</h3><p className="mt-1 text-xs leading-5 text-[var(--text-muted)]">Yapılandırılmış Telegram ve webhook kanallarına tek bir test mesajı gönderir. Skor etiketi değişimi, sistem sağlığı ve yüksek skor bildirimleri her 10 dakikada bir değerlendirilir; aynı olay iki kez gönderilmez. "Günlük Özet Bildirimi" açıksa her işlem günü 19:15'te endeks, paper portföy, günün işlemleri ve skor hareketleri tek mesajla gelir.</p><p className="mt-2 font-mono text-[11px] text-[var(--text-secondary)]">{enabled ? "Etkin" : "Kapalı"} · {channels} kanal yapılandırıldı</p></div><form action={testAlertsAction}><button className="rounded border px-3 py-2 text-xs font-semibold transition hover:bg-[var(--surface-hover)]" style={{ borderColor: "var(--border)" }}>Test mesajı gönder</button></form></div></div>;
 }
 function GeminiTestPanel({ settings }: { settings: SettingStatus[] }) {
   const apiMode = settings.find((item) => item.key === "gemini_api_mode")?.preview ?? "—";

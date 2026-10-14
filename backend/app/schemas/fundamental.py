@@ -56,3 +56,7 @@ class FundamentalSnapshotOut(BaseModel):
     score_components: dict
     data_completeness: int
     computed_at: datetime
+    # Son 12 ay net kar: "annual" (yil sonu), "ttm" (onceki yille tamamlanmis) veya
+    # "annualized" (onceki yil yoksa donem kari x 12 / donem).
+    ttm_net_income: float | None = None
+    ttm_basis: str | None = None

@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     environment: str = "development"
+    # Docker build'de SOURCE_COMMIT build arg'indan gelir (docker-compose.yml);
+    # elle ayarlanmaz. /health yanitinda surumun yaninda gosterilir.
+    source_commit: str = ""
     log_level: str = "INFO"
     tz: str = "Europe/Istanbul"
     cors_origins: str = "http://localhost:3000"
@@ -55,6 +58,8 @@ class Settings(BaseSettings):
     alerts_webhook_url: str = ""
     alerts_watch_tickers: str = ""
     alerts_high_score_threshold: int = 85
+    # Islem gunu sonunda tek mesajlik ozet (app/alerts/digest.py); /sistem'den acilir.
+    alerts_daily_digest_enabled: bool = False
 
     collector_user_agent: str = "trade-ai (acik kaynak arastirma araci)"
     kap_rate_limit_per_sec: float = 2.0
