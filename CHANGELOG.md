@@ -9,6 +9,8 @@ bu bölümü yeni sürüm numarasıyla kapatır.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-15
+
 ### Eklendi
 
 - **Bileşenlerin tahmin gücü:** `/sinyaller` sayfasında AI etkisi, temel
