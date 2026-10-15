@@ -118,6 +118,37 @@ def test_llm_score_prefers_tier_two_for_same_source_document():
     assert result.evidence == {"evaluation_ids": [11], "document_count": 1}
 
 
+def test_llm_recency_uses_source_publish_time_not_evaluation_time():
+    now = datetime(2026, 9, 7, 12, tzinfo=UTC)
+
+    def evaluation(row_id, source_id, sentiment):
+        # Ikisi de bir saat once degerlendirildi (ornegin kota beklemesinden sonra).
+        return SimpleNamespace(
+            id=row_id,
+            source_type="news",
+            source_id=source_id,
+            ticker_codes=["THYAO"],
+            tier=1,
+            relevance_score=100,
+            impact_score=100,
+            confidence=Decimal(1),
+            sentiment_score=Decimal(sentiment),
+            created_at=now - timedelta(hours=1),
+            completed_at=now - timedelta(hours=1),
+        )
+
+    fresh, stale = evaluation(1, 501, 1), evaluation(2, 502, -1)
+    published = {("news", 501): now - timedelta(hours=2), ("news", 502): now - timedelta(days=12)}
+
+    result = score_llm_evaluations([fresh, stale], "THYAO", now=now, published_at=published)
+    # 12 gunluk haberin agirligi ~0,06; skor taze haberin yonune cok yakin kalir.
+    assert result is not None and result.score > Decimal(90)
+
+    too_old = {("news", 502): now - timedelta(days=20)}
+    only_old = score_llm_evaluations([stale], "THYAO", now=now, published_at=too_old)
+    assert only_old is None
+
+
 def test_component_adapters_bound_scores_and_expose_evidence():
     fundamental = score_fundamental(
         SimpleNamespace(

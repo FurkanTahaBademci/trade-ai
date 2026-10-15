@@ -25,6 +25,12 @@ router = APIRouter(prefix="/api/ai", tags=["ai"])
 logger = logging.getLogger(__name__)
 
 
+def _turkish_rate(value) -> str:
+    """37 -> "37", 37.5 -> "37,5" (gereksiz ondalik ve nokta ayirac yazilmaz)."""
+    text = f"{float(value):.2f}".rstrip("0").rstrip(".")
+    return text.replace(".", ",")
+
+
 @router.get("/briefing")
 async def get_market_briefing(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -127,8 +133,8 @@ async def get_market_briefing(
         )
 
     rate_text = (
-        f"Son kayıtlı TCMB politika faizi %{latest_macro.policy_rate:.2f} "
-        f"({latest_macro.decision_date.isoformat()})."
+        f"Son kayıtlı TCMB politika faizi %{_turkish_rate(latest_macro.policy_rate)} "
+        f"({latest_macro.decision_date:%d.%m.%Y})."
         if latest_macro and latest_macro.policy_rate is not None
         else "TCMB politika faizi verisi bulunmuyor."
     )

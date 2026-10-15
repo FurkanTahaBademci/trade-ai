@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { MarketFeedItem } from "@/lib/types";
-import { signalName } from "@/lib/format";
+import { formatMoney, formatPercent, signalName } from "@/lib/format";
 import { buildCsv, downloadCsv } from "@/lib/csv";
 import { EmptyState } from "@/components/ui";
 import { Icon } from "@/components/icon";
@@ -43,14 +43,16 @@ export function WatchlistView() {
   if (!watched.length) return <div className="panel-flat p-8 text-center"><p className="text-sm font-medium">İzlenen hisseler aktif piyasa evreninde bulunamadı</p><p className="mt-1 text-xs text-[var(--text-muted)]">Eski kayıtları aşağıdaki yıldızlarla listenizden çıkarabilirsiniz.</p><div className="mt-4 flex flex-wrap justify-center gap-2">{missing.map((ticker) => <span key={ticker} className="pill gap-1"><WatchlistStar ticker={ticker} size={14}/>{ticker}</span>)}</div></div>;
 
   function exportCsv() {
-    downloadCsv("izleme-listesi.csv", buildCsv(["Hisse", "Şirket", "Bileşik skor", "Etiket"], watched.map((item) => [item.ticker, item.name, item.composite_score == null ? null : Math.round(item.composite_score), item.signal_label ? signalName(item.signal_label) : null])));
+    downloadCsv("izleme-listesi.csv", buildCsv(["Hisse", "Şirket", "Son fiyat", "Günlük %", "Bileşik skor", "Etiket"], watched.map((item) => [item.ticker, item.name, item.last_price, item.change_1d_pct, item.composite_score == null ? null : Math.round(item.composite_score), item.signal_label ? signalName(item.signal_label) : null])));
   }
 
-  return <><div className="mb-3 flex flex-wrap items-center gap-2"><button type="button" onClick={exportCsv} className="pill transition hover:text-[var(--text)]"><Icon name="download" size={12}/>CSV indir</button><SyncBadge state={syncState}/></div>{missing.length > 0 &&<div className="mb-3 rounded border px-4 py-3 text-xs text-[var(--warning)]" style={{ borderColor: "color-mix(in srgb, var(--warning) 25%, transparent)", background: "var(--warning-soft)" }}>{missing.join(", ")} aktif piyasa evreninde bulunamadı.</div>}<div className="table-shell overflow-x-auto"><table className="data-table min-w-[560px]"><thead><tr><th className="w-10"><span className="sr-only">İşlem</span></th><th>Hisse</th><th>Şirket</th><th>Bileşik skor</th><th className="w-10"><span className="sr-only">İşlem</span></th></tr></thead><tbody>
+  return <><div className="mb-3 flex flex-wrap items-center gap-2"><button type="button" onClick={exportCsv} className="pill transition hover:text-[var(--text)]"><Icon name="download" size={12}/>CSV indir</button><SyncBadge state={syncState}/></div>{missing.length > 0 &&<div className="mb-3 rounded border px-4 py-3 text-xs text-[var(--warning)]" style={{ borderColor: "color-mix(in srgb, var(--warning) 25%, transparent)", background: "var(--warning-soft)" }}>{missing.join(", ")} aktif piyasa evreninde bulunamadı.</div>}<div className="table-shell overflow-x-auto"><table className="data-table min-w-[720px]"><thead><tr><th className="w-10"><span className="sr-only">İşlem</span></th><th>Hisse</th><th>Şirket</th><th className="text-right">Son fiyat</th><th className="text-right">Günlük</th><th>Bileşik skor</th><th className="w-10"><span className="sr-only">İşlem</span></th></tr></thead><tbody>
     {watched.map((item) => <tr key={item.ticker}>
       <td><WatchlistStar ticker={item.ticker} size={16}/></td>
       <td><Link href={`/piyasalar/${item.ticker}`} className="terminal-mono font-semibold text-[var(--primary)]">{item.ticker}</Link></td>
       <td className="font-medium">{item.name}</td>
+      <td className="text-right">{formatMoney(item.last_price)}</td>
+      <td className={`text-right ${(item.change_1d_pct ?? 0) > 0 ? "text-[var(--positive)]" : (item.change_1d_pct ?? 0) < 0 ? "text-[var(--negative)]" : ""}`}>{formatPercent(item.change_1d_pct, true)}</td>
       <td>{item.composite_score != null ? <span className="pill">{Math.round(item.composite_score)}/100 · {signalName(item.signal_label ?? "")}</span> : <span className="text-[var(--text-muted)]">Sinyal yok</span>}</td>
       <td><Link href={`/piyasalar/${item.ticker}`} aria-label={`${item.ticker} detayını aç`} className="text-[var(--text-muted)]"><Icon name="chevron" size={16}/></Link></td>
     </tr>)}

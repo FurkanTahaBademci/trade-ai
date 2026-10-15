@@ -5,14 +5,12 @@ import type { ScreenerResult, ScreenerRow } from "@/lib/types";
 import { formatDate, formatMoney, formatNumber, formatPercent, signalName } from "@/lib/format";
 import { EmptyState, PageHeader, ServiceNotice } from "@/components/ui";
 import { Icon } from "@/components/icon";
-import { MARKET_CAP_OPTIONS, SCREENER_PRESETS, SIGNAL_GROUPS, activeFilterCount, parseScreenerParams, screenerApiQuery, screenerHref, sortHref, type ScreenerParams, type ScreenerSort } from "@/lib/screener";
+import { MARKET_CAP_OPTIONS, SCREENER_MAX_ROWS, SCREENER_PRESETS, SIGNAL_GROUPS, activeFilterCount, moreHref, parseScreenerParams, screenerApiQuery, screenerHref, sortHref, type ScreenerParams, type ScreenerSort } from "@/lib/screener";
 
 export const metadata: Metadata = {
   title: "Hisse Tarayıcı",
   description: "BIST hisselerini bileşik skor, F/K, PD/DD, kârlılık, büyüme, momentum ve analist potansiyeline göre filtreleyin.",
 };
-
-const PAGE_LIMIT = 200;
 
 const COLUMNS: { key: ScreenerSort; label: string; title?: string }[] = [
   { key: "ticker", label: "Hisse" },
@@ -29,11 +27,12 @@ const COLUMNS: { key: ScreenerSort; label: string; title?: string }[] = [
 
 export default async function ScreenerPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const params = parseScreenerParams(await searchParams);
-  const result = await apiGet<ScreenerResult | null>(`/api/markets/screener?${screenerApiQuery(params, PAGE_LIMIT)}`, null, { revalidate: 60 });
+  const result = await apiGet<ScreenerResult | null>(`/api/markets/screener?${screenerApiQuery(params)}`, null, { revalidate: 60 });
   const data = result.data;
+  const more = data ? moreHref(params, data.matched) : null;
   const filterCount = activeFilterCount(params);
   return <>
-    <PageHeader eyebrow="BIST · Çok kriterli filtre" title="Hisse Tarayıcı" description="Bileşik skor, değerleme, kârlılık, büyüme, momentum ve analist potansiyeline göre tüm BIST evrenini tarayın. Her tarama adres çubuğundan paylaşılabilir." actions={<a href={`/api/export/screener?${screenerApiQuery(params, 1000)}`} download className="pill transition hover:text-[var(--text)]"><Icon name="download" size={12}/>CSV indir</a>}/>
+    <PageHeader eyebrow="BIST · Çok kriterli filtre" title="Hisse Tarayıcı" description="Bileşik skor, değerleme, kârlılık, büyüme, momentum ve analist potansiyeline göre tüm BIST evrenini tarayın. Her tarama adres çubuğundan paylaşılabilir." actions={<a href={`/api/export/screener?${screenerApiQuery(params, SCREENER_MAX_ROWS)}`} download className="pill transition hover:text-[var(--text)]"><Icon name="download" size={12}/>CSV indir</a>}/>
     <ServiceNotice show={!result.ok}/>
     <nav aria-label="Hazır taramalar" className="mb-4 flex flex-wrap gap-2">{SCREENER_PRESETS.map((preset) => { const href = screenerHref(preset.params); const active = href === screenerHref(params); return <Link key={preset.label} href={href} title={preset.description} aria-current={active ? "page" : undefined} className={`pill transition ${active ? "pill-primary" : "hover:text-[var(--text)]"}`}>{preset.label}</Link>; })}</nav>
     <form action="/tarayici" method="get" className="panel-flat mb-5 grid grid-cols-2 gap-3 p-4 lg:grid-cols-4">
@@ -52,8 +51,8 @@ export default async function ScreenerPage({ searchParams }: { searchParams: Pro
       {params.order !== "desc" && <input type="hidden" name="order" value={params.order}/>}
       <div className="col-span-2 flex items-end gap-2 sm:col-span-1"><button type="submit" className="h-10 flex-1 rounded bg-[var(--primary)] px-4 text-sm font-semibold text-[var(--primary-contrast)] transition hover:bg-[var(--primary-strong)]">Tara</button>{filterCount > 0 && <Link href="/tarayici" className="pill h-10 transition hover:text-[var(--text)]">Sıfırla</Link>}</div>
     </form>
-    {data && <p className="mb-3 text-xs text-[var(--text-muted)]" role="status"><strong className="text-[var(--text)]">{formatNumber(data.matched, 0)}</strong> / {formatNumber(data.total, 0)} hisse eşleşti{data.as_of_date ? ` · fiyatlar ${formatDate(data.as_of_date)}` : ""}{data.matched > data.rows.length ? ` · ilk ${data.rows.length} gösteriliyor, tamamı için CSV indirin` : ""}</p>}
-    {data?.rows.length ? <div className="table-shell overflow-x-auto"><table className="data-table min-w-[980px]"><caption className="sr-only">Tarama sonuçları</caption><thead><tr>{COLUMNS.map((column) => <th key={column.key} scope="col" title={column.title} aria-sort={params.sort === column.key ? (params.order === "asc" ? "ascending" : "descending") : undefined} className={column.key === "ticker" ? "" : "text-right"}><Link href={sortHref(params, column.key)} scroll={false} className="inline-flex items-center gap-1 hover:text-[var(--text)]">{column.label}{params.sort === column.key && <span aria-hidden="true">{params.order === "asc" ? "↑" : "↓"}</span>}</Link></th>)}</tr></thead><tbody>{data.rows.map((row) => <ResultRow key={row.ticker} row={row}/>)}</tbody></table></div>
+    {data && <p className="mb-3 text-xs text-[var(--text-muted)]" role="status"><strong className="text-[var(--text)]">{formatNumber(data.matched, 0)}</strong> / {formatNumber(data.total, 0)} hisse eşleşti{data.as_of_date ? ` · fiyatlar ${formatDate(data.as_of_date)}` : ""}{data.matched > data.rows.length ? ` · ilk ${data.rows.length} gösteriliyor` : ""}</p>}
+    {data?.rows.length ? <><div className="table-shell overflow-x-auto"><table className="data-table min-w-[980px]"><caption className="sr-only">Tarama sonuçları</caption><thead><tr>{COLUMNS.map((column) => <th key={column.key} scope="col" title={column.title} aria-sort={params.sort === column.key ? (params.order === "asc" ? "ascending" : "descending") : undefined} className={column.key === "ticker" ? "" : "text-right"}><Link href={sortHref(params, column.key)} scroll={false} className="inline-flex items-center gap-1 hover:text-[var(--text)]">{column.label}{params.sort === column.key && <span aria-hidden="true">{params.order === "asc" ? "↑" : "↓"}</span>}</Link></th>)}</tr></thead><tbody>{data.rows.map((row) => <ResultRow key={row.ticker} row={row}/>)}</tbody></table></div>{more && <div className="mt-3 flex justify-center"><Link href={more} scroll={false} className="pill transition hover:text-[var(--text)]">Daha fazla göster ({formatNumber(data.matched - data.rows.length, 0)} hisse daha)</Link></div>}</>
       : <div className="panel-flat"><EmptyState title={result.ok ? "Eşleşen hisse yok" : "Tarama sonuçları alınamadı"} description={result.ok ? "Filtreleri gevşetin veya hazır taramalardan birini deneyin. Değeri bilinmeyen hisseler o kritere uymuş sayılmaz." : "Veri servisine ulaşılamadı; biraz sonra tekrar deneyin."}/></div>}
     <p className="mt-4 text-[11px] leading-5 text-[var(--text-muted)]">F/K son 12 ay net kârıyla, PD/DD son bilançodaki özsermayeyle hesaplanır; zarar eden veya özsermayesi negatif şirketlerde gösterilmez. Gelir büyümesi ve ROE son açıklanan döneme aittir. Bir kritere filtre verildiğinde o değeri bilinmeyen hisseler listeden çıkar. Tarama sonuçları bilgi amaçlıdır; yatırım tavsiyesi değildir.</p>
   </>;
@@ -78,7 +77,7 @@ function ResultRow({ row }: { row: ScreenerRow }) {
     <td className={`text-right ${tone(row.change_1d_pct)}`}><span className="block text-[var(--text)]">{formatMoney(row.last_price)}</span>{formatPercent(row.change_1d_pct, true)}</td>
     <td className={`text-right ${tone(row.change_1m_pct)}`}>{formatPercent(row.change_1m_pct, true)}</td>
     <td className="text-right">{formatMoney(row.market_cap_try, true)}</td>
-    <td className="text-right">{row.composite_score == null ? "—" : <><span className="font-semibold">{formatNumber(row.composite_score, 0)}</span><span className={`ml-1.5 text-[10px] ${row.signal_label?.includes("POSITIVE") ? "text-[var(--positive)]" : row.signal_label?.includes("NEGATIVE") ? "text-[var(--negative)]" : "text-[var(--text-muted)]"}`}>{row.signal_label ? signalName(row.signal_label) : ""}</span></>}</td>
+    <td className="text-right">{row.composite_score == null ? "—" : <><span className="font-semibold">{formatNumber(row.composite_score, 0)}</span><span className={`ml-1.5 whitespace-nowrap text-[10px] ${row.signal_label?.includes("POSITIVE") ? "text-[var(--positive)]" : row.signal_label?.includes("NEGATIVE") ? "text-[var(--negative)]" : "text-[var(--text-muted)]"}`}>{row.signal_label ? signalName(row.signal_label) : ""}</span></>}</td>
     <td className="text-right">{formatNumber(row.pe_ratio, 1)}</td>
     <td className="text-right">{formatNumber(row.pb_ratio, 2)}</td>
     <td className={`text-right ${tone(row.roe_pct)}`}>{formatPercent(row.roe_pct)}</td>

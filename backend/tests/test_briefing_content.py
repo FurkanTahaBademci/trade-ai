@@ -71,8 +71,13 @@ async def test_zero_rate_is_real_data_and_cache_outage_is_tolerated(redis):
     redis.setex.side_effect = RedisError("offline")
     macro = SimpleNamespace(policy_rate=0, decision_date=date(2026, 9, 1))
     result = await briefing.get_market_briefing(FakeSession(macro=macro))
-    assert "%0.00" in result["summary"]
-    assert "2026-09-01" in result["summary"]
+    assert "politika faizi %0 (01.09.2026)" in result["summary"]
+
+
+def test_policy_rate_uses_turkish_number_format():
+    assert briefing._turkish_rate(37) == "37"
+    assert briefing._turkish_rate(37.5) == "37,5"
+    assert briefing._turkish_rate(35.25) == "35,25"
 
 
 async def test_session_and_date_use_istanbul_time(redis, monkeypatch):

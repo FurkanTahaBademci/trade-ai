@@ -162,3 +162,39 @@ async def test_calendar_places_kap_event_on_extracted_event_date():
     assert events[0].date == date(2099, 10, 14)
     assert events[0].detail == "Hak kullanım 14.10.2099 · ödeme 16.10.2099"
     assert events[0].upcoming is True
+
+
+def test_financial_report_bundle_is_merged_per_company_and_day():
+    from datetime import date
+
+    from app.api.routers.calendar import merge_report_events
+    from app.schemas.calendar import CalendarEventOut
+
+    def event(index, title, tickers, day=date(2026, 10, 2), kind="FINANCIAL_REPORT"):
+        return CalendarEventOut(
+            id=f"kap-{index}",
+            date=day,
+            type=kind,
+            type_label="Finansal rapor",
+            title=title,
+            source="KAP",
+            tickers=tickers,
+            disclosure_index=index,
+        )
+
+    events = [
+        event(1, "Faaliyet Raporu (Konsolide)", ["KONTR"]),
+        event(2, "Finansal Rapor", ["KONTR"]),
+        event(3, "Sorumluluk Beyanı (Konsolide)", ["KONTR"]),
+        event(4, "Finansal Rapor", ["BSOKE"]),
+        event(5, "Finansal Rapor Ek Süre Talebi", []),
+        event(6, "Kar Payı Dağıtım İşlemlerine İlişkin Bildirim", ["KONTR"], kind="DIVIDEND"),
+    ]
+
+    merged = {item.id: item for item in merge_report_events(events)}
+
+    assert set(merged) == {"kap-2", "kap-4", "kap-5", "kap-6"}
+    assert merged["kap-2"].detail == (
+        "3 bildirim: Faaliyet Raporu (Konsolide), Finansal Rapor, Sorumluluk Beyanı (Konsolide)"
+    )
+    assert merged["kap-4"].detail is None

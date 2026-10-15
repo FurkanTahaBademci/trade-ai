@@ -17,6 +17,9 @@ class BacktestCreate(BaseModel):
     max_position_weight: float = Field(default=0.10, gt=0, le=1)
     fee_rate: float = Field(default=0.001, ge=0, le=0.05)
     slippage_rate: float = Field(default=0.0005, ge=0, le=0.05)
+    # Varsayilanlar paper portfoyle ayni: %15 zarar-kes, gunde en fazla 3 yeni pozisyon.
+    stop_loss_pct: float = Field(default=15, ge=0, lt=100)
+    max_new_entries_per_day: int = Field(default=3, ge=0, le=100)
 
     @model_validator(mode="after")
     def validate_ranges(self) -> "BacktestCreate":

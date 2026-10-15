@@ -11,7 +11,7 @@ const compiled = ts.transpileModule(readFileSync(file, "utf8"), {
 });
 const loaded = new Module(file, module);
 loaded._compile(compiled.outputText, file);
-const { parseDecimal, parseScreenerParams, screenerApiQuery, screenerHref, sortHref, activeFilterCount } = loaded.exports;
+const { parseDecimal, parseScreenerParams, screenerApiQuery, screenerHref, sortHref, activeFilterCount, moreHref, screenerLimit } = loaded.exports;
 
 test("parseDecimal accepts Turkish decimals and rejects junk", () => {
   assert.equal(parseDecimal("10,5"), 10.5);
@@ -33,6 +33,7 @@ test("screenerApiQuery maps signal groups to repeated labels and normalises numb
   assert.equal(query.get("sort"), "pe_ratio");
   assert.equal(query.get("order"), "asc");
   assert.equal(query.get("limit"), "50");
+  assert.equal(new URLSearchParams(screenerApiQuery(parseScreenerParams({}))).get("limit"), "100");
 });
 
 test("screenerHref omits defaults so the plain page URL stays clean", () => {
@@ -46,4 +47,18 @@ test("sortHref toggles the active column and starts valuation columns ascending"
   assert.equal(sortHref(base, "pe_ratio"), "/tarayici?sort=pe_ratio&order=asc");
   assert.equal(sortHref(base, "upside_pct"), "/tarayici?sort=upside_pct");
   assert.equal(sortHref(parseScreenerParams({ sort: "pe_ratio", order: "asc" }), "pe_ratio"), "/tarayici?sort=pe_ratio");
+});
+
+test("paging grows in 100-row steps up to 1000 and resets when sorting", () => {
+  assert.equal(screenerLimit({}), 100);
+  assert.equal(screenerLimit({ limit: "250" }), 300);
+  assert.equal(screenerLimit({ limit: "99999" }), 1000);
+  assert.equal(screenerLimit({ limit: "abc" }), 100);
+  const params = parseScreenerParams({ max_pe: "10" });
+  assert.equal(moreHref(params, 80), null);
+  assert.equal(moreHref(params, 630), "/tarayici?max_pe=10&limit=200");
+  const paged = parseScreenerParams({ limit: "200" });
+  assert.equal(new URLSearchParams(screenerApiQuery(paged)).get("limit"), "200");
+  assert.equal(sortHref(paged, "pe_ratio"), "/tarayici?sort=pe_ratio&order=asc");
+  assert.equal(moreHref(parseScreenerParams({ limit: "1000" }), 5000), null);
 });

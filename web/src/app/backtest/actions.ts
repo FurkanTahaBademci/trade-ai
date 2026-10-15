@@ -15,6 +15,7 @@ export async function createBacktestAction(_previous: BacktestFormState, formDat
     initial_cash: Number(values.initial_cash), entry_score: Number(values.entry_score), exit_score: Number(values.exit_score),
     max_positions: Number(values.max_positions), max_position_weight: Number(values.max_position_weight) / 100,
     fee_rate: Number(values.fee_rate) / 100, slippage_rate: Number(values.slippage_rate) / 100,
+    stop_loss_pct: Number(values.stop_loss_pct), max_new_entries_per_day: Number(values.max_new_entries_per_day),
   };
   let runId: number;
   try {

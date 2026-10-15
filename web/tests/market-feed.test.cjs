@@ -52,7 +52,7 @@ test("market feed normalization rejects malformed rows and keeps the latest dupl
     { ticker: "../bad", name: "Geçersiz" },
     { ticker: "ASELS", name: "" },
     null,
-  ]), [{ ticker: "THYAO", name: "THY", composite_score: null, signal_label: null }]);
+  ]), [{ ticker: "THYAO", name: "THY", composite_score: null, signal_label: null, last_price: null, change_1d_pct: null }]);
   assert.deepEqual(normalizeMarketFeed({}), []);
 });
 

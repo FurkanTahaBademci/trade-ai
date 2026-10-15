@@ -23,7 +23,8 @@ from app.models import (
 from app.schemas.backtest import BacktestCreate
 from app.signals.service import MODEL_VERSION as SIGNAL_MODEL_VERSION
 
-STRATEGY_VERSION = "backtest-v1"
+# v2: paper portfoyle ayni zarar-kes ve gunluk yeni pozisyon siniri.
+STRATEGY_VERSION = "backtest-v2"
 
 
 def _decimal(value: float | Decimal) -> Decimal:
@@ -80,6 +81,8 @@ async def create_backtest_run(session: AsyncSession, request: BacktestCreate) ->
         max_position_weight=_decimal(request.max_position_weight),
         fee_rate=_decimal(request.fee_rate),
         slippage_rate=_decimal(request.slippage_rate),
+        stop_loss_pct=_decimal(request.stop_loss_pct),
+        max_new_entries_per_day=request.max_new_entries_per_day,
     )
     # Saf ve CPU yogun hesap: olay dongusunu (tek uvicorn sureci) bloklamasin diye
     # ayri thread'de calisir; aksi halde uzun bir test suresince tum API yanit vermez.
@@ -139,6 +142,8 @@ async def create_backtest_run(session: AsyncSession, request: BacktestCreate) ->
             "max_position_weight": float(config.max_position_weight),
             "fee_rate": float(config.fee_rate),
             "slippage_rate": float(config.slippage_rate),
+            "stop_loss_pct": float(config.stop_loss_pct),
+            "max_new_entries_per_day": config.max_new_entries_per_day,
             "execution_price": "NEXT_AVAILABLE_CLOSE",
             "risk_free_rate": 0,
         },

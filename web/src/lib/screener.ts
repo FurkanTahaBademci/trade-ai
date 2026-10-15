@@ -28,7 +28,18 @@ export type ScreenerParams = {
   signal?: string;
   sort: ScreenerSort;
   order: "asc" | "desc";
+  /** Gösterilen satır sayısı; varsayılan sayfa boyutu URL'ye yazılmaz. */
+  limit?: string;
 } & Partial<Record<NumericFilter, string>>;
+
+export const SCREENER_PAGE_SIZE = 100;
+export const SCREENER_MAX_ROWS = 1000;
+
+export function screenerLimit(params: Pick<ScreenerParams, "limit">) {
+  const value = Number(params.limit);
+  if (!Number.isInteger(value) || value <= SCREENER_PAGE_SIZE) return SCREENER_PAGE_SIZE;
+  return Math.min(SCREENER_MAX_ROWS, Math.ceil(value / SCREENER_PAGE_SIZE) * SCREENER_PAGE_SIZE);
+}
 
 export const SCREENER_PRESETS: { label: string; description: string; params: Partial<ScreenerParams> }[] = [
   { label: "Ucuz ve güçlü skor", description: "F/K ≤ 10, skor ≥ 60", params: { max_pe: "10", min_score: "60", sort: "pe_ratio", order: "asc" } },
@@ -60,6 +71,7 @@ export function parseScreenerParams(raw: RawParams): ScreenerParams {
   const q = first(raw.q).slice(0, 64); if (q) params.q = q;
   const sector = first(raw.sector).slice(0, 64); if (sector) params.sector = sector;
   const signal = first(raw.signal); if (signal in SIGNAL_GROUPS) params.signal = signal;
+  const limit = screenerLimit({ limit: first(raw.limit) }); if (limit !== SCREENER_PAGE_SIZE) params.limit = String(limit);
   for (const name of NUMERIC_FILTERS) {
     const value = first(raw[name]);
     if (parseDecimal(value) != null) params[name] = value;
@@ -68,7 +80,7 @@ export function parseScreenerParams(raw: RawParams): ScreenerParams {
 }
 
 /** Backend `/api/markets/screener` sorgusu. */
-export function screenerApiQuery(params: ScreenerParams, limit = 200) {
+export function screenerApiQuery(params: ScreenerParams, limit = screenerLimit(params)) {
   const query = new URLSearchParams();
   if (params.q) query.set("q", params.q);
   if (params.sector) query.set("sector", params.sector);
@@ -100,9 +112,17 @@ export function screenerHref(params: Partial<ScreenerParams>, base = "/tarayici"
 export function sortHref(params: ScreenerParams, column: ScreenerSort) {
   const ascendingFirst = column === "pe_ratio" || column === "pb_ratio" || column === "ticker";
   const order = params.sort === column ? (params.order === "desc" ? "asc" : "desc") : ascendingFirst ? "asc" : "desc";
-  return screenerHref({ ...params, sort: column, order });
+  return screenerHref({ ...params, sort: column, order, limit: undefined });
+}
+
+/** Sonraki 100 satırı da gösteren adres; sınıra gelindiyse null. */
+export function moreHref(params: ScreenerParams, matched: number) {
+  const limit = screenerLimit(params);
+  if (matched <= limit || limit >= SCREENER_MAX_ROWS) return null;
+  return screenerHref({ ...params, limit: String(limit + SCREENER_PAGE_SIZE) });
 }
 
 export function activeFilterCount(params: ScreenerParams) {
+  // Sıralama ve satır sayısı filtre sayılmaz.
   return [params.q, params.sector, params.signal, ...NUMERIC_FILTERS.map((name) => params[name])].filter(Boolean).length;
 }

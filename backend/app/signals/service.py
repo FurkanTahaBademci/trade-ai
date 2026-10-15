@@ -41,7 +41,9 @@ from app.models import (
     FundamentalSnapshot,
     IndexDaily,
     Instrument,
+    KapDisclosure,
     LlmEvaluation,
+    NewsArticle,
     PriceDaily,
 )
 
@@ -104,10 +106,27 @@ def signal_label(score: Decimal | float) -> str:
 
 
 def score_llm_evaluations(
-    rows: list[Any], ticker: str, *, now: datetime
+    rows: list[Any],
+    ticker: str,
+    *,
+    now: datetime,
+    published_at: dict[tuple[str, int], datetime] | None = None,
 ) -> ComponentResult | None:
-    """Ayni kaynak icin Tier 2'yi tercih edip duygu/etkiyi tazelikle birlestirir."""
-    matching = [row for row in rows if ticker in (row.ticker_codes or [])]
+    """Ayni kaynak icin Tier 2'yi tercih edip duygu/etkiyi tazelikle birlestirir.
+
+    Tazelik kaynagin yayin zamanina gore olculur: kota beklemesinden sonra veya
+    model degisince yeniden degerlendirilen eski bir haber "bugunun haberi"
+    sayilmaz; pencereden eskiyse hic sayilmaz. Yayin zamani bilinmiyorsa
+    degerlendirme zamani kullanilir.
+    """
+    published = published_at or {}
+    oldest = now - timedelta(days=LLM_LOOKBACK_DAYS + 1)
+    matching = [
+        row
+        for row in rows
+        if ticker in (row.ticker_codes or [])
+        and _aware(published.get((row.source_type, row.source_id), oldest)) >= oldest
+    ]
     if not matching:
         return None
 
@@ -125,7 +144,9 @@ def score_llm_evaluations(
     confidence_sum = Decimal(0)
     evidence_ids: list[int] = []
     for row in deduplicated.values():
-        timestamp = _aware(row.completed_at or row.created_at)
+        timestamp = _aware(
+            published.get((row.source_type, row.source_id)) or row.completed_at or row.created_at
+        )
         age_days = max(0.0, (now - timestamp).total_seconds() / 86_400)
         recency = Decimal(str(0.5 ** (age_days / 3)))
         confidence = _clamp(_decimal(row.confidence, "0.5"), Decimal(0), Decimal(1))
@@ -324,6 +345,34 @@ def _latest_by_ticker(rows: list[Any], key) -> dict[str, Any]:
     return latest
 
 
+async def _source_published_at(
+    session: AsyncSession, llm_rows: list[Any]
+) -> dict[tuple[str, int], datetime]:
+    """Degerlendirilen haber/KAP kaynaklarinin yayin zamanlari."""
+    news_ids = {row.source_id for row in llm_rows if row.source_type == "news"}
+    kap_ids = {row.source_id for row in llm_rows if row.source_type == "kap"}
+    result: dict[tuple[str, int], datetime] = {}
+    if news_ids:
+        for source_id, published in (
+            await session.execute(
+                select(NewsArticle.id, NewsArticle.published_at).where(
+                    NewsArticle.id.in_(news_ids)
+                )
+            )
+        ).all():
+            result[("news", source_id)] = published
+    if kap_ids:
+        for source_id, published in (
+            await session.execute(
+                select(KapDisclosure.disclosure_index, KapDisclosure.published_at).where(
+                    KapDisclosure.disclosure_index.in_(kap_ids)
+                )
+            )
+        ).all():
+            result[("kap", source_id)] = published
+    return result
+
+
 async def run_signal_engine(
     session: AsyncSession,
     *,
@@ -372,6 +421,7 @@ async def run_signal_engine(
             )
         ).all()
     )
+    published_at = await _source_published_at(session, llm_rows)
     fundamental_rows = [
         row
         for row in (
@@ -455,7 +505,7 @@ async def run_signal_engine(
     skipped_low_coverage = 0
     for ticker in sorted(candidates):
         components: dict[str, ComponentResult] = {}
-        llm = score_llm_evaluations(llm_rows, ticker, now=now)
+        llm = score_llm_evaluations(llm_rows, ticker, now=now, published_at=published_at)
         fundamental = score_fundamental(fundamentals.get(ticker))
         analyst = score_analyst(analysts.get(ticker))
         if llm:

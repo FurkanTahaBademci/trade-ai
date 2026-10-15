@@ -255,7 +255,6 @@ class FundFlowCollector(BaseCollector):
                 "User-Agent": get_settings().collector_user_agent,
             },
             timeout=httpx.Timeout(60.0, connect=15.0),
-            verify=False,
         ) as client:
             try:
                 resp = await client.post(url, json=payload)

@@ -25,7 +25,7 @@ işletir.
   günlük token bütçesiyle korunur.
 - **Bileşik sinyal:** Haber/KAP duygusu, temel analiz, analist konsensüsü ve
   BIST100'e göre fiyat momentumunu birleştiren sürümlü 0–100 skor, skor
-  geçmişi, skor hareketleri ve isabet ölçümü.
+  geçmişi, skor hareketleri, isabet ölçümü ve bileşenlerin tahmin gücü.
 - **Paper portföy ve backtest:** Komisyon ve kayma hesaplı sanal portföy;
   stop-loss, take-profit, takip eden stop ve ağırlık sınırları. Stratejinin
   geçmiş veride BIST100'e karşı testi.

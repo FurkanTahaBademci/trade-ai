@@ -16,11 +16,13 @@ const analysisKey = (item: Evaluation) => item.id;
 export function InfiniteAnalysisFeed({
   initialItems,
   source,
+  ticker,
 }: {
   initialItems: Evaluation[];
   source?: "news" | "kap";
+  ticker?: string;
 }) {
-  const filters = useMemo(() => ({ source_type: source }), [source]);
+  const filters = useMemo(() => ({ source_type: source, ticker }), [source, ticker]);
   const { items, hasMore, loading, error, loadMore, sentinelRef } = useInfiniteFeed({
     initialItems,
     pageSize: PAGE_SIZE,

@@ -40,6 +40,9 @@ class BacktestConfig:
     slippage_rate: Decimal = Decimal("0.0005")
     min_trade_value: Decimal = Decimal(1_000)
     max_execution_delay_days: int = 7
+    # Paper portfoyle ayni risk kurallari; 0 kurali kapatir.
+    stop_loss_pct: Decimal = Decimal(0)
+    max_new_entries_per_day: int = 0
 
     def __post_init__(self) -> None:
         if self.initial_cash <= 0:
@@ -58,6 +61,8 @@ class BacktestConfig:
             raise ValueError("maliyet oranlari gecersiz")
         if self.min_trade_value < 0 or self.max_execution_delay_days < 1:
             raise ValueError("minimum islem ve gecikme limitleri gecersiz")
+        if not (0 <= self.stop_loss_pct < 100) or self.max_new_entries_per_day < 0:
+            raise ValueError("zarar-kes ve gunluk giris limiti gecersiz")
 
 
 @dataclass(frozen=True)
@@ -125,6 +130,36 @@ class BacktestResult:
 class _Position:
     quantity: Decimal
     cost_basis: Decimal
+
+
+def _close_position(
+    trades: list[BacktestTrade],
+    positions: dict[str, _Position],
+    ticker: str,
+    close: Decimal,
+    market_date: date,
+    signal_date: date | None,
+    config: BacktestConfig,
+) -> Decimal:
+    """Pozisyonu kapanista (olumsuz kaymayla) satar; nakde eklenecek net tutari doner."""
+    position = positions.pop(ticker)
+    execution_price = close * (Decimal(1) - config.slippage_rate)
+    gross = _money(position.quantity * execution_price)
+    fee = _money(gross * config.fee_rate)
+    trades.append(
+        BacktestTrade(
+            ticker=ticker,
+            side="SELL",
+            signal_date=signal_date or market_date,
+            execution_date=market_date,
+            quantity=position.quantity,
+            price=execution_price,
+            gross_amount=gross,
+            fee_amount=fee,
+            realized_pnl=_money(gross - fee - position.cost_basis),
+        )
+    )
+    return gross - fee
 
 
 def _execution_events(
@@ -249,30 +284,37 @@ def run_backtest(
             last_prices[ticker] = close
 
         event_rows = events.get(market_date, [])
+        sold_today: set[str] = set()
+        # Zarar-kes: paper portfoydeki gibi kapanis, ortalama maliyetin (komisyon
+        # dahil) belirtilen yuzde altina indiyse o kapanista satilir.
+        if active_config.stop_loss_pct > 0:
+            for ticker in sorted(positions):
+                position = positions[ticker]
+                close = price_by_key.get((market_date, ticker))
+                if close is None or position.quantity <= 0:
+                    continue
+                average_cost = position.cost_basis / position.quantity
+                if (close / average_cost - 1) * 100 > -active_config.stop_loss_pct:
+                    continue
+                cash += _close_position(
+                    trades, positions, ticker, close, market_date, None, active_config
+                )
+                sold_today.add(ticker)
         for signal in sorted(event_rows, key=lambda row: row.ticker):
             position = positions.get(signal.ticker)
             close = price_by_key.get((market_date, signal.ticker))
             if position is None or close is None or signal.score >= active_config.exit_score:
                 continue
-            execution_price = close * (Decimal(1) - active_config.slippage_rate)
-            gross = _money(position.quantity * execution_price)
-            fee = _money(gross * active_config.fee_rate)
-            realized = _money(gross - fee - position.cost_basis)
-            cash += gross - fee
-            trades.append(
-                BacktestTrade(
-                    ticker=signal.ticker,
-                    side="SELL",
-                    signal_date=signal.signal_date,
-                    execution_date=market_date,
-                    quantity=position.quantity,
-                    price=execution_price,
-                    gross_amount=gross,
-                    fee_amount=fee,
-                    realized_pnl=realized,
-                )
+            cash += _close_position(
+                trades,
+                positions,
+                signal.ticker,
+                close,
+                market_date,
+                signal.signal_date,
+                active_config,
             )
-            del positions[signal.ticker]
+            sold_today.add(signal.ticker)
 
         positions_value = sum(
             (
@@ -283,10 +325,13 @@ def run_backtest(
         )
         equity = cash + positions_value
         slots = active_config.max_positions - len(positions)
+        if active_config.max_new_entries_per_day > 0:
+            slots = min(slots, active_config.max_new_entries_per_day)
         eligible = [
             signal
             for signal in event_rows
             if signal.ticker not in positions
+            and signal.ticker not in sold_today
             and signal.score >= active_config.entry_score
             and signal.confidence >= active_config.min_confidence
             and signal.coverage_count >= active_config.min_coverage

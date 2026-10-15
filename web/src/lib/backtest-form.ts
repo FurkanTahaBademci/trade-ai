@@ -8,6 +8,9 @@ export const backtestFields = {
   max_position_weight: { label: "Pozisyon ağırlığı (%)", type: "number", value: "10", min: 0.01, max: 100, step: "0.01" },
   fee_rate: { label: "Komisyon (%)", type: "number", value: "0.10", min: 0, max: 5, step: "0.01" },
   slippage_rate: { label: "Fiyat kayması (%)", type: "number", value: "0.05", min: 0, max: 5, step: "0.01" },
+  // Paper portföyle aynı varsayılanlar; 0 kuralı kapatır.
+  stop_loss_pct: { label: "Zarar-kes (%) · 0 = kapalı", type: "number", value: "15", min: 0, max: 99, step: "0.1" },
+  max_new_entries_per_day: { label: "Günlük yeni pozisyon · 0 = sınırsız", type: "number", value: "3", min: 0, max: 100, step: "1" },
 } as const;
 
 export type BacktestField = keyof typeof backtestFields;

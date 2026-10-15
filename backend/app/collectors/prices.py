@@ -87,6 +87,17 @@ def map_price_record(record: dict) -> dict | None:
     return mapped
 
 
+# Tek tuk hisse (islem durdurma, kod degisikligi) her gun alinamayabilir; bu
+# oranin ustu kaynak sorunudur ve saglik ekraninda kismi hata olarak gorunur.
+FAILED_TICKER_ALERT_RATIO = 0.10
+
+
+def price_source_failures(requested: int, failed: list[str]) -> dict[str, str]:
+    if not requested or len(failed) / requested <= FAILED_TICKER_ALERT_RATIO:
+        return {}
+    return {"isyatirim": f"{len(failed)}/{requested} hissenin fiyatı alınamadı"}
+
+
 class PriceCollector(BaseCollector):
     """IS Yatirim API / `isyatirimhisse` uzerinden EOD fiyat ceker, `price_daily`'ye upsert eder."""
 
@@ -120,7 +131,6 @@ class PriceCollector(BaseCollector):
             self._local_client = httpx.AsyncClient(
                 headers={"User-Agent": settings.collector_user_agent},
                 timeout=getattr(settings, "price_collector_timeout", 30),
-                verify=False,
             )
         return self._local_client
 
@@ -135,22 +145,29 @@ class PriceCollector(BaseCollector):
         )
         return [row[0] for row in result.all()]
 
-    async def _fetch_ticker_data(self, client, ticker: str, start_str: str, end_str: str) -> list[dict]:
+    async def _fetch_ticker_data(
+        self, client, ticker: str, start_str: str, end_str: str
+    ) -> list[dict] | None:
+        """Hissenin kayitlari; istek basarisizsa None (bos liste = o aralikta islem yok)."""
         url = (
             f"https://www.isyatirim.com.tr/_layouts/15/Isyatirim.Website/Common/Data.aspx/HisseTekil"
             f"?hisse={ticker}&startdate={start_str}&enddate={end_str}"
         )
-        try:
-            resp = await client.get(url)
-            if resp.status_code != 200:
-                return []
-            data = resp.json()
-            if isinstance(data, dict):
-                return data.get("value", []) or []
-            return []
-        except Exception as exc:  # noqa: BLE001
-            self.log.warning("ticker_price_fetch_failed", ticker=ticker, error=str(exc))
-            return []
+        for attempt in (1, 2):
+            try:
+                resp = await client.get(url)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    return (data.get("value", []) or []) if isinstance(data, dict) else []
+                if resp.status_code < 500 and resp.status_code != 429:
+                    break
+            except Exception as exc:  # noqa: BLE001
+                self.log.warning(
+                    "ticker_price_fetch_failed", ticker=ticker, attempt=attempt, error=str(exc)
+                )
+            if attempt == 1:
+                await asyncio.sleep(1)
+        return None
 
     async def run(self) -> dict:
         tickers = self._tickers or await self._active_tickers()
@@ -227,4 +244,5 @@ class PriceCollector(BaseCollector):
             "tickers_requested": len(tickers),
             "rows_upserted": total_rows,
             "failed_tickers": failed_tickers,
+            "source_failures": price_source_failures(len(tickers), failed_tickers),
         }

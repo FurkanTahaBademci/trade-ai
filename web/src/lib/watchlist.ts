@@ -18,12 +18,28 @@ function setSyncState(next: SyncState) {
   for (const listener of syncListeners) listener();
 }
 
+// Yazmalar sıraya alınır ve birleştirilir: hızlı ardışık yıldızlamada eski bir
+// PUT yenisinden sonra varıp sunucudaki listeyi geri almasın. Her halka o anki
+// en güncel listeyi gönderir; arada biriken ara durumlar atlanır.
+let pushChain: Promise<void> = Promise.resolve();
+let pendingTickers: string[] | null = null;
+
 function pushToServer(tickers: string[]) {
-  void fetch("/api/watchlist", {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ tickers }),
-  }).catch(() => undefined);
+  pendingTickers = tickers;
+  pushChain = pushChain.then(async () => {
+    const next = pendingTickers;
+    pendingTickers = null;
+    if (!next) return;
+    try {
+      await fetch("/api/watchlist", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tickers: next }),
+      });
+    } catch {
+      // Ağ hatası: liste yerelde kalır, sonraki değişiklik yeniden gönderir.
+    }
+  });
 }
 
 async function startSync() {

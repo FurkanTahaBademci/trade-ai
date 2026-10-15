@@ -131,5 +131,32 @@ async def list_calendar_events(
                 )
             )
 
+    events = merge_report_events(events)
     events.sort(key=lambda e: (e.date, e.id))
     return events
+
+
+def merge_report_events(events: list[CalendarEventOut]) -> list[CalendarEventOut]:
+    """Ayni sirketin ayni gun yayimladigi finansal rapor paketini (Finansal Rapor,
+    Faaliyet Raporu, Sorumluluk Beyani...) tek olaya indirir; asil rapor bildirimi
+    korunur, digerleri ayrintida listelenir."""
+    groups: dict[tuple, list[CalendarEventOut]] = {}
+    merged: list[CalendarEventOut] = []
+    for event in events:
+        if event.type != EventType.FINANCIAL_REPORT or not event.tickers:
+            merged.append(event)
+            continue
+        groups.setdefault((event.date, tuple(sorted(event.tickers))), []).append(event)
+    for group in groups.values():
+        if len(group) == 1:
+            merged.append(group[0])
+            continue
+        main = next(
+            (item for item in group if item.title.casefold().startswith("finansal rapor")),
+            group[0],
+        )
+        titles = list(dict.fromkeys(item.title for item in group))
+        merged.append(
+            main.model_copy(update={"detail": f"{len(group)} bildirim: {', '.join(titles)}"})
+        )
+    return merged

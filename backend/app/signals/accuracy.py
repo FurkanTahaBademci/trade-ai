@@ -11,6 +11,10 @@ onlenir) — backtest.engine'deki "sonraki mevcut kapanis" mantigiyla ayni
 felsefe, ama burada tek bir pozisyon degil, tum gecmisin istatistigi
 cikarilir.
 
+Ayni hisse icin ayni giris kapanisina dusen sinyallerden (cuma, cumartesi ve
+pazar skorlari pazartesi kapanisindan girer) yalniz en guncel olani sayilir;
+aksi halde hafta sonlari ayni gozlem uc kez sayilip orneklem sisirdi.
+
 Dusen bir piyasada her etiketin mutlak getirisi negatif cikar ve yon isabeti
 yaniltir. Bu yuzden BIST100 serisi verildiginde ayni tarih araligindaki
 endeks getirisi de cikarilir: `average_excess_pct` ve `beat_rate_pct`
@@ -76,6 +80,27 @@ def _value_at_or_before(
     return values[index] if index >= 0 else None
 
 
+def _entries(
+    signals: list, dates_by_ticker: dict[str, list[date]]
+) -> list[tuple[SignalObservation, int]]:
+    """(sinyal, giris kapanisi indeksi); ayni hisse ve giris gunu icin en guncel sinyal.
+
+    Ikili arama her gunluk sinyal icin hissenin tum fiyat gecmisini taramayi onler.
+    """
+    latest: dict[tuple[str, int], SignalObservation] = {}
+    for signal in signals:
+        dates = dates_by_ticker.get(signal.ticker)
+        if not dates:
+            continue
+        base_index = bisect_right(dates, signal.as_of_date)
+        if base_index >= len(dates):
+            continue
+        key = (signal.ticker, base_index)
+        if key not in latest or latest[key].as_of_date < signal.as_of_date:
+            latest[key] = signal
+    return [(signal, index) for (_, index), signal in latest.items()]
+
+
 def compute_signal_accuracy(
     signals: list[SignalObservation],
     prices: list[PricePoint],
@@ -101,15 +126,8 @@ def compute_signal_accuracy(
     excess: dict[tuple[int, str], list[Decimal]] = defaultdict(list)
     beats: dict[tuple[int, str], list[bool]] = defaultdict(list)
 
-    for signal in signals:
-        candidates = by_ticker.get(signal.ticker)
-        if not candidates:
-            continue
-        # Binary search avoids rescanning a ticker's entire price history for
-        # every daily signal. This is material on a cold accuracy-cache fill.
-        base_index = bisect_right(dates_by_ticker[signal.ticker], signal.as_of_date)
-        if base_index >= len(candidates):
-            continue
+    for signal, base_index in _entries(signals, dates_by_ticker):
+        candidates = by_ticker[signal.ticker]
         base_date, base_close = candidates[base_index]
         if base_close <= 0:
             continue
@@ -162,3 +180,124 @@ def compute_signal_accuracy(
                 )
             )
     return stats
+
+
+# --- Bilesenlerin tahmin gucu --------------------------------------------------
+
+POWER_COMPONENTS: tuple[str, ...] = ("composite", "llm", "fundamental", "analyst", "momentum")
+MIN_CROSS_SECTION = 20
+
+
+@dataclass(frozen=True)
+class ComponentObservation:
+    ticker: str
+    as_of_date: date
+    scores: dict[str, float]  # "composite" + mevcut bilesenler
+
+
+@dataclass(frozen=True)
+class ComponentPower:
+    component: str
+    horizon: int
+    days: int
+    observations: int
+    mean_ic: float | None
+    positive_ic_pct: float | None
+    spread_pct: float | None
+
+
+def _ranks(values: list[float]) -> list[float]:
+    """Esit degerlere ortalama sira veren 1 tabanli siralar."""
+    order = sorted(range(len(values)), key=values.__getitem__)
+    ranks = [0.0] * len(values)
+    start = 0
+    while start < len(order):
+        end = start
+        while end + 1 < len(order) and values[order[end + 1]] == values[order[start]]:
+            end += 1
+        for position in range(start, end + 1):
+            ranks[order[position]] = (start + end) / 2 + 1
+        start = end + 1
+    return ranks
+
+
+def spearman(xs: list[float], ys: list[float]) -> float | None:
+    if len(xs) < 3:
+        return None
+    rx, ry = _ranks(xs), _ranks(ys)
+    mean_x, mean_y = sum(rx) / len(rx), sum(ry) / len(ry)
+    cov = sum((a - mean_x) * (b - mean_y) for a, b in zip(rx, ry, strict=True))
+    var_x = sum((a - mean_x) ** 2 for a in rx)
+    var_y = sum((b - mean_y) ** 2 for b in ry)
+    if var_x == 0 or var_y == 0:
+        return None
+    return cov / (var_x * var_y) ** 0.5
+
+
+def compute_component_power(
+    observations: list[ComponentObservation],
+    prices: list[PricePoint],
+    *,
+    horizons: tuple[int, ...] = DEFAULT_HORIZONS,
+    components: tuple[str, ...] = POWER_COMPONENTS,
+    min_cross_section: int = MIN_CROSS_SECTION,
+) -> list[ComponentPower]:
+    """Her giris gununde hisseler bilesen skoruna gore siralanir; sonraki N islem
+    gunundeki getiriyle sira korelasyonu (IC) ve en ust/en alt beslik getiri farki
+    hesaplanir. Ayni gun tum hisseler ayni piyasayi yasadigi icin endeks
+    duzeltmesi gerekmez. Vadeler ortustugu icin gunler bagimsiz degildir."""
+    by_ticker: dict[str, list[tuple[date, float]]] = defaultdict(list)
+    for price in prices:
+        if price.close and price.close > 0:
+            by_ticker[price.ticker].append((price.price_date, float(price.close)))
+    for rows in by_ticker.values():
+        rows.sort(key=lambda row: row[0])
+    dates_by_ticker = {ticker: [day for day, _ in rows] for ticker, rows in by_ticker.items()}
+
+    # (vade, bilesen, giris gunu) -> [(skor, ileri getiri)]
+    sections: dict[tuple[int, str, date], list[tuple[float, float]]] = defaultdict(list)
+    for observation, base_index in _entries(observations, dates_by_ticker):
+        candidates = by_ticker[observation.ticker]
+        base_date, base_close = candidates[base_index]
+        for horizon in horizons:
+            if base_index + horizon >= len(candidates):
+                continue
+            forward = (candidates[base_index + horizon][1] / base_close - 1) * 100
+            for component in components:
+                score = observation.scores.get(component)
+                if score is not None:
+                    sections[(horizon, component, base_date)].append((float(score), forward))
+
+    results: list[ComponentPower] = []
+    for horizon in horizons:
+        for component in components:
+            ics: list[float] = []
+            spreads: list[float] = []
+            count = 0
+            for (h, c, _), pairs in sections.items():
+                if h != horizon or c != component or len(pairs) < min_cross_section:
+                    continue
+                ic = spearman([score for score, _ in pairs], [ret for _, ret in pairs])
+                if ic is None:
+                    continue
+                ics.append(ic)
+                count += len(pairs)
+                ranked = sorted(pairs)
+                bucket = max(1, len(ranked) // 5)
+                top = [ret for _, ret in ranked[-bucket:]]
+                bottom = [ret for _, ret in ranked[:bucket]]
+                spreads.append(sum(top) / len(top) - sum(bottom) / len(bottom))
+            results.append(
+                ComponentPower(
+                    component=component,
+                    horizon=horizon,
+                    days=len(ics),
+                    observations=count,
+                    mean_ic=round(sum(ics) / len(ics), 4) if ics else None,
+                    positive_ic_pct=(
+                        round(sum(ic > 0 for ic in ics) / len(ics) * 100, 1) if ics else None
+                    ),
+                    spread_pct=round(sum(spreads) / len(spreads), 2) if spreads else None,
+                )
+            )
+    return results

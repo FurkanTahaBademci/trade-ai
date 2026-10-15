@@ -70,3 +70,17 @@ class SignalMoversOut(BaseModel):
     base_date: date | None
     risers: list[SignalMoverOut]
     fallers: list[SignalMoverOut]
+
+
+class ComponentPowerOut(BaseModel):
+    """Bilesenin ileri getiriyi siralama gucu (gunluk Spearman IC ortalamasi)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    component: str
+    horizon: int
+    days: int
+    observations: int
+    mean_ic: float | None
+    positive_ic_pct: float | None
+    spread_pct: float | None

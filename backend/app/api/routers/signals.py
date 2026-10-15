@@ -1,6 +1,5 @@
 """Bilesik skor siralamasi ve ticker gecmisi endpoint'leri."""
 
-import asyncio
 import json
 import logging
 from datetime import date, timedelta
@@ -19,24 +18,18 @@ from app.core.redis import get_redis
 from app.models import (
     AnalystRecommendation,
     CompositeSignalSnapshot,
-    IndexDaily,
     LlmEvaluation,
-    PriceDaily,
 )
 from app.schemas.signal import (
+    ComponentPowerOut,
     CompositeSignalOut,
     SignalHistoryOut,
     SignalHorizonStatOut,
     SignalMoversOut,
 )
-from app.signals.accuracy import (
-    DEFAULT_HORIZONS,
-    PricePoint,
-    SignalObservation,
-    compute_signal_accuracy,
-)
 from app.signals.history import evaluation_driver, rank_drivers, recommendation_driver
 from app.signals.movers import load_signal_movers
+from app.signals.reports import get_reports
 from app.signals.service import MODEL_VERSION
 
 logger = logging.getLogger(__name__)
@@ -117,81 +110,25 @@ async def list_latest_signals(
 @router.get("/accuracy", response_model=list[SignalHorizonStatOut])
 async def signal_accuracy_report(
     db: Annotated[AsyncSession, Depends(get_db)],
-    model_version: Annotated[str, Query()] = MODEL_VERSION,
-) -> list[SignalHorizonStatOut]:
+    model_version: Annotated[str, Query(max_length=16)] = MODEL_VERSION,
+) -> list[dict]:
     """Gecmis sinyallerin gercek ileri getirisiyle karsilastirilmasi.
 
     Not: bu bir /{ticker} yol parametresi degildir — literal "/accuracy"
     segmenti oldugundan asagidaki /{ticker} route'undan ONCE tanimlanmali,
-    aksi halde "accuracy" bir ticker kodu sanilip yakalanir.
+    aksi halde "accuracy" bir ticker kodu sanilip yakalanir. Worker raporu
+    onceden hesaplar (app/signals/reports.py).
     """
-    cache_key = f"signals:accuracy:v2:{model_version}"
-    redis = get_redis()
-    try:
-        cached = await redis.get(cache_key)
-        if cached:
-            data = json.loads(cached)
-            return [SignalHorizonStatOut.model_validate(item) for item in data]
-    except (RedisError, json.JSONDecodeError, TypeError) as exc:
-        logger.debug("Redis cache miss or read error: %s", exc)
+    return (await get_reports(db, model_version))["accuracy"]
 
-    signal_rows = (
-        await db.execute(
-            select(
-                CompositeSignalSnapshot.ticker,
-                CompositeSignalSnapshot.as_of_date,
-                CompositeSignalSnapshot.composite_score,
-                CompositeSignalSnapshot.signal_label,
-            ).where(CompositeSignalSnapshot.model_version == model_version)
-        )
-    ).all()
-    tickers = {row.ticker for row in signal_rows}
-    price_points: list[PricePoint] = []
-    # Ilk sinyalden onceki fiyatlar hesaba girmez; yillarca geriye giden tum
-    # fiyat gecmisini cekmek soguk onbellekte istegi saniyelerce uzatiyordu.
-    first_signal = min((row.as_of_date for row in signal_rows), default=None)
-    if tickers:
-        price_stmt = (
-            select(PriceDaily.ticker, PriceDaily.date, PriceDaily.close)
-            .where(PriceDaily.ticker.in_(tickers), PriceDaily.date >= first_signal)
-            .order_by(PriceDaily.ticker, PriceDaily.date)
-        )
-        price_rows = (await db.execute(price_stmt)).all()
-        price_points = [PricePoint(row.ticker, row.date, row.close) for row in price_rows]
-    benchmark_rows = (
-        await db.execute(
-            select(IndexDaily.date, IndexDaily.value)
-            .where(
-                IndexDaily.index_code == BENCHMARK_INDEX,
-                IndexDaily.date >= (first_signal or date.min),
-            )
-            .order_by(IndexDaily.date)
-        )
-    ).all()
 
-    # Yuz binlerce gozlem uzerinde saf Python hesap; soguk onbellekte olay
-    # dongusunu bloklayip diger tum istekleri bekletmesin diye thread'de calisir.
-    stats = await asyncio.to_thread(
-        compute_signal_accuracy,
-        [
-            SignalObservation(row.ticker, row.as_of_date, row.composite_score, row.signal_label)
-            for row in signal_rows
-        ],
-        price_points,
-        horizons=DEFAULT_HORIZONS,
-        benchmark=[(row.date, row.value) for row in benchmark_rows],
-    )
-    validated = [SignalHorizonStatOut.model_validate(item) for item in stats]
-    try:
-        # Ileri getiriler gun sonu fiyatiyla degisir; saatlik tazelik yeterli.
-        await redis.setex(
-            cache_key,
-            3600,
-            json.dumps([item.model_dump(mode="json") for item in validated]),
-        )
-    except RedisError as exc:
-        logger.debug("Redis cache write error: %s", exc)
-    return validated
+@router.get("/component-power", response_model=list[ComponentPowerOut])
+async def signal_component_power(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    model_version: Annotated[str, Query(max_length=16)] = MODEL_VERSION,
+) -> list[dict]:
+    """Her bilesenin (ve bilesik skorun) sonraki getiriyi siralama gucu."""
+    return (await get_reports(db, model_version))["power"]
 
 
 @router.get("/movers", response_model=SignalMoversOut)

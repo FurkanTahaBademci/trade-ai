@@ -128,3 +128,35 @@ def test_invalid_configuration_is_rejected():
 
     with pytest.raises(ValueError, match="exit < entry"):
         BacktestConfig(entry_score=Decimal(30), exit_score=Decimal(40))
+
+
+def test_stop_loss_sells_and_blocks_same_day_reentry_like_paper():
+    config = BacktestConfig(stop_loss_pct=Decimal(15))
+    result = run_backtest(
+        # 6 Ocak skoru hala yuksek; zarar-kes gunu (7 Ocak) yeniden alim yapilmaz.
+        [signal("THYAO", 2, "80"), signal("THYAO", 6, "90")],
+        [price("THYAO", 2, "100"), price("THYAO", 5, "100"), price("THYAO", 6, "100"),
+         price("THYAO", 7, "80"), price("THYAO", 8, "80")],
+        config=config,
+    )
+
+    sides = [(trade.side, trade.execution_date.day) for trade in result.trades]
+    assert sides == [("BUY", 5), ("SELL", 7)]
+    assert result.trades[1].realized_pnl < 0
+
+
+def test_daily_entry_cap_spreads_new_positions_over_days():
+    tickers = ["AAAA", "BBBB", "CCCC", "DDDD", "EEEE"]
+    signals = [signal(ticker, 2, "80") for ticker in tickers] + [
+        signal(ticker, 5, "80") for ticker in tickers
+    ]
+    prices = [price(ticker, day, "100") for ticker in tickers for day in (2, 5, 6)]
+
+    capped = run_backtest(signals, prices, config=BacktestConfig(max_new_entries_per_day=3))
+    unlimited = run_backtest(signals, prices)
+
+    buys_by_day = {}
+    for trade in capped.trades:
+        buys_by_day[trade.execution_date.day] = buys_by_day.get(trade.execution_date.day, 0) + 1
+    assert buys_by_day == {5: 3, 6: 2}
+    assert len([trade for trade in unlimited.trades if trade.execution_date.day == 5]) == 5

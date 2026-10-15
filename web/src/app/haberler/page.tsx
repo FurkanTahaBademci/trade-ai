@@ -5,6 +5,7 @@ import type { NewsArticle, SystemStats } from "@/lib/types";
 import { sourceName } from "@/lib/format";
 import { PageHeader, ServiceNotice } from "@/components/ui";
 import { InfiniteNewsFeed } from "@/components/infinite-news-feed";
+import { TickerFilter, tickerParam } from "@/components/ticker-filter";
 
 export const metadata: Metadata = { title: "Haber Akışı" };
 
@@ -13,13 +14,16 @@ const NEWS_SOURCES = ["bloomberght", "investing_tr", "aa_ekonomi", "dunya", "for
 export default async function NewsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ source?: string; mode?: string }>;
+  searchParams: Promise<{ source?: string; mode?: string; hisse?: string }>;
 }) {
-  const { source, mode: requestedMode } = await searchParams;
+  const { source: requestedSource, mode: requestedMode, hisse } = await searchParams;
+  const source = requestedSource && NEWS_SOURCES.includes(requestedSource) ? requestedSource : undefined;
+  const ticker = tickerParam(hisse);
   const mode: "smart" | "chronological" = requestedMode === "chronological" ? "chronological" : "smart";
 
   const queryParts = [`mode=${mode}`];
   if (source) queryParts.push(`source=${encodeURIComponent(source)}`);
+  if (ticker) queryParts.push(`ticker=${ticker}`);
   const query = `&${queryParts.join("&")}`;
 
   const [news, statsRes] = await Promise.all([
@@ -33,6 +37,7 @@ export default async function NewsPage({
     const params = new URLSearchParams();
     if (targetMode !== "smart") params.set("mode", targetMode);
     if (targetSource) params.set("source", targetSource);
+    if (ticker) params.set("hisse", ticker);
     const qs = params.toString();
     return `/haberler${qs ? `?${qs}` : ""}`;
   };
@@ -103,12 +108,14 @@ export default async function NewsPage({
         </p>
       </div>
 
+      <TickerFilter action="/haberler" ticker={ticker} keep={{ source, mode: mode === "smart" ? undefined : mode }} />
       <ServiceNotice show={!news.ok} />
       <InfiniteNewsFeed
-        key={`${source ?? "all"}-${mode}`}
+        key={`${source ?? "all"}-${mode}-${ticker ?? "all"}`}
         initialItems={news.data}
         source={source}
         mode={mode}
+        ticker={ticker}
       />
     </>
   );

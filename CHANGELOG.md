@@ -9,6 +9,64 @@ bu bölümü yeni sürüm numarasıyla kapatır.
 
 ## [Unreleased]
 
+### Eklendi
+
+- **Bileşenlerin tahmin gücü:** `/sinyaller` sayfasında AI etkisi, temel
+  analiz, analist görüşü, momentum ve bileşik skorun sonraki 5/10/20 işlem
+  günü getirisini ne kadar doğru sıraladığı: günlük sıra korelasyonu (IC)
+  ortalaması, IC'nin pozitif olduğu günlerin oranı ve üst/alt beşlik getiri
+  farkı. Yeni uç nokta: `GET /api/signals/component-power`.
+- Hisse sayfasında günlük değişim, 52 haftalık fiyat aralığı ve şirket
+  takvimi (yaklaşan genel kurul, temettü, sermaye artırımı, finansal rapor ve
+  son 45 günün olayları).
+- KAP, haber ve AI analizi listelerinde hisse filtresi (`?hisse=THYAO`);
+  hisse sayfasındaki ilgili bölümlerde "Tümünü gör" bağlantıları.
+- İzleme listesinde son fiyat ve günlük değişim sütunları (CSV dahil).
+- Backtest'te zarar-kes ve günlük yeni pozisyon sınırı. Varsayılanlar paper
+  portföyle aynıdır (%15, günde 3); 0 kuralı kapatır. Strateji sürümü
+  `backtest-v2`; eski koşular değişmez.
+
+### Değişti
+
+- Sinyal doğruluğu ve bileşen gücü raporları kullanıcı isteğinde değil,
+  worker'da önceden hesaplanır. `/sinyaller` sayfası soğuk önbellekte 6–10 sn
+  bekleyip doğruluk tablosunda hata gösterebiliyordu.
+- Sinyal doğruluğu, aynı hisse için aynı giriş kapanışına düşen sinyallerden
+  (cuma, cumartesi ve pazar skorları pazartesi kapanışından girer) yalnız en
+  güncelini sayar; hafta sonları aynı gözlem üç kez sayılıyordu. Gözlem
+  sayıları bu nedenle azalır.
+- Bileşik skordaki AI bileşeni, tazeliği haberin/bildirimin yayın zamanına
+  göre ölçer. Kota beklemesinden veya model değişikliğinden sonra yeniden
+  değerlendirilen eski bir haber artık "bugünün haberi" sayılmaz; 15 günden
+  eski kaynaklar hiç sayılmaz.
+- Hisse Tarayıcı 200 yerine 100 satırla açılır; "Daha fazla göster" ile
+  100'er satır eklenir. Varsayılan sayfa (canlıda ~545 KB) bu sayede
+  hafifler.
+- Piyasa özeti (arama paleti, izleme listesi) skoru tüm evren için tarayıcı
+  veri setinden alır ve 60 sn önbelleğe alınır. Önceden en yüksek 500 skor
+  dışında kalan hisseler "Sinyal yok" görünüyordu.
+- Takvimde aynı şirketin aynı gün yayımladığı finansal rapor paketi
+  (Finansal Rapor, Faaliyet Raporu, Sorumluluk Beyanı) tek olay olarak
+  gösterilir.
+- Sabah bülteninde politika faizi Türkçe sayı biçimiyle yazılır
+  (`%37.00` yerine `%37`).
+
+### Düzeltildi
+
+- Fiyat ve TEFAS toplayıcılarında TLS sertifika doğrulaması kapalıydı
+  (`verify=False`); açıldı. Fiyat isteği hata verirse bir kez yeniden
+  denenir; hisselerin %10'undan fazlası alınamazsa Sistem Sağlığı'nda kısmi
+  hata görünür (önceden hatalar sessizce yutuluyordu).
+- İzleme listesinde hızlı ardışık yıldızlamada sunucuya giden istekler
+  sırasız varıp bir hisseyi listeden düşürebiliyordu; yazmalar sıraya alınır.
+- Hisse Tarayıcı'da skor etiketi iki satıra kırılıyordu.
+
+### Not
+
+- v0.3.0 yükseltme notundaki `run_once tcmb-policy --refresh` komutu
+  gerekli değildir: canlıdaki TCMB kararları eksik değildi, eksiklik tespiti
+  sayfa metni çıkarılırken yapılan bir hatadan kaynaklanıyordu.
+
 ## [0.3.0] - 2026-10-14
 
 ### Eklendi

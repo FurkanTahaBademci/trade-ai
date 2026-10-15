@@ -148,3 +148,53 @@ def test_excess_fields_are_empty_without_benchmark():
 
     assert result.average_excess_pct is None
     assert result.beat_rate_pct is None
+
+
+def test_weekend_signals_sharing_one_entry_close_are_counted_once():
+    # 2, 3, 4 Ocak skorlarinin hepsi 5 Ocak kapanisindan girer; en guncel olan sayilir.
+    stats = compute_signal_accuracy(
+        [signal("AAAA", 2, "NEGATIVE"), signal("AAAA", 3, "NEGATIVE"), signal("AAAA", 4, "POSITIVE")],
+        [price("AAAA", 2, "100"), *_consecutive_prices("AAAA", 5, ["100", "101", "110"])],
+        horizons=(2,),
+    )
+    assert stat(stats, 2, "POSITIVE").observation_count == 1
+    assert stat(stats, 2, "NEGATIVE").observation_count == 0
+
+
+def test_spearman_handles_order_and_ties():
+    from app.signals.accuracy import spearman
+
+    assert spearman([1, 2, 3, 4], [10, 20, 30, 40]) == 1
+    assert spearman([1, 2, 3, 4], [4, 3, 2, 1]) == -1
+    assert spearman([1, 1, 1], [1, 2, 3]) is None
+    assert abs(spearman([1, 2, 2, 3], [1, 2, 3, 4]) - 0.9486832980505138) < 1e-9
+
+
+def test_component_power_ranks_forward_returns_per_day():
+    from app.signals.accuracy import ComponentObservation, compute_component_power
+
+    observations, prices = [], []
+    for index in range(25):
+        ticker = f"T{index:02d}"
+        # Momentum skoru yuksek olan daha cok kazanir; analist skoru tersine isaret eder.
+        observations.append(
+            ComponentObservation(
+                ticker,
+                date(2026, 1, 2),
+                {"composite": index, "momentum": index, "analyst": 100 - index},
+            )
+        )
+        prices += _consecutive_prices(ticker, 2, ["100", "100", str(100 + index)])
+
+    power = {
+        (row.component, row.horizon): row
+        for row in compute_component_power(observations, prices, horizons=(1, 5), min_cross_section=20)
+    }
+
+    assert power[("momentum", 1)].mean_ic == 1
+    assert power[("momentum", 1)].positive_ic_pct == 100
+    assert power[("momentum", 1)].spread_pct > 0
+    assert power[("analyst", 1)].mean_ic == -1
+    assert power[("llm", 1)].days == 0 and power[("llm", 1)].mean_ic is None
+    # 5 gunluk vade icin gelecek fiyat yok.
+    assert power[("momentum", 5)].days == 0

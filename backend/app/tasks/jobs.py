@@ -125,6 +125,7 @@ async def collect_institutional_reports(ctx: dict) -> dict:
 
 
 async def compute_signals(ctx: dict) -> dict:
+    from app.signals.reports import refresh_reports_if_stale
     from app.signals.service import (
         MODEL_VERSION,
         missing_signal_days,
@@ -158,7 +159,15 @@ async def compute_signals(ctx: dict) -> dict:
             days=[day.isoformat() for day in days],
             remaining=remaining,
         )
-    return {**result, "backfilled_days": len(days), "backfill_remaining": remaining}
+    # Dogruluk ve bilesen gucu raporlari kullanici isteginde degil burada hesaplanir.
+    async with session_factory() as session:
+        reports_refreshed = await refresh_reports_if_stale(session)
+    return {
+        **result,
+        "backfilled_days": len(days),
+        "backfill_remaining": remaining,
+        "reports_refreshed": reports_refreshed,
+    }
 
 
 async def run_paper_portfolio(ctx: dict) -> dict:

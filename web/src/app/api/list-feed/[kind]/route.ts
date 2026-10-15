@@ -5,11 +5,11 @@ const feeds = {
   backtests: { path: "/api/backtests", parameters: ["before_id"] },
   kap: {
     path: "/api/disclosures",
-    parameters: ["before", "before_index"],
+    parameters: ["ticker", "before", "before_index"],
   },
   analyses: {
     path: "/api/evaluations",
-    parameters: ["source_type", "before", "before_id"],
+    parameters: ["ticker", "source_type", "before", "before_id"],
   },
   signals: {
     path: "/api/signals",

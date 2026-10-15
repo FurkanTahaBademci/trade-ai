@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useMemo } from "react";
 import { formatDate } from "@/lib/format";
 import type { Disclosure } from "@/lib/types";
 import { useInfiniteFeed } from "@/lib/use-infinite-feed";
@@ -9,19 +10,19 @@ import { InfiniteFeedStatus } from "./infinite-feed-status";
 import { EmptyState, TickerPills } from "./ui";
 
 const PAGE_SIZE = 15;
-const noFilters = {};
 const kapCursor = (item: Disclosure) => ({
   before: item.published_at,
   before_index: item.disclosure_index,
 });
 const kapKey = (item: Disclosure) => item.disclosure_index;
 
-export function InfiniteKapFeed({ initialItems }: { initialItems: Disclosure[] }) {
+export function InfiniteKapFeed({ initialItems, ticker }: { initialItems: Disclosure[]; ticker?: string }) {
+  const filters = useMemo(() => ({ ticker }), [ticker]);
   const { items, hasMore, loading, error, loadMore, sentinelRef } = useInfiniteFeed({
     initialItems,
     pageSize: PAGE_SIZE,
     endpoint: "/api/list-feed/kap",
-    filters: noFilters,
+    filters,
     cursorFor: kapCursor,
     keyFor: kapKey,
   });

@@ -19,6 +19,8 @@ export function normalizeMarketFeed(value: unknown): MarketFeedItem[] {
       name,
       composite_score: finiteScore(candidate.composite_score),
       signal_label: typeof candidate.signal_label === "string" ? candidate.signal_label : null,
+      last_price: finiteScore(candidate.last_price),
+      change_1d_pct: finiteScore(candidate.change_1d_pct),
     });
   }
   return [...items.values()];

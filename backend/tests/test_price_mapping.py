@@ -99,3 +99,13 @@ def test_price_collector_chunk_size_configuration():
     default_collector = PriceCollector(session)
     assert default_collector._chunk_size == 10
 
+
+
+def test_only_widespread_price_failures_are_reported_as_source_failure():
+    from app.collectors.prices import price_source_failures
+
+    assert price_source_failures(600, ["AAAA"] * 60) == {}
+    assert price_source_failures(600, ["AAAA"] * 61) == {
+        "isyatirim": "61/600 hissenin fiyatı alınamadı"
+    }
+    assert price_source_failures(0, []) == {}
