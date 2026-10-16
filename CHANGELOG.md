@@ -9,6 +9,8 @@ bu bölümü yeni sürüm numarasıyla kapatır.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-16
+
 ### Eklendi
 
 - Backtest'te isteğe bağlı rejim filtresi (XU100 N günlük ortalamasının
