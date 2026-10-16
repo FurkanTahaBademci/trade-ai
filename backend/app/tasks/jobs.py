@@ -53,19 +53,54 @@ async def collect_prices(
             return await collector.run_tracked()
 
 
-async def collect_index_prices(ctx: dict) -> dict:
-    from app.collectors.index_prices import IndexPriceCollector
+# Bu kadar satirdan azsa XU100 gecmisi eksik sayilir (~1,5 yil islem gunu).
+INDEX_BACKFILL_MIN_ROWS = 400
+# Endeks gecmisi yokken hesaplanan skorlarda momentum (20/60 islem gunu) eksikti;
+# endeksin eski ilk gununden bu kadar sonrasina kadar olan skor gunleri yenilenir.
+INDEX_MOMENTUM_WARMUP_DAYS = 100
 
-    # prices.py ile ayni desen: cron her calistiginda tum tarihceyi degil,
-    # son birkac gunu gunceller (duzeltilmis kapanislar icin pay birakildi).
+
+async def collect_index_prices(ctx: dict) -> dict:
+    from sqlalchemy import func, select
+
+    from app.collectors.index_prices import IndexPriceCollector
+    from app.models import IndexDaily
+    from app.signals.service import BENCHMARK_INDEX, MODEL_VERSION
+
+    today = datetime.now(ZoneInfo("Europe/Istanbul")).date()
+    async with session_factory() as session:
+        row_count, first_day = (
+            await session.execute(
+                select(func.count(IndexDaily.id), func.min(IndexDaily.date)).where(
+                    IndexDaily.index_code == BENCHMARK_INDEX
+                )
+            )
+        ).one()
+    # prices.py ile ayni desen: gecmis eksikse bir kez uzun doldurma, sonra her
+    # kosuda yalniz son birkac gun (duzeltilmis kapanislar icin pay birakildi).
+    # Skor gecmisi, momentum ve backtest islem gunu takvimi olarak XU100'u kullanir.
+    backfill = row_count < INDEX_BACKFILL_MIN_ROWS
+    start_date = None if backfill else today - timedelta(days=5)
+    if backfill:
+        logger.info("index_history_backfill_active", current_rows=row_count)
     async with (
         session_factory() as session,
-        IndexPriceCollector(
-            session,
-            start_date=datetime.now(ZoneInfo("Europe/Istanbul")).date() - timedelta(days=5),
-        ) as collector,
+        IndexPriceCollector(session, start_date=start_date) as collector,
     ):
-        return await collector.run_tracked()
+        result = await collector.run_tracked()
+
+    if backfill and first_day is not None and result.get("rows_upserted", 0) > row_count:
+        # Endeks gecmisi eksikken hesaplanmis gunler (momentumsuz) worker'in
+        # gecmis doldurma adiminda yeniden hesaplanir (bkz. compute_signals).
+        redis = get_redis()
+        refresh_until = first_day + timedelta(days=INDEX_MOMENTUM_WARMUP_DAYS)
+        with contextlib.suppress(RedisError):
+            await redis.delete(f"signals:backfill:attempted:{MODEL_VERSION}")
+            await redis.set(
+                f"signals:backfill:refresh_until:{MODEL_VERSION}", refresh_until.isoformat()
+            )
+        result = {**result, "signal_refresh_until": refresh_until.isoformat()}
+    return result
 
 
 async def collect_kap(ctx: dict) -> dict:
@@ -142,17 +177,27 @@ async def compute_signals(ctx: dict) -> dict:
     # Eksik gecmis gunlerden kucuk bir parti; her gun o tarihte bilinen veriyle
     # hesaplanir ve upsert oldugu icin tekrar calismasi zararsizdir.
     attempted_key = f"signals:backfill:attempted:{MODEL_VERSION}"
+    refresh_key = f"signals:backfill:refresh_until:{MODEL_VERSION}"
     redis = get_redis()
     try:
         attempted = {date.fromisoformat(item) for item in await redis.smembers(attempted_key)}
+        refresh_raw = await redis.get(refresh_key)
+        refresh_until = date.fromisoformat(refresh_raw) if refresh_raw else None
     except (RedisError, ValueError):
-        attempted = set()
+        attempted, refresh_until = set(), None
+    if refresh_until is not None:
+        # Endeks gecmisi sonradan dolduruldu: o tarihe kadarki skorlar eksik
+        # (momentumsuz) hesaplanmisti; bu gunler bir kez yeniden hesaplanir.
+        existing_days = {day for day in existing_days if day > refresh_until}
     days, remaining = select_backfill_days(trading_days, existing_days, attempted)
     for day in days:
         async with session_factory() as session:
             await run_signal_engine(session, as_of_date=day)
         with contextlib.suppress(RedisError):
             await redis.sadd(attempted_key, day.isoformat())
+    if refresh_until is not None and remaining == 0:
+        with contextlib.suppress(RedisError):
+            await redis.delete(refresh_key)
     if days:
         logger.info(
             "signals_history_backfill",

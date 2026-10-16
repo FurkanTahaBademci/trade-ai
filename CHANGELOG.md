@@ -9,6 +9,17 @@ bu bölümü yeni sürüm numarasıyla kapatır.
 
 ## [Unreleased]
 
+### Düzeltildi
+
+- BIST100 (XU100) endeks geçmişi kurulum gününden önceye gitmiyordu: zamanlanmış
+  iş yalnız son 5 günü çekiyordu. Endeks hem işlem günü takvimi hem momentum
+  bileşeni için kullanıldığından skor geçmişi, momentum, sinyal doğruluğu,
+  bileşen gücü ve backtest yalnız kurulumdan sonraki birkaç haftayı
+  görebiliyordu. Endeks tablosunda 400'den az gün varsa toplayıcı bir kez
+  3 yıllık geçmişi çeker. Endeks olmadan (momentumsuz) hesaplanmış skor
+  günleri, worker'ın geçmiş doldurma adımında otomatik olarak yeniden
+  hesaplanır; son 180 günün tamamı birkaç saat içinde dolar.
+
 ## [0.4.0] - 2026-10-15
 
 ### Eklendi
