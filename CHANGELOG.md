@@ -9,6 +9,8 @@ bu bölümü yeni sürüm numarasıyla kapatır.
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-10-16
+
 ### Düzeltildi
 
 - Canlıda çoğu hissenin fiyat geçmişi yalnız birkaç haftaydı (ör. THYAO, GARAN
