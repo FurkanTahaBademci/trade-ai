@@ -50,7 +50,89 @@ async def collect_prices(
             start_date = today - timedelta(days=10)
 
         async with PriceCollector(session, start_date=start_date) as collector:
-            return await collector.run_tracked()
+            result = await collector.run_tracked()
+    if days is not None or backfill:
+        return result
+    return {**result, "history_backfill": await _backfill_short_price_histories(today)}
+
+
+# Ilk fiyati bundan yeni olan aktif hissenin gecmisi eksik sayilir. Toplam satir
+# sayisina bakan ilk kurulum doldurmasi yarida kalirsa hisselerin cogu yalniz
+# birkac haftalik fiyatla kaliyordu (grafik, momentum ve backtest bundan etkilenir).
+PRICE_HISTORY_MIN_DAYS = 730
+# Yeni halka arzlar gibi kaynakta da kisa gecmisi olan hisseler her gun denenmesin.
+PRICE_BACKFILL_RETRY_SECONDS = 30 * 24 * 60 * 60
+
+
+async def _short_history_tickers(today: date) -> list[str]:
+    from sqlalchemy import func, or_, select
+
+    from app.models import Instrument, PriceDaily
+
+    first = (
+        select(PriceDaily.ticker, func.min(PriceDaily.date).label("first_day"))
+        .group_by(PriceDaily.ticker)
+        .subquery()
+    )
+    async with session_factory() as session:
+        return list(
+            (
+                await session.scalars(
+                    select(Instrument.ticker)
+                    .outerjoin(first, first.c.ticker == Instrument.ticker)
+                    .where(
+                        Instrument.is_active.is_(True),
+                        or_(
+                            first.c.first_day.is_(None),
+                            first.c.first_day > today - timedelta(days=PRICE_HISTORY_MIN_DAYS),
+                        ),
+                    )
+                    .order_by(Instrument.ticker)
+                )
+            ).all()
+        )
+
+
+async def _backfill_short_price_histories(today: date) -> dict:
+    from app.collectors.prices import DEFAULT_BACKFILL_YEARS, PriceCollector
+    from app.signals.service import MODEL_VERSION
+
+    candidates = await _short_history_tickers(today)
+    if not candidates:
+        return {"tickers": 0}
+    redis = get_redis()
+    try:
+        flags = await redis.mget([f"prices:backfill:attempted:{ticker}" for ticker in candidates])
+    except RedisError:
+        flags = [None] * len(candidates)
+    tickers = [ticker for ticker, flag in zip(candidates, flags, strict=True) if not flag]
+    if not tickers:
+        return {"tickers": 0, "waiting": len(candidates)}
+    logger.info("price_history_ticker_backfill", tickers=len(tickers))
+    async with (
+        session_factory() as session,
+        PriceCollector(
+            session,
+            tickers=tickers,
+            start_date=today - timedelta(days=365 * DEFAULT_BACKFILL_YEARS),
+        ) as collector,
+    ):
+        result = await collector.run()
+    with contextlib.suppress(RedisError):
+        for ticker in tickers:
+            await redis.set(
+                f"prices:backfill:attempted:{ticker}", "1", ex=PRICE_BACKFILL_RETRY_SECONDS
+            )
+        if result.get("rows_upserted", 0) > 0:
+            # Fiyat gecmisi olmadan (momentumsuz) hesaplanmis skor gunleri bir kez
+            # yeniden hesaplanir (bkz. compute_signals).
+            await redis.delete(f"signals:backfill:attempted:{MODEL_VERSION}")
+            await redis.set(f"signals:backfill:refresh_until:{MODEL_VERSION}", today.isoformat())
+    return {
+        "tickers": len(tickers),
+        "rows_upserted": result.get("rows_upserted", 0),
+        "failed": len(result.get("failed_tickers", [])),
+    }
 
 
 # Bu kadar satirdan azsa XU100 gecmisi eksik sayilir (~1,5 yil islem gunu).

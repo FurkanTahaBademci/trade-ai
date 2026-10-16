@@ -9,6 +9,17 @@ bu bölümü yeni sürüm numarasıyla kapatır.
 
 ## [Unreleased]
 
+### Düzeltildi
+
+- Canlıda çoğu hissenin fiyat geçmişi yalnız birkaç haftaydı (ör. THYAO, GARAN
+  4 Eylül 2026'dan başlıyordu; ASELS'te 3 yıl vardı). İlk kurulumdaki fiyat
+  doldurması yarıda kalmış, toplayıcı ise yeniden doldurma kararını tablodaki
+  toplam satır sayısına göre verdiği için bir daha denememişti. Grafikler, skor
+  geçmişindeki momentum bileşeni ve backtest bundan etkileniyordu. Fiyat işi
+  artık ilk fiyatı 2 yıldan yeni olan aktif hisselerin 3 yıllık geçmişini
+  doldurur (kaynakta da kısa geçmişi olan yeni halka arzlar 30 günde bir
+  denenir) ve ardından skor geçmişini otomatik olarak yeniden hesaplatır.
+
 ## [0.5.0] - 2026-10-16
 
 ### Eklendi
