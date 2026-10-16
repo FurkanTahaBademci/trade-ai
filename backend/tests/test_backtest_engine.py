@@ -135,8 +135,13 @@ def test_stop_loss_sells_and_blocks_same_day_reentry_like_paper():
     result = run_backtest(
         # 6 Ocak skoru hala yuksek; zarar-kes gunu (7 Ocak) yeniden alim yapilmaz.
         [signal("THYAO", 2, "80"), signal("THYAO", 6, "90")],
-        [price("THYAO", 2, "100"), price("THYAO", 5, "100"), price("THYAO", 6, "100"),
-         price("THYAO", 7, "80"), price("THYAO", 8, "80")],
+        [
+            price("THYAO", 2, "100"),
+            price("THYAO", 5, "100"),
+            price("THYAO", 6, "100"),
+            price("THYAO", 7, "80"),
+            price("THYAO", 8, "80"),
+        ],
         config=config,
     )
 
@@ -160,3 +165,76 @@ def test_daily_entry_cap_spreads_new_positions_over_days():
         buys_by_day[trade.execution_date.day] = buys_by_day.get(trade.execution_date.day, 0) + 1
     assert buys_by_day == {5: 3, 6: 2}
     assert len([trade for trade in unlimited.trades if trade.execution_date.day == 5]) == 5
+
+
+def vprice(ticker: str, day: int, close: str, volume: str = "100000000") -> BacktestPrice:
+    return BacktestPrice(ticker, date(2026, 1, day), Decimal(close), Decimal(volume))
+
+
+def test_limit_up_close_cannot_be_bought():
+    config = BacktestConfig(price_limit_pct=Decimal("9.5"))
+    result = run_backtest(
+        [signal("THYAO", 2, "80"), signal("THYAO", 5, "80")],
+        # 5 Ocak tavan (+10%): sinyal o kapanistan alinamaz; 6 Ocak normal gun.
+        [vprice("THYAO", 2, "100"), vprice("THYAO", 5, "110"), vprice("THYAO", 6, "111")],
+        config=config,
+    )
+    assert [(t.side, t.execution_date.day) for t in result.trades] == [("BUY", 6)]
+
+
+def test_limit_down_exit_waits_for_next_tradeable_close():
+    config = BacktestConfig(stop_loss_pct=Decimal(15), price_limit_pct=Decimal("9.5"))
+    result = run_backtest(
+        [signal("THYAO", 2, "80")],
+        [
+            vprice("THYAO", 2, "100"),
+            vprice("THYAO", 5, "100"),
+            vprice("THYAO", 6, "90"),
+            vprice("THYAO", 7, "81"),
+            vprice("THYAO", 8, "82"),
+        ],
+        config=config,
+    )
+    # 7 Ocak'ta zarar-kes tetiklenir ama hisse tabanda (-10%); satis 8 Ocak'ta.
+    assert [(t.side, t.execution_date.day) for t in result.trades] == [("BUY", 5), ("SELL", 8)]
+
+
+def test_illiquid_stock_is_not_entered():
+    config = BacktestConfig(min_avg_volume=Decimal(50_000_000))
+    prices = [vprice("LIQD", day, "100") for day in (2, 5, 6)] + [
+        vprice("THIN", day, "100", volume="1000000") for day in (2, 5, 6)
+    ]
+    result = run_backtest([signal("LIQD", 5, "80"), signal("THIN", 5, "90")], prices, config=config)
+    assert {t.ticker for t in result.trades} == {"LIQD"}
+
+
+def test_regime_filter_blocks_entries_when_index_is_below_its_average():
+    config = BacktestConfig(regime_ma_days=3)
+    benchmark = [
+        (date(2026, 1, day), Decimal(value))
+        for day, value in ((1, 110), (2, 105), (5, 90), (6, 120))
+    ]
+    prices = [vprice("THYAO", day, "100") for day in (2, 5, 6, 7)]
+    bearish = run_backtest([signal("THYAO", 5, "80")], prices, config=config, benchmark=benchmark)
+    bullish = run_backtest([signal("THYAO", 6, "80")], prices, config=config, benchmark=benchmark)
+    assert bearish.trades == ()
+    assert [t.execution_date.day for t in bullish.trades] == [7]
+
+
+def test_warmup_prices_do_not_extend_the_equity_curve():
+    result = run_backtest(
+        [signal("THYAO", 5, "80")],
+        [vprice("THYAO", 2, "100"), vprice("THYAO", 5, "100"), vprice("THYAO", 6, "100")],
+        start_date=date(2026, 1, 5),
+    )
+    assert result.points[0].point_date == date(2026, 1, 5)
+
+
+def test_volatility_cap_skips_erratic_stocks():
+    calm = [vprice("CALM", day, str(100 + (day % 2))) for day in range(1, 29)]
+    wild = [vprice("WILD", day, "100" if day % 2 else "108") for day in range(1, 29)]
+    config = BacktestConfig(max_volatility_pct=Decimal(3))
+    result = run_backtest(
+        [signal("CALM", 25, "80"), signal("WILD", 25, "90")], calm + wild, config=config
+    )
+    assert {trade.ticker for trade in result.trades} == {"CALM"}

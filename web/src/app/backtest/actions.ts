@@ -16,6 +16,8 @@ export async function createBacktestAction(_previous: BacktestFormState, formDat
     max_positions: Number(values.max_positions), max_position_weight: Number(values.max_position_weight) / 100,
     fee_rate: Number(values.fee_rate) / 100, slippage_rate: Number(values.slippage_rate) / 100,
     stop_loss_pct: Number(values.stop_loss_pct), max_new_entries_per_day: Number(values.max_new_entries_per_day),
+    price_limit_pct: Number(values.price_limit_pct), min_avg_volume: Number(values.min_avg_volume) * 1_000_000,
+    regime_ma_days: Number(values.regime_ma_days), max_volatility_pct: Number(values.max_volatility_pct),
   };
   let runId: number;
   try {

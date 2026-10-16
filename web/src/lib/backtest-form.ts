@@ -11,6 +11,11 @@ export const backtestFields = {
   // Paper portföyle aynı varsayılanlar; 0 kuralı kapatır.
   stop_loss_pct: { label: "Zarar-kes (%) · 0 = kapalı", type: "number", value: "15", min: 0, max: 99, step: "0.1" },
   max_new_entries_per_day: { label: "Günlük yeni pozisyon · 0 = sınırsız", type: "number", value: "3", min: 0, max: 100, step: "1" },
+  // Gerçekçi yürütme: tavan/taban eşiği, likidite alt sınırı ve isteğe bağlı rejim filtresi.
+  price_limit_pct: { label: "Tavan/taban eşiği (%) · 0 = kapalı", type: "number", value: "9.5", min: 0, max: 99, step: "0.1" },
+  min_avg_volume: { label: "Min. 20 günlük ort. hacim (mn TL)", type: "number", value: "20", min: 0, max: 100000, step: "1" },
+  regime_ma_days: { label: "Rejim filtresi: XU100 N günlük ort. · 0 = kapalı", type: "number", value: "0", min: 0, max: 250, step: "1" },
+  max_volatility_pct: { label: "Maks. günlük oynaklık (%) · 0 = kapalı", type: "number", value: "0", min: 0, max: 50, step: "0.1" },
 } as const;
 
 export type BacktestField = keyof typeof backtestFields;

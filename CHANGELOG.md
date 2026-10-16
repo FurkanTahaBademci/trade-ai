@@ -9,6 +9,29 @@ bu bölümü yeni sürüm numarasıyla kapatır.
 
 ## [Unreleased]
 
+### Eklendi
+
+- Backtest'te isteğe bağlı rejim filtresi (XU100 N günlük ortalamasının
+  altındayken yeni pozisyon açılmaz) ve oynaklık sınırı (son 20 işlem günü
+  günlük getiri oynaklığı eşiği aşan hisseye girilmez). İkisi de varsayılan
+  olarak kapalıdır; geçmiş testlerde etkileri döneme göre değişti.
+
+### Değişti
+
+- **Gerçekçi yürütme (paper `paper-v4`, backtest `backtest-v3`).** BIST'te
+  tavanda kapanan hisse o kapanıştan alınamaz, tabanda kapanan satılamaz.
+  Artık günü %9,5 ve üzeri yükselişle kapatan hisseye girilmez; aynı oranda
+  düşüşle kapatan pozisyonun satışı (zarar-kes dahil) ertesi işlem gününe
+  kalır. Son 20 işlem günü ortalama hacmi 20 milyon TL'nin altındaki
+  hisselere yeni pozisyon açılmaz. Eylül–Ekim 2026 canlı skorlarıyla eski
+  varsayım (her kapanıştan işlem) mevcut stratejiyi -%8,2 gösterirken
+  gerçekçi kurallarla sonuç -%13,3'tür (XU100 -%15,2): tabana kilitlenen
+  bir hissede zarar-kes 23 Eylül'de ₺337'den değil, 12 Ekim'de ₺96'dan
+  gerçekleşebildi. Eşikler backtest formundan değiştirilebilir.
+- Backtest, günlük değişim ve ortalama hacim için başlangıçtan önceki 45
+  günün fiyatlarını kullanır; sermaye eğrisi yine seçilen başlangıç gününden
+  başlar.
+
 ## [0.4.1] - 2026-10-16
 
 ### Düzeltildi

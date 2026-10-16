@@ -43,6 +43,15 @@ class BacktestConfig:
     # Paper portfoyle ayni risk kurallari; 0 kurali kapatir.
     stop_loss_pct: Decimal = Decimal(0)
     max_new_entries_per_day: int = 0
+    # Gercekci yurutme: BIST'te tavanda kapanan hisse o kapanistan alinamaz,
+    # tabanda kapanan satilamaz (kuyrukta kalir; satis sonraki gune kayar).
+    price_limit_pct: Decimal = Decimal(0)
+    # Son 20 islem gununun ortalama TL hacmi bunun altindaysa yeni pozisyon acilmaz.
+    min_avg_volume: Decimal = Decimal(0)
+    # XU100 bu kadar gunluk ortalamasinin altindayken yeni pozisyon acilmaz.
+    regime_ma_days: int = 0
+    # Son 20 islem gununun gunluk getiri std. sapmasi (%) bunu asan hisseye girilmez.
+    max_volatility_pct: Decimal = Decimal(0)
 
     def __post_init__(self) -> None:
         if self.initial_cash <= 0:
@@ -63,6 +72,10 @@ class BacktestConfig:
             raise ValueError("minimum islem ve gecikme limitleri gecersiz")
         if not (0 <= self.stop_loss_pct < 100) or self.max_new_entries_per_day < 0:
             raise ValueError("zarar-kes ve gunluk giris limiti gecersiz")
+        if not (0 <= self.price_limit_pct < 100) or self.min_avg_volume < 0:
+            raise ValueError("fiyat limiti ve hacim esigi gecersiz")
+        if self.regime_ma_days < 0 or self.max_volatility_pct < 0:
+            raise ValueError("rejim ortalamasi veya oynaklik siniri gecersiz")
 
 
 @dataclass(frozen=True)
@@ -79,6 +92,7 @@ class BacktestPrice:
     ticker: str
     price_date: date
     close: Decimal
+    volume_try: Decimal | None = None
 
 
 @dataclass(frozen=True)
@@ -247,17 +261,36 @@ def _metrics(
     )
 
 
+VOLUME_WINDOW = 20
+
+
+def regime_is_bearish(
+    benchmark_dates: list[date], benchmark_values: list[Decimal], day: date, window: int
+) -> bool:
+    """Endeksin `day` (dahil) itibariyla son kapanisi `window` gunluk ortalamasinin altinda mi?"""
+    end = bisect_right(benchmark_dates, day)
+    if window <= 0 or end < window:
+        return False
+    recent = benchmark_values[end - window : end]
+    return recent[-1] < sum(recent, Decimal(0)) / window
+
+
 def run_backtest(
     signals: list[BacktestSignal],
     prices: list[BacktestPrice],
     *,
     config: BacktestConfig | None = None,
+    benchmark: list[tuple[date, Decimal]] | None = None,
+    start_date: date | None = None,
 ) -> BacktestResult:
     """Long-only stratejiyi deterministik olarak calistir.
 
     Sinyal sonrasi fiyat bulunamayan veya izin verilen gecikmeyi asan satirlar
     `skipped_signals` sayacina girer. Acik pozisyonlar son bilinen kapanisla
     mark-to-market edilir; test sonunda varsayimsal satis yapilmaz.
+
+    `start_date` verilirse daha onceki fiyatlar yalniz isinma (gunluk degisim,
+    ortalama hacim) icin kullanilir; sermaye egrisi o gunden baslar.
     """
 
     active_config = config or BacktestConfig()
@@ -265,10 +298,55 @@ def run_backtest(
     price_by_key = {
         (price.price_date, price.ticker): _decimal(price.close) for price in valid_prices
     }
-    market_dates = sorted({price.price_date for price in valid_prices})
+    market_dates = sorted(
+        {
+            price.price_date
+            for price in valid_prices
+            if start_date is None or price.price_date >= start_date
+        }
+    )
     closes_by_date: dict[date, list[tuple[str, Decimal]]] = defaultdict(list)
     for (price_date, ticker), close in price_by_key.items():
         closes_by_date[price_date].append((ticker, close))
+    # Hisse bazinda gunluk degisim (tavan/taban) ve 20 gunluk ortalama hacim.
+    day_change: dict[tuple[date, str], Decimal] = {}
+    avg_volume: dict[tuple[date, str], Decimal] = {}
+    volatility: dict[tuple[date, str], float] = {}
+    by_ticker: dict[str, list[BacktestPrice]] = defaultdict(list)
+    for price in valid_prices:
+        by_ticker[price.ticker].append(price)
+    for ticker, rows in by_ticker.items():
+        rows.sort(key=lambda row: row.price_date)
+        volumes: list[Decimal] = []
+        log_returns: list[float] = []
+        for index, row in enumerate(rows):
+            if index:
+                day_change[(row.price_date, ticker)] = (
+                    _decimal(row.close) / _decimal(rows[index - 1].close) - 1
+                ) * 100
+            # Karar aninda bilinen hacim: islem gununden onceki 20 gun.
+            window = volumes[-VOLUME_WINDOW:]
+            if window:
+                avg_volume[(row.price_date, ticker)] = sum(window, Decimal(0)) / len(window)
+            recent = log_returns[-VOLUME_WINDOW:]
+            if len(recent) == VOLUME_WINDOW:
+                mean = sum(recent) / VOLUME_WINDOW
+                variance = sum((value - mean) ** 2 for value in recent) / VOLUME_WINDOW
+                volatility[(row.price_date, ticker)] = math.sqrt(variance) * 100
+            volumes.append(_decimal(row.volume_try) if row.volume_try is not None else Decimal(0))
+            if index:
+                log_returns.append(math.log(float(row.close) / float(rows[index - 1].close)))
+    limit = active_config.price_limit_pct
+
+    def limit_up(day: date, ticker: str) -> bool:
+        return limit > 0 and day_change.get((day, ticker), Decimal(0)) >= limit
+
+    def limit_down(day: date, ticker: str) -> bool:
+        return limit > 0 and day_change.get((day, ticker), Decimal(0)) <= -limit
+
+    bench_rows = sorted((day, _decimal(value)) for day, value in benchmark or [] if value)
+    bench_dates = [day for day, _ in bench_rows]
+    bench_values = [value for _, value in bench_rows]
     events, skipped = _execution_events(
         signals, valid_prices, active_config.max_execution_delay_days
     )
@@ -279,22 +357,47 @@ def run_backtest(
     trades: list[BacktestTrade] = []
     points: list[BacktestPoint] = []
 
+    # Tabanda kaldigi icin satilamayan cikislar: hisse -> sinyal tarihi.
+    pending_exits: dict[str, date | None] = {}
+    for ticker, rows in by_ticker.items():
+        for row in rows:
+            if start_date is not None and row.price_date < start_date:
+                last_prices[ticker] = _decimal(row.close)
+
     for market_date in market_dates:
         for ticker, close in closes_by_date[market_date]:
             last_prices[ticker] = close
 
         event_rows = events.get(market_date, [])
         sold_today: set[str] = set()
+        for ticker in sorted(pending_exits):
+            close = price_by_key.get((market_date, ticker))
+            if ticker not in positions:
+                pending_exits.pop(ticker)
+            elif close is not None and not limit_down(market_date, ticker):
+                cash += _close_position(
+                    trades,
+                    positions,
+                    ticker,
+                    close,
+                    market_date,
+                    pending_exits.pop(ticker),
+                    active_config,
+                )
+                sold_today.add(ticker)
         # Zarar-kes: paper portfoydeki gibi kapanis, ortalama maliyetin (komisyon
         # dahil) belirtilen yuzde altina indiyse o kapanista satilir.
         if active_config.stop_loss_pct > 0:
             for ticker in sorted(positions):
                 position = positions[ticker]
                 close = price_by_key.get((market_date, ticker))
-                if close is None or position.quantity <= 0:
+                if close is None or position.quantity <= 0 or ticker in pending_exits:
                     continue
                 average_cost = position.cost_basis / position.quantity
                 if (close / average_cost - 1) * 100 > -active_config.stop_loss_pct:
+                    continue
+                if limit_down(market_date, ticker):
+                    pending_exits[ticker] = None
                     continue
                 cash += _close_position(
                     trades, positions, ticker, close, market_date, None, active_config
@@ -304,6 +407,11 @@ def run_backtest(
             position = positions.get(signal.ticker)
             close = price_by_key.get((market_date, signal.ticker))
             if position is None or close is None or signal.score >= active_config.exit_score:
+                continue
+            if signal.ticker in pending_exits:
+                continue
+            if limit_down(market_date, signal.ticker):
+                pending_exits[signal.ticker] = signal.signal_date
                 continue
             cash += _close_position(
                 trades,
@@ -332,6 +440,17 @@ def run_backtest(
             for signal in event_rows
             if signal.ticker not in positions
             and signal.ticker not in sold_today
+            and not limit_up(market_date, signal.ticker)
+            and avg_volume.get((market_date, signal.ticker), Decimal(0))
+            >= active_config.min_avg_volume
+            and (
+                active_config.max_volatility_pct <= 0
+                or volatility.get((market_date, signal.ticker), math.inf)
+                <= float(active_config.max_volatility_pct)
+            )
+            and not regime_is_bearish(
+                bench_dates, bench_values, signal.signal_date, active_config.regime_ma_days
+            )
             and signal.score >= active_config.entry_score
             and signal.confidence >= active_config.min_confidence
             and signal.coverage_count >= active_config.min_coverage

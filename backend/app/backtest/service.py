@@ -1,6 +1,7 @@
 """Veritabanindan tarihsel girdileri okuyup backtest sonucunu kalicilastirir."""
 
 import asyncio
+from datetime import timedelta
 from decimal import Decimal
 
 from sqlalchemy import select
@@ -18,13 +19,18 @@ from app.models import (
     BacktestRunPoint,
     BacktestRunTrade,
     CompositeSignalSnapshot,
+    IndexDaily,
     PriceDaily,
 )
 from app.schemas.backtest import BacktestCreate
+from app.signals.service import BENCHMARK_INDEX
 from app.signals.service import MODEL_VERSION as SIGNAL_MODEL_VERSION
 
 # v2: paper portfoyle ayni zarar-kes ve gunluk yeni pozisyon siniri.
-STRATEGY_VERSION = "backtest-v2"
+# v3: tavan/taban yurutme kurali, likidite esigi ve istege bagli rejim filtresi.
+STRATEGY_VERSION = "backtest-v3"
+# Gunluk degisim ve 20 gunluk ortalama hacim icin baslangictan onceki fiyatlar.
+WARMUP_DAYS = 45
 
 
 def _decimal(value: float | Decimal) -> Decimal:
@@ -63,13 +69,33 @@ async def create_backtest_run(session: AsyncSession, request: BacktestCreate) ->
                     select(PriceDaily)
                     .where(
                         PriceDaily.ticker.in_(tickers),
-                        PriceDaily.date >= request.start_date,
+                        PriceDaily.date >= request.start_date - timedelta(days=WARMUP_DAYS),
                         PriceDaily.date <= request.end_date,
                     )
                     .order_by(PriceDaily.date, PriceDaily.ticker)
                 )
             ).all()
         )
+
+    benchmark: list[tuple] = []
+    if request.regime_ma_days > 0:
+        benchmark = [
+            (row.date, row.value)
+            for row in (
+                await session.execute(
+                    select(IndexDaily.date, IndexDaily.value)
+                    .where(
+                        IndexDaily.index_code == BENCHMARK_INDEX,
+                        # Islem gunu ~ takvim gununun 5/7'si; ortalama icin bol pay.
+                        IndexDaily.date
+                        >= request.start_date - timedelta(days=request.regime_ma_days * 2 + 10),
+                        IndexDaily.date <= request.end_date,
+                    )
+                    .order_by(IndexDaily.date)
+                )
+            ).all()
+        ]
+    in_range_prices = sum(1 for row in price_rows if row.date >= request.start_date)
 
     config = BacktestConfig(
         initial_cash=_decimal(request.initial_cash),
@@ -83,6 +109,10 @@ async def create_backtest_run(session: AsyncSession, request: BacktestCreate) ->
         slippage_rate=_decimal(request.slippage_rate),
         stop_loss_pct=_decimal(request.stop_loss_pct),
         max_new_entries_per_day=request.max_new_entries_per_day,
+        price_limit_pct=_decimal(request.price_limit_pct),
+        min_avg_volume=_decimal(request.min_avg_volume),
+        regime_ma_days=request.regime_ma_days,
+        max_volatility_pct=_decimal(request.max_volatility_pct),
     )
     # Saf ve CPU yogun hesap: olay dongusunu (tek uvicorn sureci) bloklamasin diye
     # ayri thread'de calisir; aksi halde uzun bir test suresince tum API yanit vermez.
@@ -103,10 +133,13 @@ async def create_backtest_run(session: AsyncSession, request: BacktestCreate) ->
                 ticker=row.ticker,
                 price_date=row.date,
                 close=_decimal(row.close),
+                volume_try=_decimal(row.volume_try) if row.volume_try is not None else None,
             )
             for row in price_rows
         ],
         config=config,
+        benchmark=benchmark,
+        start_date=request.start_date,
     )
     metrics = result.metrics
     status = backtest_status(
@@ -131,7 +164,7 @@ async def create_backtest_run(session: AsyncSession, request: BacktestCreate) ->
         win_rate_pct=metrics.win_rate_pct,
         total_fees=metrics.total_fees,
         signal_count=len(signal_rows),
-        price_count=len(price_rows),
+        price_count=in_range_prices,
         skipped_signal_count=result.skipped_signals,
         config={
             "entry_score": float(config.entry_score),
@@ -144,6 +177,10 @@ async def create_backtest_run(session: AsyncSession, request: BacktestCreate) ->
             "slippage_rate": float(config.slippage_rate),
             "stop_loss_pct": float(config.stop_loss_pct),
             "max_new_entries_per_day": config.max_new_entries_per_day,
+            "price_limit_pct": float(config.price_limit_pct),
+            "min_avg_volume": float(config.min_avg_volume),
+            "regime_ma_days": config.regime_ma_days,
+            "max_volatility_pct": float(config.max_volatility_pct),
             "execution_price": "NEXT_AVAILABLE_CLOSE",
             "risk_free_rate": 0,
         },

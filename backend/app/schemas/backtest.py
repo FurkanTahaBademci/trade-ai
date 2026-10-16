@@ -20,6 +20,12 @@ class BacktestCreate(BaseModel):
     # Varsayilanlar paper portfoyle ayni: %15 zarar-kes, gunde en fazla 3 yeni pozisyon.
     stop_loss_pct: float = Field(default=15, ge=0, lt=100)
     max_new_entries_per_day: int = Field(default=3, ge=0, le=100)
+    # Gercekci yurutme: tavan/taban esigi (BIST gunluk limiti %10), son 20 gunun
+    # ortalama TL hacmi alt siniri ve istege bagli XU100 rejim filtresi (0 = kapali).
+    price_limit_pct: float = Field(default=9.5, ge=0, lt=100)
+    min_avg_volume: float = Field(default=20_000_000, ge=0, le=100_000_000_000)
+    regime_ma_days: int = Field(default=0, ge=0, le=250)
+    max_volatility_pct: float = Field(default=0, ge=0, le=50)
 
     @model_validator(mode="after")
     def validate_ranges(self) -> "BacktestCreate":

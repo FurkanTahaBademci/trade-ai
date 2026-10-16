@@ -42,7 +42,9 @@ from app.signals.service import MODEL_VERSION as SIGNAL_MODEL_VERSION
 # v3: islemler yalniz islem gunlerinde ve sinyal gununden SONRAKI kapanista
 # yapilir (backtest ile ayni kural). v2 ayni gunun kapanisinda, kapanistan sonra
 # gelen haberlerle hesaplanmis skorla ve hafta sonlari da islem yapiyordu.
-STRATEGY_VERSION = "paper-v3"
+# v4: tavanda kapanan hisse alinmaz, tabanda kapanan satilmaz (BIST'te o
+# kapanistan islem gerceklesmez); dusuk hacimli hisseye yeni pozisyon acilmaz.
+STRATEGY_VERSION = "paper-v4"
 DEFAULT_PORTFOLIO_NAME = "Ana Paper Portföy"
 DEFAULT_INITIAL_CASH = Decimal(1000000)
 ENTRY_SCORE = Decimal(75)
@@ -61,6 +63,11 @@ BENCHMARK_INDEX = "XU100"
 MAX_CATCH_UP_DAYS = 5
 # Pozisyon degerlemesinde (islem degil) kabul edilen en eski fiyat.
 MAX_MARK_STALE_DAYS = 7
+# Gunluk degisim bu esige ulasirsa hisse tavan/tabanda sayilir (BIST limiti %10).
+PRICE_LIMIT_PCT = Decimal("9.5")
+# Yeni pozisyon icin son 20 islem gununun ortalama TL hacmi alt siniri.
+MIN_AVG_VOLUME = Decimal(20_000_000)
+VOLUME_WINDOW = 20
 
 
 @dataclass(frozen=True)
@@ -198,6 +205,48 @@ async def _latest_prices(
     )
     rows = (await session.execute(select(ranked).where(ranked.c.rank == 1))).all()
     return {row.ticker: (row.date, _decimal(row.close)) for row in rows}
+
+
+async def _execution_context(
+    session: AsyncSession, tickers: set[str], execution_date: date
+) -> dict[str, tuple[Decimal | None, Decimal]]:
+    """Hisse -> (onceki kapanis, son 20 islem gununun ortalama TL hacmi); ikisi de
+    islem gununden ONCEKI verilerle (karar aninda bilinen)."""
+    if not tickers:
+        return {}
+    ranked = (
+        select(
+            PriceDaily.ticker.label("ticker"),
+            PriceDaily.close.label("close"),
+            PriceDaily.volume_try.label("volume_try"),
+            func.row_number()
+            .over(partition_by=PriceDaily.ticker, order_by=PriceDaily.date.desc())
+            .label("rank"),
+        )
+        .where(
+            PriceDaily.ticker.in_(tickers),
+            PriceDaily.date < execution_date,
+            PriceDaily.date >= execution_date - timedelta(days=45),
+        )
+        .subquery()
+    )
+    rows = (await session.execute(select(ranked).where(ranked.c.rank <= VOLUME_WINDOW))).all()
+    previous: dict[str, Decimal] = {}
+    volumes: dict[str, list[Decimal]] = {}
+    for row in rows:
+        if row.rank == 1:
+            previous[row.ticker] = _decimal(row.close)
+        volumes.setdefault(row.ticker, []).append(_decimal(row.volume_try or 0))
+    return {
+        ticker: (previous.get(ticker), sum(values, Decimal(0)) / len(values))
+        for ticker, values in volumes.items()
+    }
+
+
+def day_change_pct(close: Decimal, previous: Decimal | None) -> Decimal:
+    if previous is None or previous <= 0:
+        return Decimal(0)
+    return (close / previous - 1) * 100
 
 
 async def load_risk_config() -> RiskConfig:
@@ -340,9 +389,13 @@ async def _run_day(
             )
         ).all()
     )
+    context = await _execution_context(session, set(trade_prices), execution_date)
 
     def sector_of(ticker: str) -> str:
         return resolve_sector(ticker, names.get(ticker))
+
+    def change(ticker: str) -> Decimal:
+        return day_change_pct(trade_prices[ticker], context.get(ticker, (None, Decimal(0)))[0])
 
     # Ayni gunun onceki kosularinda (strateji surumunden bagimsiz) yapilan islemler.
     traded_today = (
@@ -405,6 +458,9 @@ async def _run_day(
     )
     for action in actions:
         ticker = action.ticker
+        if change(ticker) <= -PRICE_LIMIT_PCT:
+            # Tabanda kapandi: satis emri gerceklesmez; ertesi islem gunu yeniden degerlendirilir.
+            continue
         position = position_by_ticker[ticker]
         close = trade_prices[ticker]
         average_cost = _decimal(position.average_cost)
@@ -459,7 +515,13 @@ async def _run_day(
     # calisip (portfoy, hisse) tekligini bozar ve tum kosu geri alinir.
     if portfolio.status == "ACTIVE":
         entries = select_entry_signals(
-            [row for row in signals if row.ticker in trade_prices],
+            [
+                row
+                for row in signals
+                if row.ticker in trade_prices
+                and change(row.ticker) < PRICE_LIMIT_PCT
+                and context.get(row.ticker, (None, Decimal(0)))[1] >= MIN_AVG_VOLUME
+            ],
             held_tickers=set(open_positions) | sold | sold_today | bought_today,
             slots=entry_slots(open_count=len(open_positions), bought_today=len(bought_today)),
         )
