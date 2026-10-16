@@ -1,4 +1,4 @@
-import type { ComponentPower } from "@/lib/types";
+import type { ComponentPower, WeightScenario } from "@/lib/types";
 import { componentName, formatNumber, formatPercent } from "@/lib/format";
 import { EmptyState } from "@/components/ui";
 
@@ -29,6 +29,30 @@ export function ComponentPowerTable({ rows }: { rows: ComponentPower[] }) {
         <span className={`terminal-mono font-semibold ${tone(cell.mean_ic)}`}>{cell.mean_ic > 0 ? "+" : ""}{formatNumber(cell.mean_ic, 3)}</span>
         <span className="ml-2 text-[10px] text-[var(--text-muted)]">pozitif gün %{formatNumber(cell.positive_ic_pct, 0)}</span>
         <div className="text-[10px] text-[var(--text-muted)]">üst−alt beşlik {formatPercent(cell.spread_pct, true)} · {cell.days} gün</div>
+      </td>;
+    })}</tr>)}</tbody>
+  </table></div>;
+}
+
+const WEIGHT_ORDER = ["llm", "fundamental", "analyst", "momentum"];
+
+/** Ağırlık senaryoları: aynı geçmişte farklı bileşen ağırlıklarının sıralama gücü. */
+export function WeightScenarioTable({ rows }: { rows: WeightScenario[] }) {
+  const horizons = [...new Set(rows.map((item) => item.horizon))].sort((a, b) => a - b);
+  const scenarios = [...new Map(rows.map((item) => [item.key, item])).values()];
+  const find = (key: string, horizon: number) => rows.find((item) => item.key === key && item.horizon === horizon);
+  if (!rows.some((item) => item.days > 0)) return <div className="panel-flat"><EmptyState compact title="Henüz yeterli veri yok" description="Senaryolar, skor geçmişi ve ardından gelen fiyat günleri biriktikçe hesaplanır."/></div>;
+  const best = Object.fromEntries(horizons.map((horizon) => [horizon, Math.max(...rows.filter((item) => item.horizon === horizon && item.mean_ic != null).map((item) => item.mean_ic as number))]));
+
+  return <div className="table-shell overflow-x-auto"><table className="data-table min-w-[640px]">
+    <caption className="sr-only">Ağırlık senaryolarının sonraki getiriyi sıralama gücü</caption>
+    <thead><tr><th scope="col">Senaryo</th>{horizons.map((horizon) => <th key={horizon} scope="col">{horizon} işlem günü</th>)}</tr></thead>
+    <tbody>{scenarios.map((scenario) => <tr key={scenario.key}><td><span className={scenario.key === "current" ? "font-semibold" : "font-medium"}>{scenario.label}</span><div className="text-[10px] text-[var(--text-muted)]">{WEIGHT_ORDER.map((name) => `${componentName(name)} %${formatNumber((scenario.weights[name] ?? 0) * 100, 0)}`).join(" · ")}</div></td>{horizons.map((horizon) => {
+      const cell = find(scenario.key, horizon);
+      if (!cell || cell.mean_ic == null) return <td key={horizon} className="text-[var(--text-muted)]">—</td>;
+      return <td key={horizon}>
+        <span className={`terminal-mono font-semibold ${tone(cell.mean_ic)}`}>{cell.mean_ic > 0 ? "+" : ""}{formatNumber(cell.mean_ic, 3)}</span>{cell.mean_ic === best[horizon] && <span className="pill pill-positive ml-1.5">en iyi</span>}
+        <div className="text-[10px] text-[var(--text-muted)]">üst−alt beşlik {formatPercent(cell.spread_pct, true)} · pozitif gün %{formatNumber(cell.positive_ic_pct, 0)}</div>
       </td>;
     })}</tr>)}</tbody>
   </table></div>;

@@ -9,6 +9,56 @@ bu bölümü yeni sürüm numarasıyla kapatır.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-17
+
+### Eklendi
+
+- **Backtest: sıralama sepeti stratejisi.**
+  - Her N işlem gününde, o günden önceki son skorlara göre skoru en yüksek
+    hisseler eşit ağırlıkla tutulur. Sepet boyutu, elde tutma sırası ve
+    dengeleme aralığı ayarlanabilir.
+  - Tavan/taban ve likidite kuralları geçerli. Engellenen alım ve satışlar
+    sonraki işlem günlerinde yeniden denenir.
+- **Backtest: ağırlık simülasyonu.** Skor, saklanan bileşen skorlarından
+  seçilen ağırlıklarla yeniden hesaplanır. Böylece model değişmeden önce
+  farklı ağırlıklar geçmişte denenebilir.
+- **Backtest: başlangıç günü hassasiyeti.**
+  - Her koşu, başlangıcı 2, 4, 6 ve 8 işlem günü kaydırılmış dört ek koşuyla
+    tekrarlanır. XU100'e göre ortalama, en kötü ve en iyi fark raporlanır.
+  - 6 aylık veride yalnız bu kayma, aynı stratejinin sonucunu +7 ile −8 puan
+    arasında oynattı.
+  - Yeni `backtest_run.robustness` alanı eklendi (`e5a7c3d9b1f4` migration'ı).
+- Backtest sonucunda **ortalama yatırım oranı**: sermayenin ortalama ne kadarının
+  hisselerde olduğu. Düşük oran, sonucun büyük kısmının nakitte beklemekten
+  geldiğini gösterir.
+- **Bileşik Sinyaller: ağırlık senaryoları tablosu.** Canlı model, "analist
+  %10", "analist yok", "temel + momentum ağırlıklı" ve "eşit ağırlık"
+  senaryolarının hisseleri sıralama gücü (IC) aynı geçmişte, her rapor
+  yenilemesinde hesaplanır. Yeni uç: `GET /api/signals/weight-scenarios`.
+- Bileşik skor kaydı artık bileşen güvenlerini de saklar
+  (`evidence.confidences`). Ağırlık simülasyonu bunları kullanır.
+
+### Değişti
+
+- **Paper portföy `paper-v5`: çıkış eşiği 40 yerine 55.**
+  - 6 aylık walk-forward'da eğitim döneminin en iyi beş kombinasyonunun hepsi
+    55 kullandı.
+  - 10 farklı başlangıçta XU100'e göre ortalama fark −10,6 yerine −8,6 puan
+    oldu.
+  - Geçişte skoru 55'in altında olan açık pozisyonlar sonraki koşuda satılır.
+- Backtest `backtest-v4`.
+  - Varsayılan çıkış skoru 55.
+  - Sinyaller kanıt (evidence) JSON'unun tamamı olmadan okunur.
+  - Form, strateji ve ağırlık gruplarına ayrıldı.
+  - Sayfa başlığı sabit `backtest-v1` yerine koşunun sürümünü gösterir.
+
+### Düzeltildi
+
+- Hisse Tarayıcı (`/tarayici`), sonuç olan her aramada "server error"
+  veriyordu. Sunucu bileşeni, "use client" modülündeki yardımcı fonksiyonu
+  çağırıyordu. Bu tür hatayı derleme yakalamadığı için yeni bir web testi
+  (`client-boundary`) eklendi.
+
 ## [0.6.0] - 2026-10-17
 
 ### Değişti

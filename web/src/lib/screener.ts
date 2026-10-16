@@ -1,6 +1,8 @@
 // Hisse tarayıcı: URL parametreleri <-> API sorgusu. Sayfa sunucuda render edilir;
 // filtreler GET formuyla URL'ye yazılır, böylece her tarama paylaşılabilir.
 
+import type { ScreenerRow } from "@/lib/types";
+
 export const SCREENER_SORTS = ["ticker", "composite_score", "change_1d_pct", "change_1m_pct", "change_3m_pct", "market_cap_try", "volume_try", "pe_ratio", "pb_ratio", "roe_pct", "revenue_yoy_pct", "net_income_yoy_pct", "upside_pct"] as const;
 export type ScreenerSort = (typeof SCREENER_SORTS)[number];
 
@@ -125,4 +127,26 @@ export function moreHref(params: ScreenerParams, matched: number) {
 export function activeFilterCount(params: ScreenerParams) {
   // Sıralama ve satır sayısı filtre sayılmaz.
   return [params.q, params.sector, params.signal, ...NUMERIC_FILTERS.map((name) => params[name])].filter(Boolean).length;
+}
+
+/** Tarayıcı tablosunun kolonları (sıralanabilir). */
+export const TABLE_COLUMNS: { key: ScreenerSort; label: string; title?: string }[] = [
+  { key: "ticker", label: "Hisse" },
+  { key: "change_1d_pct", label: "Gün" },
+  { key: "change_1m_pct", label: "1 ay" },
+  { key: "market_cap_try", label: "Piy. değeri" },
+  { key: "composite_score", label: "Skor" },
+  { key: "pe_ratio", label: "F/K", title: "Son 12 ay net kârıyla" },
+  { key: "pb_ratio", label: "PD/DD" },
+  { key: "roe_pct", label: "ROE" },
+  { key: "revenue_yoy_pct", label: "Gelir büy.", title: "Son dönem, yıllık" },
+  { key: "upside_pct", label: "Analist pot.", title: "Konsensüs hedef fiyata göre" },
+];
+
+/** Tabloya (istemci bileşenine) giden satır: yalnız gösterilen alanlar. */
+export type TableRow = Pick<ScreenerRow, "ticker" | "name" | "sector" | "last_price" | "change_1d_pct" | "change_1m_pct" | "market_cap_try" | "composite_score" | "signal_label" | "pe_ratio" | "pb_ratio" | "roe_pct" | "revenue_yoy_pct" | "upside_pct" | "analyst_count">;
+
+export function toTableRow(row: ScreenerRow): TableRow {
+  const { ticker, name, sector, last_price, change_1d_pct, change_1m_pct, market_cap_try, composite_score, signal_label, pe_ratio, pb_ratio, roe_pct, revenue_yoy_pct, upside_pct, analyst_count } = row;
+  return { ticker, name, sector, last_price, change_1d_pct, change_1m_pct, market_cap_try, composite_score, signal_label, pe_ratio, pb_ratio, roe_pct, revenue_yoy_pct, upside_pct, analyst_count };
 }

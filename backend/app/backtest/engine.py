@@ -11,10 +11,11 @@ import math
 from bisect import bisect_right
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from decimal import ROUND_FLOOR, ROUND_HALF_UP, Decimal
 
 MONEY_QUANTUM = Decimal("0.0001")
+STRATEGIES = ("threshold", "basket")
 PERCENT = Decimal(100)
 TRADING_DAYS_PER_YEAR = Decimal(252)
 
@@ -31,7 +32,8 @@ def _money(value: Decimal) -> Decimal:
 class BacktestConfig:
     initial_cash: Decimal = Decimal(1_000_000)
     entry_score: Decimal = Decimal(75)
-    exit_score: Decimal = Decimal(40)
+    # 6 aylik walk-forward'da egitimin en iyi bes kombinasyonunun hepsi 55 kullandi.
+    exit_score: Decimal = Decimal(55)
     min_confidence: Decimal = Decimal("0.25")
     min_coverage: int = 2
     max_positions: int = 10
@@ -52,6 +54,14 @@ class BacktestConfig:
     regime_ma_days: int = 0
     # Son 20 islem gununun gunluk getiri std. sapmasi (%) bunu asan hisseye girilmez.
     max_volatility_pct: Decimal = Decimal(0)
+    # "threshold": skor esiklerine gore gir/cik. "basket": her `rebalance_days`
+    # islem gununde skoru en yuksek `basket_size` likit hisseyi esit agirlikla tut;
+    # elde olan hisse ilk `basket_keep` icinde kaldikca satilmaz. Sepette giris/
+    # cikis skoru, zarar-kes ve pozisyon sayisi/agirligi kullanilmaz.
+    strategy: str = "threshold"
+    basket_size: int = 20
+    basket_keep: int = 40
+    rebalance_days: int = 10
 
     def __post_init__(self) -> None:
         if self.initial_cash <= 0:
@@ -76,6 +86,10 @@ class BacktestConfig:
             raise ValueError("fiyat limiti ve hacim esigi gecersiz")
         if self.regime_ma_days < 0 or self.max_volatility_pct < 0:
             raise ValueError("rejim ortalamasi veya oynaklik siniri gecersiz")
+        if self.strategy not in STRATEGIES:
+            raise ValueError("strateji 'threshold' veya 'basket' olmali")
+        if not (1 <= self.basket_size <= self.basket_keep) or self.rebalance_days < 1:
+            raise ValueError("sepet boyutu, tutma esigi ve dengeleme araligi gecersiz")
 
 
 @dataclass(frozen=True)
@@ -275,6 +289,148 @@ def regime_is_bearish(
     return recent[-1] < sum(recent, Decimal(0)) / window
 
 
+@dataclass
+class _Market:
+    """Iki stratejinin ortak kullandigi, karar aninda bilinen piyasa verisi."""
+
+    price_by_key: dict[tuple[date, str], Decimal]
+    market_dates: list[date]
+    closes_by_date: dict[date, list[tuple[str, Decimal]]]
+    day_change: dict[tuple[date, str], Decimal]
+    avg_volume: dict[tuple[date, str], Decimal]
+    volatility: dict[tuple[date, str], float]
+    warmup_prices: dict[str, Decimal]
+    bench_dates: list[date]
+    bench_values: list[Decimal]
+    limit: Decimal
+
+    def limit_up(self, day: date, ticker: str) -> bool:
+        return self.limit > 0 and self.day_change.get((day, ticker), Decimal(0)) >= self.limit
+
+    def limit_down(self, day: date, ticker: str) -> bool:
+        return self.limit > 0 and self.day_change.get((day, ticker), Decimal(0)) <= -self.limit
+
+    def bearish(self, day: date, window: int) -> bool:
+        return regime_is_bearish(self.bench_dates, self.bench_values, day, window)
+
+
+def _market(
+    valid_prices: list[BacktestPrice],
+    config: BacktestConfig,
+    benchmark: list[tuple[date, Decimal]] | None,
+    start_date: date | None,
+) -> _Market:
+    price_by_key = {
+        (price.price_date, price.ticker): _decimal(price.close) for price in valid_prices
+    }
+    market_dates = sorted(
+        {
+            price.price_date
+            for price in valid_prices
+            if start_date is None or price.price_date >= start_date
+        }
+    )
+    closes_by_date: dict[date, list[tuple[str, Decimal]]] = defaultdict(list)
+    for (price_date, ticker), close in price_by_key.items():
+        closes_by_date[price_date].append((ticker, close))
+    # Hisse bazinda gunluk degisim (tavan/taban) ve 20 gunluk ortalama hacim.
+    day_change: dict[tuple[date, str], Decimal] = {}
+    avg_volume: dict[tuple[date, str], Decimal] = {}
+    volatility: dict[tuple[date, str], float] = {}
+    warmup_prices: dict[str, Decimal] = {}
+    by_ticker: dict[str, list[BacktestPrice]] = defaultdict(list)
+    for price in valid_prices:
+        by_ticker[price.ticker].append(price)
+    for ticker, rows in by_ticker.items():
+        rows.sort(key=lambda row: row.price_date)
+        volumes: list[Decimal] = []
+        log_returns: list[float] = []
+        for index, row in enumerate(rows):
+            if start_date is not None and row.price_date < start_date:
+                warmup_prices[ticker] = _decimal(row.close)
+            if index:
+                day_change[(row.price_date, ticker)] = (
+                    _decimal(row.close) / _decimal(rows[index - 1].close) - 1
+                ) * 100
+            # Karar aninda bilinen hacim: islem gununden onceki 20 gun.
+            window = volumes[-VOLUME_WINDOW:]
+            if window:
+                avg_volume[(row.price_date, ticker)] = sum(window, Decimal(0)) / len(window)
+            recent = log_returns[-VOLUME_WINDOW:]
+            if len(recent) == VOLUME_WINDOW:
+                mean = sum(recent) / VOLUME_WINDOW
+                variance = sum((value - mean) ** 2 for value in recent) / VOLUME_WINDOW
+                volatility[(row.price_date, ticker)] = math.sqrt(variance) * 100
+            volumes.append(_decimal(row.volume_try) if row.volume_try is not None else Decimal(0))
+            if index:
+                log_returns.append(math.log(float(row.close) / float(rows[index - 1].close)))
+    bench_rows = sorted((day, _decimal(value)) for day, value in benchmark or [] if value)
+    return _Market(
+        price_by_key=price_by_key,
+        market_dates=market_dates,
+        closes_by_date=closes_by_date,
+        day_change=day_change,
+        avg_volume=avg_volume,
+        volatility=volatility,
+        warmup_prices=warmup_prices,
+        bench_dates=[day for day, _ in bench_rows],
+        bench_values=[value for _, value in bench_rows],
+        limit=config.price_limit_pct,
+    )
+
+
+def _buy(
+    ticker: str,
+    close: Decimal,
+    *,
+    budget: Decimal,
+    cash: Decimal,
+    signal_date: date,
+    market_date: date,
+    config: BacktestConfig,
+) -> tuple[_Position, BacktestTrade] | None:
+    """Tam adetli alim plani (kayma + komisyon dahil); nakit yetmezse None."""
+    execution_price = close * (Decimal(1) + config.slippage_rate)
+    available = min(budget, cash)
+    quantity = (available / (execution_price * (Decimal(1) + config.fee_rate))).to_integral_value(
+        rounding=ROUND_FLOOR
+    )
+    if quantity <= 0:
+        return None
+    gross = _money(quantity * execution_price)
+    fee = _money(gross * config.fee_rate)
+    while quantity > 0 and gross + fee > cash:
+        quantity -= 1
+        gross = _money(quantity * execution_price)
+        fee = _money(gross * config.fee_rate)
+    if quantity <= 0 or gross < config.min_trade_value:
+        return None
+    trade = BacktestTrade(
+        ticker=ticker,
+        side="BUY",
+        signal_date=signal_date,
+        execution_date=market_date,
+        quantity=quantity,
+        price=execution_price,
+        gross_amount=gross,
+        fee_amount=fee,
+    )
+    return _Position(quantity, gross + fee), trade
+
+
+def select_basket(ranked: list[str], *, held: set[str], size: int, keep: int) -> list[str]:
+    """Sepet hedefi: ilk `keep` icinde kalan eldeki hisseler korunur, kalan yer
+    sirali listeden doldurulur. Devir hizini (ve maliyeti) dusuk tutar."""
+    keep_set = set(ranked[:keep])
+    target = [ticker for ticker in ranked if ticker in held and ticker in keep_set][:size]
+    for ticker in ranked:
+        if len(target) >= size:
+            break
+        if ticker not in target:
+            target.append(ticker)
+    return target
+
+
 def run_backtest(
     signals: list[BacktestSignal],
     prices: list[BacktestPrice],
@@ -295,58 +451,13 @@ def run_backtest(
 
     active_config = config or BacktestConfig()
     valid_prices = [price for price in prices if price.close > 0]
-    price_by_key = {
-        (price.price_date, price.ticker): _decimal(price.close) for price in valid_prices
-    }
-    market_dates = sorted(
-        {
-            price.price_date
-            for price in valid_prices
-            if start_date is None or price.price_date >= start_date
-        }
-    )
-    closes_by_date: dict[date, list[tuple[str, Decimal]]] = defaultdict(list)
-    for (price_date, ticker), close in price_by_key.items():
-        closes_by_date[price_date].append((ticker, close))
-    # Hisse bazinda gunluk degisim (tavan/taban) ve 20 gunluk ortalama hacim.
-    day_change: dict[tuple[date, str], Decimal] = {}
-    avg_volume: dict[tuple[date, str], Decimal] = {}
-    volatility: dict[tuple[date, str], float] = {}
-    by_ticker: dict[str, list[BacktestPrice]] = defaultdict(list)
-    for price in valid_prices:
-        by_ticker[price.ticker].append(price)
-    for ticker, rows in by_ticker.items():
-        rows.sort(key=lambda row: row.price_date)
-        volumes: list[Decimal] = []
-        log_returns: list[float] = []
-        for index, row in enumerate(rows):
-            if index:
-                day_change[(row.price_date, ticker)] = (
-                    _decimal(row.close) / _decimal(rows[index - 1].close) - 1
-                ) * 100
-            # Karar aninda bilinen hacim: islem gununden onceki 20 gun.
-            window = volumes[-VOLUME_WINDOW:]
-            if window:
-                avg_volume[(row.price_date, ticker)] = sum(window, Decimal(0)) / len(window)
-            recent = log_returns[-VOLUME_WINDOW:]
-            if len(recent) == VOLUME_WINDOW:
-                mean = sum(recent) / VOLUME_WINDOW
-                variance = sum((value - mean) ** 2 for value in recent) / VOLUME_WINDOW
-                volatility[(row.price_date, ticker)] = math.sqrt(variance) * 100
-            volumes.append(_decimal(row.volume_try) if row.volume_try is not None else Decimal(0))
-            if index:
-                log_returns.append(math.log(float(row.close) / float(rows[index - 1].close)))
-    limit = active_config.price_limit_pct
-
-    def limit_up(day: date, ticker: str) -> bool:
-        return limit > 0 and day_change.get((day, ticker), Decimal(0)) >= limit
-
-    def limit_down(day: date, ticker: str) -> bool:
-        return limit > 0 and day_change.get((day, ticker), Decimal(0)) <= -limit
-
-    bench_rows = sorted((day, _decimal(value)) for day, value in benchmark or [] if value)
-    bench_dates = [day for day, _ in bench_rows]
-    bench_values = [value for _, value in bench_rows]
+    market = _market(valid_prices, active_config, benchmark, start_date)
+    if active_config.strategy == "basket":
+        return _run_basket(signals, market, active_config)
+    price_by_key = market.price_by_key
+    limit_up, limit_down = market.limit_up, market.limit_down
+    avg_volume, volatility = market.avg_volume, market.volatility
+    bench_dates, bench_values = market.bench_dates, market.bench_values
     events, skipped = _execution_events(
         signals, valid_prices, active_config.max_execution_delay_days
     )
@@ -359,13 +470,10 @@ def run_backtest(
 
     # Tabanda kaldigi icin satilamayan cikislar: hisse -> sinyal tarihi.
     pending_exits: dict[str, date | None] = {}
-    for ticker, rows in by_ticker.items():
-        for row in rows:
-            if start_date is not None and row.price_date < start_date:
-                last_prices[ticker] = _decimal(row.close)
+    last_prices.update(market.warmup_prices)
 
-    for market_date in market_dates:
-        for ticker, close in closes_by_date[market_date]:
+    for market_date in market.market_dates:
+        for ticker, close in market.closes_by_date[market_date]:
             last_prices[ticker] = close
 
         event_rows = events.get(market_date, [])
@@ -458,36 +566,21 @@ def run_backtest(
         ][:slots]
         budget = equity * active_config.max_position_weight
         for signal in eligible:
-            close = price_by_key[(market_date, signal.ticker)]
-            execution_price = close * (Decimal(1) + active_config.slippage_rate)
-            available = min(budget, cash)
-            quantity = (
-                available / (execution_price * (Decimal(1) + active_config.fee_rate))
-            ).to_integral_value(rounding=ROUND_FLOOR)
-            if quantity <= 0:
-                continue
-            gross = _money(quantity * execution_price)
-            fee = _money(gross * active_config.fee_rate)
-            while quantity > 0 and gross + fee > cash:
-                quantity -= 1
-                gross = _money(quantity * execution_price)
-                fee = _money(gross * active_config.fee_rate)
-            if quantity <= 0 or gross < active_config.min_trade_value:
-                continue
-            cash -= gross + fee
-            positions[signal.ticker] = _Position(quantity, gross + fee)
-            trades.append(
-                BacktestTrade(
-                    ticker=signal.ticker,
-                    side="BUY",
-                    signal_date=signal.signal_date,
-                    execution_date=market_date,
-                    quantity=quantity,
-                    price=execution_price,
-                    gross_amount=gross,
-                    fee_amount=fee,
-                )
+            planned = _buy(
+                signal.ticker,
+                price_by_key[(market_date, signal.ticker)],
+                budget=budget,
+                cash=cash,
+                signal_date=signal.signal_date,
+                market_date=market_date,
+                config=active_config,
             )
+            if planned is None:
+                continue
+            position, trade = planned
+            cash -= position.cost_basis
+            positions[signal.ticker] = position
+            trades.append(trade)
 
         positions_value = sum(
             (
@@ -512,4 +605,142 @@ def run_backtest(
         trades=tuple(trades),
         metrics=_metrics(active_config, points, trades),
         skipped_signals=skipped,
+    )
+
+
+def _run_basket(
+    signals: list[BacktestSignal], market: _Market, config: BacktestConfig
+) -> BacktestResult:
+    """Siralama sepeti: her `rebalance_days` islem gununde hedef yeniden secilir.
+
+    Hedef, islem gununden ONCEKI son skorlarla (en fazla `max_execution_delay_days`
+    gun eski) secilir. Hedef disina dusen hisse satilir, hedefe giren hisse esit
+    agirlikla alinir. Tabanda kapanan hisse satilamaz, tavanda kapanan alinamaz;
+    bu islemler sonraki islem gunlerinde (bir sonraki dengelemeyi beklemeden)
+    yeniden denenir.
+    """
+    ordered = sorted(signals, key=lambda row: (row.signal_date, row.ticker))
+    latest: dict[str, BacktestSignal] = {}
+    pointer = 0
+    cash = _decimal(config.initial_cash)
+    positions: dict[str, _Position] = {}
+    last_prices: dict[str, Decimal] = dict(market.warmup_prices)
+    trades: list[BacktestTrade] = []
+    points: list[BacktestPoint] = []
+    target: list[str] = []
+    target_dates: dict[str, date] = {}
+
+    for index, market_date in enumerate(market.market_dates):
+        for ticker, close in market.closes_by_date[market_date]:
+            last_prices[ticker] = close
+        while pointer < len(ordered) and ordered[pointer].signal_date < market_date:
+            latest[ordered[pointer].ticker] = ordered[pointer]
+            pointer += 1
+
+        if index % config.rebalance_days == 0:
+            fresh = [
+                row
+                for row in latest.values()
+                if (market_date - row.signal_date).days <= config.max_execution_delay_days
+            ]
+            bearish = config.regime_ma_days > 0 and market.bearish(
+                market_date - timedelta(days=1), config.regime_ma_days
+            )
+            eligible = (
+                []
+                if bearish
+                else [
+                    row
+                    for row in fresh
+                    if row.confidence >= config.min_confidence
+                    and row.coverage_count >= config.min_coverage
+                    and (market_date, row.ticker) in market.price_by_key
+                    and market.avg_volume.get((market_date, row.ticker), Decimal(0))
+                    >= config.min_avg_volume
+                    and (
+                        config.max_volatility_pct <= 0
+                        or market.volatility.get((market_date, row.ticker), math.inf)
+                        <= float(config.max_volatility_pct)
+                    )
+                ]
+            )
+            ranked = [
+                row.ticker for row in sorted(eligible, key=lambda row: (-row.score, row.ticker))
+            ]
+            target = select_basket(
+                ranked, held=set(positions), size=config.basket_size, keep=config.basket_keep
+            )
+            target_dates = {row.ticker: row.signal_date for row in fresh}
+
+        target_set = set(target)
+        sold_today: set[str] = set()
+        for ticker in sorted(positions):
+            if ticker in target_set:
+                continue
+            close = market.price_by_key.get((market_date, ticker))
+            if close is None or market.limit_down(market_date, ticker):
+                continue  # islem yok / tabanda: sonraki gun yeniden denenir
+            cash += _close_position(
+                trades, positions, ticker, close, market_date, target_dates.get(ticker), config
+            )
+            sold_today.add(ticker)
+
+        buyable = [
+            ticker
+            for ticker in target
+            if ticker not in positions
+            and ticker not in sold_today
+            and (market_date, ticker) in market.price_by_key
+            and not market.limit_up(market_date, ticker)
+        ]
+        if buyable and cash > 0:
+            equity = cash + sum(
+                (
+                    position.quantity * last_prices.get(ticker, Decimal(0))
+                    for ticker, position in positions.items()
+                ),
+                Decimal(0),
+            )
+            # Esit agirlik hedefi; nakit yetmezse yeni girenler arasinda esit bolunur.
+            budget = min(equity / config.basket_size, cash / len(buyable))
+            for ticker in buyable:
+                planned = _buy(
+                    ticker,
+                    market.price_by_key[(market_date, ticker)],
+                    budget=budget,
+                    cash=cash,
+                    signal_date=target_dates.get(ticker, market_date),
+                    market_date=market_date,
+                    config=config,
+                )
+                if planned is None:
+                    continue
+                position, trade = planned
+                cash -= position.cost_basis
+                positions[ticker] = position
+                trades.append(trade)
+
+        positions_value = sum(
+            (
+                position.quantity * last_prices.get(ticker, Decimal(0))
+                for ticker, position in positions.items()
+            ),
+            Decimal(0),
+        )
+        points.append(
+            BacktestPoint(
+                point_date=market_date,
+                cash=_money(cash),
+                positions_value=_money(positions_value),
+                total_equity=_money(cash + positions_value),
+                position_count=len(positions),
+            )
+        )
+
+    return BacktestResult(
+        config=config,
+        points=tuple(points),
+        trades=tuple(trades),
+        metrics=_metrics(config, points, trades),
+        skipped_signals=0,
     )

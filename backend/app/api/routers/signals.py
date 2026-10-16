@@ -26,6 +26,7 @@ from app.schemas.signal import (
     SignalHistoryOut,
     SignalHorizonStatOut,
     SignalMoversOut,
+    WeightScenarioOut,
 )
 from app.signals.history import evaluation_driver, rank_drivers, recommendation_driver
 from app.signals.movers import load_signal_movers
@@ -131,6 +132,15 @@ async def signal_component_power(
     return (await get_reports(db, model_version))["power"]
 
 
+@router.get("/weight-scenarios", response_model=list[WeightScenarioOut])
+async def signal_weight_scenarios(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    model_version: Annotated[str, Query(max_length=16)] = MODEL_VERSION,
+) -> list[dict]:
+    """Agirlik senaryolari: ayni gecmiste farkli bilesen agirliklarinin siralama gucu."""
+    return (await get_reports(db, model_version)).get("scenarios", [])
+
+
 @router.get("/movers", response_model=SignalMoversOut)
 async def signal_movers(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -178,7 +188,9 @@ async def signal_score_history(
     if end:
         stmt = stmt.where(CompositeSignalSnapshot.as_of_date <= end)
     rows = list(
-        (await db.execute(stmt.order_by(CompositeSignalSnapshot.as_of_date.desc()).limit(limit))).all()
+        (
+            await db.execute(stmt.order_by(CompositeSignalSnapshot.as_of_date.desc()).limit(limit))
+        ).all()
     )
     rows.reverse()
 

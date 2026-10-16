@@ -12,7 +12,7 @@ const compiled = ts.transpileModule(readFileSync(file, "utf8"), {
 });
 const loaded = new Module(file, module);
 loaded._compile(compiled.outputText, file);
-const { backtestFields, validateBacktestForm } = loaded.exports;
+const { backtestFields, validateBacktestForm, componentWeights } = loaded.exports;
 const values = () => ({
   ...Object.fromEntries(Object.entries(backtestFields).map(([name, field]) => [name, field.value])),
   start_date: "2025-09-08", end_date: "2026-09-08",
@@ -36,4 +36,20 @@ test("reject missing, nonfinite and fractional share-slot values", () => {
     assert.ok(validateBacktestForm({ ...values(), initial_cash }).initial_cash);
   }
   assert.ok(validateBacktestForm({ ...values(), max_positions: "2.5" }).max_positions);
+});
+
+test("basket and weight fields have safe defaults and cross-field rules", () => {
+  assert.equal(values().strategy, "threshold");
+  assert.equal(values().exit_score, "55");
+  assert.ok(validateBacktestForm({ ...values(), strategy: "momentum" }).strategy);
+  assert.deepEqual(validateBacktestForm({ ...values(), strategy: "basket" }), {});
+  assert.ok(validateBacktestForm({ ...values(), basket_size: "30", basket_keep: "20" }).basket_keep);
+  const zero = { weight_llm: "0", weight_fundamental: "0", weight_analyst: "0", weight_momentum: "0" };
+  assert.ok(validateBacktestForm({ ...values(), ...zero }).weight_llm);
+});
+test("live weights send no override; changed weights are sent as fractions", () => {
+  assert.equal(componentWeights(values()), null);
+  assert.deepEqual(componentWeights({ ...values(), weight_analyst: "0", weight_llm: "45" }), {
+    llm: 0.45, fundamental: 0.28, analyst: 0, momentum: 0.15,
+  });
 });

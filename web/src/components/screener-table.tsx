@@ -2,31 +2,13 @@
 
 import Link from "next/link";
 import { formatMoney, formatNumber, formatPercent, signalName } from "@/lib/format";
-import type { ScreenerSort } from "@/lib/screener";
-import type { ScreenerRow } from "@/lib/types";
+import type { ScreenerSort, TableRow } from "@/lib/screener";
 
 // Tablo istemci bileşeni: sunucu bileşeni olarak render edildiğinde her hücrenin
 // sınıf adları hem HTML'de hem RSC verisinde tekrar ediyordu. Burada yalnız
-// gösterilen alanlar prop olarak gider.
-export const TABLE_COLUMNS: { key: ScreenerSort; label: string; title?: string }[] = [
-  { key: "ticker", label: "Hisse" },
-  { key: "change_1d_pct", label: "Gün" },
-  { key: "change_1m_pct", label: "1 ay" },
-  { key: "market_cap_try", label: "Piy. değeri" },
-  { key: "composite_score", label: "Skor" },
-  { key: "pe_ratio", label: "F/K", title: "Son 12 ay net kârıyla" },
-  { key: "pb_ratio", label: "PD/DD" },
-  { key: "roe_pct", label: "ROE" },
-  { key: "revenue_yoy_pct", label: "Gelir büy.", title: "Son dönem, yıllık" },
-  { key: "upside_pct", label: "Analist pot.", title: "Konsensüs hedef fiyata göre" },
-];
-
-export type TableRow = Pick<ScreenerRow, "ticker" | "name" | "sector" | "last_price" | "change_1d_pct" | "change_1m_pct" | "market_cap_try" | "composite_score" | "signal_label" | "pe_ratio" | "pb_ratio" | "roe_pct" | "revenue_yoy_pct" | "upside_pct" | "analyst_count">;
-
-export function toTableRow(row: ScreenerRow): TableRow {
-  const { ticker, name, sector, last_price, change_1d_pct, change_1m_pct, market_cap_try, composite_score, signal_label, pe_ratio, pb_ratio, roe_pct, revenue_yoy_pct, upside_pct, analyst_count } = row;
-  return { ticker, name, sector, last_price, change_1d_pct, change_1m_pct, market_cap_try, composite_score, signal_label, pe_ratio, pb_ratio, roe_pct, revenue_yoy_pct, upside_pct, analyst_count };
-}
+// gösterilen alanlar prop olarak gider. Kolonlar ve satır dönüşümü sunucuda da
+// çalıştığı için `@/lib/screener` içindedir ("use client" modülündeki değerler
+// sunucu bileşeninden çağrılamaz).
 
 type Header = { key: ScreenerSort; label: string; title?: string; href: string; sort: "asc" | "desc" | null };
 

@@ -72,6 +72,21 @@ class SignalMoversOut(BaseModel):
     fallers: list[SignalMoverOut]
 
 
+class WeightScenarioOut(BaseModel):
+    """Bilesen agirlik senaryosu: saklanan bilesen skorlari bu agirliklarla yeniden
+    birlestirildiginde skorun ileri getiriyi siralama gucu."""
+
+    key: str
+    label: str
+    weights: dict[str, float]
+    horizon: int
+    days: int
+    observations: int
+    mean_ic: float | None
+    positive_ic_pct: float | None
+    spread_pct: float | None
+
+
 class ComponentPowerOut(BaseModel):
     """Bilesenin ileri getiriyi siralama gucu (gunluk Spearman IC ortalamasi)."""
 

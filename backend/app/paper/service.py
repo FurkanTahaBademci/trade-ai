@@ -44,11 +44,14 @@ from app.signals.service import MODEL_VERSION as SIGNAL_MODEL_VERSION
 # gelen haberlerle hesaplanmis skorla ve hafta sonlari da islem yapiyordu.
 # v4: tavanda kapanan hisse alinmaz, tabanda kapanan satilmaz (BIST'te o
 # kapanistan islem gerceklesmez); dusuk hacimli hisseye yeni pozisyon acilmaz.
-STRATEGY_VERSION = "paper-v4"
+# v5: sinyal cikisi skor 40 yerine 55'in altinda. 6 aylik walk-forward'da
+# egitimin en iyi bes kombinasyonunun hepsi 55 kullandi; 10 farkli baslangicta
+# ortalama XU100'e gore fark -10,6 yerine -8,6 puan (6/10 baslangicta daha iyi).
+STRATEGY_VERSION = "paper-v5"
 DEFAULT_PORTFOLIO_NAME = "Ana Paper Portföy"
 DEFAULT_INITIAL_CASH = Decimal(1000000)
 ENTRY_SCORE = Decimal(75)
-EXIT_SCORE = Decimal(40)
+EXIT_SCORE = Decimal(55)
 MIN_CONFIDENCE = Decimal("0.25")
 MAX_POSITIONS = 10
 # Tek bir haber/kanit ayni gun portfoyun buyuk kismini doldurmasin; bos slotlar

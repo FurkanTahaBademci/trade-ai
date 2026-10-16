@@ -333,8 +333,50 @@ def build_composite_signal(
         "evidence": {
             **{name: value.evidence for name, value in available.items()},
             "raw_score": float(composite.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
+            # Agirlik simulasyonu (backtest) skoru farkli agirliklarla yeniden
+            # birlestirirken bilesen guvenlerini kullanir.
+            "confidences": {
+                name: float(value.confidence.quantize(Decimal("0.00001"), rounding=ROUND_HALF_UP))
+                for name, value in available.items()
+            },
         },
     }
+
+
+def recombine_score(
+    component_scores: dict[str, Any],
+    weights: dict[str, Decimal],
+    *,
+    confidence: Decimal,
+    component_confidences: dict[str, Any] | None = None,
+) -> Decimal | None:
+    """Saklanan bilesen skorlarini farkli agirliklarla `build_composite_signal`
+    kuraliyla yeniden birlestirir (agirlik simulasyonu).
+
+    Bilesen guvenleri biliniyorsa guven yeni agirliklarla yeniden hesaplanir;
+    eski satirlarda (guvenler saklanmadan once) kayitli toplam guven kullanilir.
+    Agirligi 0 olan bilesen yok sayilir; hic agirlikli bilesen yoksa None doner.
+    """
+    available = {
+        name: _decimal(value)
+        for name, value in component_scores.items()
+        if value is not None and weights.get(name, Decimal(0)) > 0
+    }
+    if not available:
+        return None
+    available_weight = sum((weights[name] for name in available), Decimal(0))
+    composite = sum((available[name] * weights[name] for name in available), Decimal(0))
+    composite /= available_weight
+    if component_confidences and all(name in component_confidences for name in available):
+        quality = sum(
+            (_decimal(component_confidences[name]) * weights[name] for name in available),
+            Decimal(0),
+        ) / available_weight
+        total_weight = sum((value for value in weights.values() if value > 0), Decimal(0))
+        confidence = _clamp(quality * available_weight / total_weight, Decimal(0), Decimal(1))
+    shrink = min(Decimal(1), _decimal(confidence) / FULL_CONFIDENCE)
+    adjusted = Decimal(50) + (composite - Decimal(50)) * shrink
+    return adjusted.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
 def _latest_by_ticker(rows: list[Any], key) -> dict[str, Any]:

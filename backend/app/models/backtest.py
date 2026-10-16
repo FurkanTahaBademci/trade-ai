@@ -55,6 +55,9 @@ class BacktestRun(Base):
     price_count: Mapped[int] = mapped_column(Integer)
     skipped_signal_count: Mapped[int] = mapped_column(Integer)
     config: Mapped[dict] = mapped_column(BACKTEST_JSON_TYPE)
+    # Ayni ayarlarla farkli baslangic gunlerinden yapilan ek kosularin XU100'e
+    # gore sonucu; tek bir sansli/sanssiz takvime bagli sonucu ayirt etmek icin.
+    robustness: Mapped[dict | None] = mapped_column(BACKTEST_JSON_TYPE, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     points: Mapped[list["BacktestRunPoint"]] = relationship(
