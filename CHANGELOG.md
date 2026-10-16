@@ -9,6 +9,8 @@ bu bölümü yeni sürüm numarasıyla kapatır.
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-10-16
+
 ### Düzeltildi
 
 - BIST100 (XU100) endeks geçmişi kurulum gününden önceye gitmiyordu: zamanlanmış
