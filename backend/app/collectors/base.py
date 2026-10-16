@@ -21,18 +21,59 @@ Kullanim (Faz 2+ ornegi):
 from __future__ import annotations
 
 import time
+from collections.abc import Callable, Hashable, Iterable, Iterator, Sequence
 from datetime import UTC, datetime
 from types import TracebackType
 from typing import Self
 
 import httpx
 import structlog
+from sqlalchemy import JSON, ColumnElement, cast, or_
+from sqlalchemy.dialects.postgresql import JSONB
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from app.core.config import get_settings
 from app.core.redis import get_redis
 
 settings = get_settings()
+
+
+def dedupe_last[T](rows: Iterable[T], key: Callable[[T], Hashable]) -> list[T]:
+    """Ayni dogal anahtarli satirlardan sonuncuyu tutar.
+
+    Cok satirli `INSERT ... ON CONFLICT DO UPDATE` ayni anahtari iki kez
+    iceremez ("cannot affect row a second time"). Eski satir-satir upsert'te
+    son gelen kazaniyordu; burada da sonuncu tutulur, sira ilk gorulmeye gore
+    korunur.
+    """
+    by_key: dict[Hashable, T] = {}
+    for row in rows:
+        by_key[key(row)] = row
+    return list(by_key.values())
+
+
+def chunked[T](rows: Sequence[T], size: int) -> Iterator[Sequence[T]]:
+    """Toplu upsert'leri asyncpg'nin 32767 bind parametresi sinirinin altinda tutar."""
+    for offset in range(0, len(rows), size):
+        yield rows[offset : offset + size]
+
+
+def row_changed(model: type, excluded, columns: Iterable[str]) -> ColumnElement[bool]:
+    """`ON CONFLICT DO UPDATE ... WHERE` kosulu: alanlardan biri degistiyse dogru.
+
+    Kayan pencereli collector'lar ayni satirlari her kosuda yeniden getirir.
+    Degismeyen satiri yeniden yazmak PostgreSQL'de yeni tuple (olu satir, WAL,
+    indeks bakimi) uretir; kosul yanlissa satir yalniz kilitlenir, yazilmaz.
+    `json` tipinde esitlik operatoru olmadigi icin JSON kolonlar `jsonb`'ye
+    cevrilerek kiyaslanir.
+    """
+    conditions = []
+    for name in columns:
+        current, incoming = getattr(model, name), excluded[name]
+        if isinstance(current.type, JSON):
+            current, incoming = cast(current, JSONB), cast(incoming, JSONB)
+        conditions.append(current.is_distinct_from(incoming))
+    return or_(*conditions)
 
 
 class CollectorError(Exception):

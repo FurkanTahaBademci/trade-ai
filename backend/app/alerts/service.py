@@ -137,9 +137,14 @@ async def _load_scores(session: AsyncSession) -> tuple[date | None, dict[str, di
     )
     if as_of is None:
         return None, {}
+    # 10 dakikada bir calisir; bilesen/kanit JSONB kolonlari gerekmez.
     rows = (
-        await session.scalars(
-            select(CompositeSignalSnapshot).where(
+        await session.execute(
+            select(
+                CompositeSignalSnapshot.ticker,
+                CompositeSignalSnapshot.signal_label,
+                CompositeSignalSnapshot.composite_score,
+            ).where(
                 CompositeSignalSnapshot.as_of_date == as_of,
                 CompositeSignalSnapshot.model_version == SIGNAL_MODEL_VERSION,
             )

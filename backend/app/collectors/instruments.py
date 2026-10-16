@@ -17,7 +17,7 @@ import re
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.collectors.base import BaseCollector
+from app.collectors.base import BaseCollector, chunked, dedupe_last
 from app.models import Instrument
 
 KAP_COMPANY_ITEMS_URL = "https://www.kap.org.tr/tr/api/company/items/IGS/A"
@@ -84,7 +84,7 @@ class InstrumentCollector(BaseCollector):
             headers={"Referer": KAP_REFERER},
         )
 
-        created_or_updated = 0
+        rows: list[dict] = []
         skipped_no_ticker = 0
 
         for item in raw_items:
@@ -92,21 +92,23 @@ class InstrumentCollector(BaseCollector):
             if not instrument_rows:
                 skipped_no_ticker += 1
                 continue
+            rows.extend(instrument_rows)
 
-            for fields in instrument_rows:
-                stmt = pg_insert(Instrument).values(**fields)
-                stmt = stmt.on_conflict_do_update(
-                    index_elements=[Instrument.ticker],
-                    set_={
-                        "name": stmt.excluded.name,
-                        "city": stmt.excluded.city,
-                        "kap_member_oid": stmt.excluded.kap_member_oid,
-                        "mkk_member_oid": stmt.excluded.mkk_member_oid,
-                        "is_active": stmt.excluded.is_active,
-                    },
-                )
-                await self._session.execute(stmt)
-                created_or_updated += 1
+        # Ayni kod iki uyede gorunurse eski satir-satir upsert'teki gibi sonuncusu yazilir.
+        for batch in chunked(dedupe_last(rows, lambda row: row["ticker"]), 1_000):
+            stmt = pg_insert(Instrument).values(list(batch))
+            stmt = stmt.on_conflict_do_update(
+                index_elements=[Instrument.ticker],
+                set_={
+                    "name": stmt.excluded.name,
+                    "city": stmt.excluded.city,
+                    "kap_member_oid": stmt.excluded.kap_member_oid,
+                    "mkk_member_oid": stmt.excluded.mkk_member_oid,
+                    "is_active": stmt.excluded.is_active,
+                },
+            )
+            await self._session.execute(stmt)
+        created_or_updated = len(rows)
 
         await self._session.commit()
 

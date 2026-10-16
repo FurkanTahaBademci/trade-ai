@@ -11,7 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.collectors.base import BaseCollector, CollectorError
+from app.collectors.base import BaseCollector, CollectorError, chunked, dedupe_last
 from app.core.redis import get_redis
 from app.models import FinancialFact, FundamentalSnapshot, Instrument, LlmEvaluation
 
@@ -27,6 +27,8 @@ DAILY_BATCH_SIZE = 120
 FAILED_TICKER_COOLDOWN_SECONDS = 14 * 24 * 60 * 60
 _FAILED_KEY_PREFIX = "fundamentals:failed:"
 PERIODS = (3, 6, 9, 12)
+# Tek upsert ifadesindeki kalem sayisi (10 kolon x 1.000 < 32767 parametre).
+FACT_UPSERT_CHUNK_SIZE = 1_000
 
 ITEM_CODES = {
     "current_assets": "1A",
@@ -105,6 +107,17 @@ def map_financial_response(
                 }
             )
     return mapped
+
+
+def _fact_identity(row: dict) -> tuple:
+    return (
+        row["ticker"],
+        row["financial_group"],
+        row["exchange"],
+        row["year"],
+        row["period"],
+        row["item_code"],
+    )
 
 
 def _safe_div(numerator: Decimal | None, denominator: Decimal | None) -> Decimal | None:
@@ -423,17 +436,7 @@ class FundamentalsCollector(BaseCollector):
                             FINANCIALS_URL, params=self._params(ticker, group, year)
                         )
                     mapped.extend(map_financial_response(ticker, group, year, payload))
-                identities = [
-                    (
-                        row["ticker"],
-                        row["financial_group"],
-                        row["exchange"],
-                        row["year"],
-                        row["period"],
-                        row["item_code"],
-                    )
-                    for row in mapped
-                ]
+                identities = [_fact_identity(row) for row in mapped]
                 existing: set[tuple] = set()
                 if identities:
                     result = await self._session.execute(
@@ -451,8 +454,11 @@ class FundamentalsCollector(BaseCollector):
                         )
                     )
                     existing = set(result.all())
-                for fields in mapped:
-                    stmt = pg_insert(FinancialFact).values(**fields)
+                # Ayni kimlik yanitta iki kez gelirse eski satir-satir upsert'teki
+                # gibi sonuncusu yazilir; tek ifadede iki kez guncellenemez.
+                unique_facts = dedupe_last(mapped, _fact_identity)
+                for batch in chunked(unique_facts, FACT_UPSERT_CHUNK_SIZE):
+                    stmt = pg_insert(FinancialFact).values(list(batch))
                     stmt = stmt.on_conflict_do_update(
                         constraint="uq_financial_fact_identity",
                         set_={
@@ -467,9 +473,19 @@ class FundamentalsCollector(BaseCollector):
                     await self._session.execute(stmt)
                 await self._session.commit()
 
+                # Snapshot yalniz kimlik + deger kolonlarini okur; ORM nesnesi ve
+                # kalem adlari (~1.200 satir/hisse) yuklenmez.
                 facts = (
-                    await self._session.scalars(
-                        select(FinancialFact).where(
+                    await self._session.execute(
+                        select(
+                            FinancialFact.ticker,
+                            FinancialFact.financial_group,
+                            FinancialFact.exchange,
+                            FinancialFact.year,
+                            FinancialFact.period,
+                            FinancialFact.item_code,
+                            FinancialFact.value,
+                        ).where(
                             FinancialFact.ticker == ticker,
                             FinancialFact.financial_group == group,
                             FinancialFact.exchange == "TRY",
@@ -478,11 +494,11 @@ class FundamentalsCollector(BaseCollector):
                     )
                 ).all()
                 snapshots = build_snapshots(list(facts))
-                for fields in snapshots:
-                    stmt = pg_insert(FundamentalSnapshot).values(**fields)
+                if snapshots:
+                    stmt = pg_insert(FundamentalSnapshot).values(snapshots)
                     update_fields = {
                         key: getattr(stmt.excluded, key)
-                        for key in fields
+                        for key in snapshots[0]
                         if key not in {"ticker", "financial_group", "exchange", "year", "period"}
                     }
                     update_fields["computed_at"] = func.now()

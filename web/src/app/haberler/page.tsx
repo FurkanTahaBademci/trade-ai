@@ -21,7 +21,11 @@ export default async function NewsPage({
   const ticker = tickerParam(hisse);
   const mode: "smart" | "chronological" = requestedMode === "chronological" ? "chronological" : "smart";
 
+  // Akıllı sıralama zamana bağlı; sonsuz kaydırmadaki tüm sayfalar ilk sayfanın
+  // zamanıyla sıralanır ki haberler tekrar etmesin veya atlanmasın.
+  const ref = mode === "smart" ? new Date().toISOString() : undefined;
   const queryParts = [`mode=${mode}`];
+  if (ref) queryParts.push(`ref=${encodeURIComponent(ref)}`);
   if (source) queryParts.push(`source=${encodeURIComponent(source)}`);
   if (ticker) queryParts.push(`ticker=${ticker}`);
   const query = `&${queryParts.join("&")}`;
@@ -116,6 +120,7 @@ export default async function NewsPage({
         source={source}
         mode={mode}
         ticker={ticker}
+        rankingRef={ref}
       />
     </>
   );

@@ -1,4 +1,6 @@
 export type Instrument = { ticker: string; name: string; city: string | null; is_active: boolean; updated_at: string };
+/** Listelerde istemciye gönderilen hafif hisse kaydı. */
+export type InstrumentSummary = Pick<Instrument, "ticker" | "name">;
 export type Price = { date: string; close: number; high: number | null; low: number | null; avg_price: number | null; volume_try: number | null; close_usd: number | null; market_cap_try: number | null };
 export type IndexPrice = { date: string; value: number };
 export type NewsArticle = { id: number; source: string; canonical_url: string; title: string; summary: string | null; author: string | null; image_url: string | null; published_at: string; ticker_codes: string[]; impact_score?: number | null; sentiment_score?: number | null; event_type?: string | null; source_guid?: string | null; raw_entry?: Record<string, unknown>; fetched_at?: string; updated_at?: string };

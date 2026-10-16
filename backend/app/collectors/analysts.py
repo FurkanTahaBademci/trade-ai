@@ -6,17 +6,18 @@ import hashlib
 import re
 import statistics
 from collections import Counter, defaultdict
-from datetime import UTC, date, datetime, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from html.parser import HTMLParser
 from typing import Any
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.collectors.base import BaseCollector, CollectorError
+from app.collectors.base import BaseCollector, CollectorError, dedupe_last
 from app.models import AnalystConsensus, AnalystRecommendation, Instrument, PriceDaily
 
 ISYATIRIM_URL = (
@@ -198,6 +199,8 @@ def parse_aggregator_recommendations(html: str) -> list[dict]:
 # hem agirlik kaybeder hem belli bir yastan sonra tamamen dusulur.
 ANALYST_MAX_AGE_DAYS = 180
 ANALYST_HALF_LIFE_DAYS = 90
+# Konsensusteki piyasa fiyati bu kadar gunluk kapanislardan secilir.
+MARKET_PRICE_MAX_AGE_DAYS = 30
 
 
 def recommendation_weight(age_days: int) -> Decimal:
@@ -295,24 +298,36 @@ async def recompute_analyst_consensus(session: AsyncSession) -> list[dict]:
     cagirir; boylece konsensus hangi kaynagin son calistigina bakmadan
     guncel kalir.
     """
-    cutoff = datetime.now(UTC).date() - timedelta(days=365)
+    as_of = datetime.now(ZoneInfo("Europe/Istanbul")).date()
+    # Konsensus yalniz 0-ANALYST_MAX_AGE_DAYS yasindaki tavsiyeleri kullanir;
+    # daha eski satirlar ve skorda kullanilmayan raw_data JSON'u cekilmez.
     recommendations = list(
         (
-            await session.scalars(
-                select(AnalystRecommendation).where(
-                    AnalystRecommendation.recommendation_date >= cutoff
+            await session.execute(
+                select(
+                    AnalystRecommendation.ticker,
+                    AnalystRecommendation.source,
+                    AnalystRecommendation.institution,
+                    AnalystRecommendation.recommendation_normalized,
+                    AnalystRecommendation.target_price,
+                    AnalystRecommendation.recommendation_date,
+                ).where(
+                    AnalystRecommendation.recommendation_date
+                    >= as_of - timedelta(days=ANALYST_MAX_AGE_DAYS)
                 )
             )
         ).all()
     )
+    # Son kapanis icin tum fiyat gecmisi taranmaz; 30 gunden eski fiyat
+    # (islem durdurma vb.) potansiyel hesabinda zaten yaniltici olurdu.
     price_rows = (
         await session.execute(
             select(PriceDaily.ticker, PriceDaily.close)
-            .distinct(PriceDaily.ticker)
+            .ext(distinct_on(PriceDaily.ticker))
+            .where(PriceDaily.date >= as_of - timedelta(days=MARKET_PRICE_MAX_AGE_DAYS))
             .order_by(PriceDaily.ticker, PriceDaily.date.desc())
         )
     ).all()
-    as_of = datetime.now(ZoneInfo("Europe/Istanbul")).date()
     consensus = calculate_consensus(
         recommendations,
         market_prices=dict(price_rows),
@@ -383,7 +398,9 @@ class AnalystCollector(BaseCollector):
             ).all()
         )
         if mapped:
-            stmt = pg_insert(AnalystRecommendation).values(mapped)
+            # Ayni kazima iki ayni satir donerse tek ifadede iki kez guncellenemez.
+            unique_rows = dedupe_last(mapped, lambda row: (row["source"], row["source_key"]))
+            stmt = pg_insert(AnalystRecommendation).values(unique_rows)
             await self._session.execute(
                 stmt.on_conflict_do_update(
                     constraint="uq_analyst_recommendation_source_key",

@@ -29,13 +29,15 @@ class _MemorySession:
     def __init__(self, member_oids: list[str] | None = None):
         self.details: dict[int, dict] = {}
         self._member_oids = member_oids or []
+        self.writes: list = []
 
     async def execute(self, statement):
         if getattr(statement, "is_select", False):
             names = [description["name"] for description in statement.column_descriptions]
-            if names == ["disclosure_index", "raw_detail"]:
-                return _Result(list(self.details.items()))
+            if names == ["disclosure_index", "has_detail"]:
+                return _Result([(index, True) for index in self.details])
             return _Result([])
+        self.writes.append(statement)
         return _Result([])
 
     async def scalars(self, statement):

@@ -13,6 +13,7 @@ import httpx
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import load_only
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from app.collectors.base import BaseCollector, CollectorError
@@ -313,10 +314,24 @@ class FundFlowCollector(BaseCollector):
         await self._session.commit()
 
         history_start = self._start_date - timedelta(days=10)
+        # Akim hesabi yalniz bu kolonlari okur/yazar; raw_info ve raw_allocation
+        # JSONB'leri (~17 gun x tum fonlar) bellege cekilmez.
         snapshots = list(
             (
                 await self._session.scalars(
                     select(FundSnapshot)
+                    .options(
+                        load_only(
+                            FundSnapshot.fund_kind,
+                            FundSnapshot.fund_code,
+                            FundSnapshot.date,
+                            FundSnapshot.price,
+                            FundSnapshot.portfolio_size,
+                            FundSnapshot.stock_pct,
+                            FundSnapshot.estimated_net_flow,
+                            FundSnapshot.estimated_stock_flow,
+                        )
+                    )
                     .where(
                         FundSnapshot.fund_kind == self._fund_kind,
                         FundSnapshot.date >= history_start,

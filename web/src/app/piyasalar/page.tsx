@@ -29,7 +29,8 @@ export default async function MarketsPage() {
       />
       <ServiceNotice show={!instruments.ok} />
       <PiyasalarView
-        instruments={instruments.data}
+        // İstemci yalnız kod ve adı kullanır; diğer alanlar sayfa yükünü büyütmesin.
+        instruments={instruments.data.map(({ ticker, name }) => ({ ticker, name }))}
         heatmap={heatmap.data}
       />
     </>

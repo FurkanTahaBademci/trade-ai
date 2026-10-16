@@ -22,6 +22,7 @@ from sqlalchemy import (
     String,
     Text,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
@@ -63,6 +64,13 @@ class LlmEvaluation(Base):
         Index("ix_llm_evaluation_source", "source_type", "source_id"),
         Index("ix_llm_evaluation_status_tier_created", "status", "tier", "created_at"),
         Index("ix_llm_evaluation_ticker_codes_gin", "ticker_codes", postgresql_using="gin"),
+        # AI analizleri listesi en yeniden eskiye sayfalanir.
+        Index("ix_llm_evaluation_created_id", text("created_at DESC"), text("id DESC")),
+        Index(
+            "ix_llm_evaluation_succeeded_completed",
+            "completed_at",
+            postgresql_where=text("status = 'succeeded'"),
+        ),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)

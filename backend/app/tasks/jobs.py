@@ -26,6 +26,10 @@ async def collect_instruments(ctx: dict) -> dict:
         return await collector.run_tracked()
 
 
+# Bundan az fiyat satiri varsa ilk kurulum doldurmasi yapilir.
+PRICE_BACKFILL_MIN_ROWS = 5000
+
+
 async def collect_prices(
     ctx: dict | None = None, *, days: int | None = None, backfill: bool = False
 ) -> dict:
@@ -37,12 +41,17 @@ async def collect_prices(
     today = datetime.now(ZoneInfo("Europe/Istanbul")).date()
 
     async with session_factory() as session:
-        count_res = await session.execute(select(func.count(PriceDaily.id)))
+        # Yalniz "5000'den az mi" sorusu sorulur; tum tablo sayilmaz.
+        count_res = await session.execute(
+            select(func.count()).select_from(
+                select(PriceDaily.id).limit(PRICE_BACKFILL_MIN_ROWS).subquery()
+            )
+        )
         row_count = count_res.scalar() or 0
 
         if days is not None:
             start_date = today - timedelta(days=days)
-        elif backfill or row_count < 5000:
+        elif backfill or row_count < PRICE_BACKFILL_MIN_ROWS:
             logger.info("price_history_backfill_active", current_rows=row_count)
             start_date = today - timedelta(days=365 * DEFAULT_BACKFILL_YEARS)
         else:
@@ -65,28 +74,27 @@ PRICE_BACKFILL_RETRY_SECONDS = 30 * 24 * 60 * 60
 
 
 async def _short_history_tickers(today: date) -> list[str]:
-    from sqlalchemy import func, or_, select
+    from sqlalchemy import select
 
     from app.models import Instrument, PriceDaily
 
-    first = (
-        select(PriceDaily.ticker, func.min(PriceDaily.date).label("first_day"))
-        .group_by(PriceDaily.ticker)
-        .subquery()
+    # "Ilk fiyat esikten yeni (veya hic fiyat yok)" == "esikte/oncesinde fiyat yok".
+    # NOT EXISTS her aktif hisse icin (ticker, date) indeksine tek bakis yapar;
+    # GROUP BY ile tum price_daily taranmaz.
+    old_price_exists = (
+        select(PriceDaily.id)
+        .where(
+            PriceDaily.ticker == Instrument.ticker,
+            PriceDaily.date <= today - timedelta(days=PRICE_HISTORY_MIN_DAYS),
+        )
+        .exists()
     )
     async with session_factory() as session:
         return list(
             (
                 await session.scalars(
                     select(Instrument.ticker)
-                    .outerjoin(first, first.c.ticker == Instrument.ticker)
-                    .where(
-                        Instrument.is_active.is_(True),
-                        or_(
-                            first.c.first_day.is_(None),
-                            first.c.first_day > today - timedelta(days=PRICE_HISTORY_MIN_DAYS),
-                        ),
-                    )
+                    .where(Instrument.is_active.is_(True), ~old_price_exists)
                     .order_by(Instrument.ticker)
                 )
             ).all()

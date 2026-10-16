@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import type { Instrument, MarketHeatmapStock } from "@/lib/types";
+import type { InstrumentSummary, MarketHeatmapStock } from "@/lib/types";
 import { formatMoney, formatNumber, formatPercent, signalName } from "@/lib/format";
 import { Icon } from "./icon";
 import { InfiniteFeedStatus } from "./infinite-feed-status";
@@ -15,7 +15,7 @@ const BATCH_SIZE = 20;
 type SortKey = "ticker" | "change" | "volume" | "score";
 const SORT_LABELS: Record<SortKey, string> = { ticker: "Koda göre", change: "Günlük değişim", volume: "İşlem hacmi", score: "Bileşik skor" };
 
-export function InstrumentList({ instruments, quotes = {} }: { instruments: Instrument[]; quotes?: Record<string, MarketHeatmapStock> }) {
+export function InstrumentList({ instruments, quotes = {} }: { instruments: InstrumentSummary[]; quotes?: Record<string, MarketHeatmapStock> }) {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("ticker");
   const [visibleCount, setVisibleCount] = useState(BATCH_SIZE);
@@ -24,7 +24,7 @@ export function InstrumentList({ instruments, quotes = {} }: { instruments: Inst
     const trimmed = query.trim();
     if (!trimmed) {
       if (sort === "ticker") return instruments;
-      const value = (item: Instrument) => {
+      const value = (item: InstrumentSummary) => {
         const quote = quotes[item.ticker];
         if (!quote) return Number.NEGATIVE_INFINITY;
         return sort === "change" ? quote.change_pct : sort === "volume" ? quote.volume_try : quote.composite_score ?? Number.NEGATIVE_INFINITY;

@@ -13,7 +13,7 @@ const feeds = {
   },
   signals: {
     path: "/api/signals",
-    parameters: ["label", "after_score", "after_ticker", "after_id"],
+    parameters: ["label", "as_of", "after_score", "after_ticker", "after_id"],
   },
   watchlist: {
     path: "/api/signals",

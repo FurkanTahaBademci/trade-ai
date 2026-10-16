@@ -24,7 +24,14 @@ from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.collectors.base import BaseCollector, CollectorError, settings
+from app.collectors.base import (
+    BaseCollector,
+    CollectorError,
+    chunked,
+    dedupe_last,
+    row_changed,
+    settings,
+)
 from app.market_calendar.event_dates import disclosure_event_date
 from app.models import Instrument, KapAttachment, KapDisclosure
 
@@ -38,11 +45,39 @@ KAP_RESULT_LIMIT = 2000
 # Bir gunun bildirim sayisi limite carparsa uye OID'lerine gore bu boyutta
 # parcalara bolunup ayri ayri sorgulanir (bkz. _fetch_day).
 KAP_MEMBER_CHUNK_SIZE = 150
+# Liste upsert'i tek ifadede bu kadar satir yazar (13 kolon x 500 < 32767 parametre).
+KAP_UPSERT_CHUNK_SIZE = 500
 ISTANBUL = ZoneInfo("Europe/Istanbul")
+
+# Liste upsert'inde karsilastirilan alanlar. 3 gunluk kayan pencere her 5
+# dakikada ayni bildirimleri yeniden getirir; degismeyen satir yeniden
+# yazilmaz (olu tuple, WAL ve indeks bakimi uretmez).
+_LIST_UPDATE_COLUMNS = (
+    "published_at",
+    "kap_title",
+    "subject",
+    "summary",
+    "disclosure_class",
+    "disclosure_type",
+    "disclosure_category",
+    "ticker_codes",
+    "is_late",
+    "has_multi_language_support",
+    "attachment_count",
+    "raw_list_item",
+)
 
 
 def _chunk(items: list[str], size: int) -> list[list[str]]:
     return [items[index : index + size] for index in range(0, len(items), size)]
+
+
+def _list_item_index(item: dict) -> int | None:
+    index = item.get("disclosureIndex") or item.get("basicDisclosureIndex")
+    try:
+        return int(index) if index is not None else None
+    except (TypeError, ValueError):
+        return None
 
 # ObjectOutputStream ile yazilmis Java `byte[]` class descriptor'i. Hemen
 # ardindan 4-byte signed big-endian uzunluk ve dosyanin kendisi gelir.
@@ -277,10 +312,16 @@ class KapCollector(BaseCollector):
         query_date = start_date
         while query_date <= self._end_date:
             for item in await self._fetch_day(query_date):
-                index = item.get("disclosureIndex") or item.get("basicDisclosureIndex")
+                index = _list_item_index(item)
                 if index is None:
-                    raise CollectorError(f"KAP liste satirinda index eksik: {item!r}")
-                all_items[int(index)] = item
+                    # Tek bozuk satir tum pencerenin toplanmasini durdurmasin.
+                    self.log.warning(
+                        "kap_list_item_skipped",
+                        reason="disclosureIndex eksik/gecersiz",
+                        fields=sorted(item.keys()),
+                    )
+                    continue
+                all_items[index] = item
             query_date += timedelta(days=1)
         return list(all_items.values())
 
@@ -339,9 +380,9 @@ class KapCollector(BaseCollector):
                     f"{len(chunk)} uyelik parca); KAP_MEMBER_CHUNK_SIZE dusurulmeli"
                 )
             for item in chunk_data:
-                index = item.get("disclosureIndex") or item.get("basicDisclosureIndex")
+                index = _list_item_index(item)
                 if index is not None:
-                    merged[int(index)] = item
+                    merged[index] = item
         return list(merged.values())
 
     async def _save_detail(self, disclosure_index: int, payload: dict | list) -> int:
@@ -374,10 +415,12 @@ class KapCollector(BaseCollector):
             )
         )
 
-        attachments_count = 0
-        for item in mapped["attachments"]:
-            fields = map_attachment_metadata(disclosure_index, item)
-            stmt = pg_insert(KapAttachment).values(**fields)
+        attachment_rows = [
+            map_attachment_metadata(disclosure_index, item) for item in mapped["attachments"]
+        ]
+        unique_attachments = dedupe_last(attachment_rows, lambda row: row["obj_id"])
+        if unique_attachments:
+            stmt = pg_insert(KapAttachment).values(unique_attachments)
             stmt = stmt.on_conflict_do_update(
                 index_elements=[KapAttachment.obj_id],
                 set_={
@@ -388,50 +431,47 @@ class KapCollector(BaseCollector):
                 },
             )
             await self._session.execute(stmt)
-            attachments_count += 1
         await self._session.commit()
-        return attachments_count
+        return len(attachment_rows)
 
     async def run(self) -> dict:
         raw_items = await self._fetch_list()
         # Savunmaci dedup: KAP ayni index'i birden cok kez dondururse tek
         # upsert/detay istegi yap. Son gorulen metadata guncel kabul edilir.
-        by_index = {
-            mapped["disclosure_index"]: mapped
-            for item in raw_items
-            if (mapped := map_disclosure_list_item(item))
-        }
+        by_index: dict[int, dict] = {}
+        list_failures: list[dict[str, str | int]] = []
+        for position, item in enumerate(raw_items):
+            try:
+                mapped = map_disclosure_list_item(item)
+            except Exception as exc:  # noqa: BLE001 - tek bozuk satir pencereyi durdurmasin
+                list_failures.append({"position": position, "error": str(exc)})
+                self.log.warning("kap_list_item_failed", position=position, error=str(exc))
+                continue
+            by_index[mapped["disclosure_index"]] = mapped
         mapped_items = list(by_index.values())
         indices = [item["disclosure_index"] for item in mapped_items]
 
-        existing_details: dict[int, dict | None] = {}
+        # Yalniz "detay var mi" bilgisi gerekir; buyuk raw_detail JSON'u her
+        # 5 dakikada binlerce satir icin cekilmez.
+        existing_details: dict[int, bool] = {}
         if indices:
             result = await self._session.execute(
-                select(KapDisclosure.disclosure_index, KapDisclosure.raw_detail).where(
-                    KapDisclosure.disclosure_index.in_(indices)
-                )
+                select(
+                    KapDisclosure.disclosure_index,
+                    KapDisclosure.raw_detail.is_not(None).label("has_detail"),
+                ).where(KapDisclosure.disclosure_index.in_(indices))
             )
-            existing_details = {row[0]: row[1] for row in result.all()}
+            existing_details = {row[0]: bool(row[1]) for row in result.all()}
 
-        for fields in mapped_items:
-            stmt = pg_insert(KapDisclosure).values(**fields)
+        for batch in chunked(mapped_items, KAP_UPSERT_CHUNK_SIZE):
+            stmt = pg_insert(KapDisclosure).values(list(batch))
             stmt = stmt.on_conflict_do_update(
                 index_elements=[KapDisclosure.disclosure_index],
                 set_={
-                    "published_at": stmt.excluded.published_at,
-                    "kap_title": stmt.excluded.kap_title,
-                    "subject": stmt.excluded.subject,
-                    "summary": stmt.excluded.summary,
-                    "disclosure_class": stmt.excluded.disclosure_class,
-                    "disclosure_type": stmt.excluded.disclosure_type,
-                    "disclosure_category": stmt.excluded.disclosure_category,
-                    "ticker_codes": stmt.excluded.ticker_codes,
-                    "is_late": stmt.excluded.is_late,
-                    "has_multi_language_support": stmt.excluded.has_multi_language_support,
-                    "attachment_count": stmt.excluded.attachment_count,
-                    "raw_list_item": stmt.excluded.raw_list_item,
+                    **{column: stmt.excluded[column] for column in _LIST_UPDATE_COLUMNS},
                     "updated_at": func.now(),
                 },
+                where=row_changed(KapDisclosure, stmt.excluded, _LIST_UPDATE_COLUMNS),
             )
             await self._session.execute(stmt)
         await self._session.commit()
@@ -442,7 +482,7 @@ class KapCollector(BaseCollector):
         new_count = sum(index not in existing_details for index in indices)
 
         for index in indices:
-            if index in existing_details and existing_details[index] is not None:
+            if existing_details.get(index):
                 continue
             try:
                 detail_payload = await self.get_json(
@@ -463,4 +503,5 @@ class KapCollector(BaseCollector):
             "details_fetched": detail_fetched,
             "detail_failures": detail_failures,
             "attachments_saved": attachments_saved,
+            "list_failures": list_failures,
         }

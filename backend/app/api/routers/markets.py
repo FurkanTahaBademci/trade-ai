@@ -9,7 +9,8 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from redis.exceptions import RedisError
-from sqlalchemy import desc, select, text
+from sqlalchemy import desc, func, select, text
+from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.csv_export import csv_response
@@ -103,24 +104,29 @@ async def get_market_heatmap(
             "market_cap_try": row.market_cap_try or 0.0,
         }
 
-    # 3. En son sinyal snapshot'larini cek
-    signals_query = text("""
-        WITH ranked_signals AS (
-            SELECT
-                ticker,
-                CAST(composite_score AS FLOAT) as composite_score,
-                signal_label,
-                ROW_NUMBER() OVER (PARTITION BY ticker ORDER BY as_of_date DESC) as rn
-            FROM composite_signal_snapshot
-            WHERE model_version = :model_version
+    # 3. Son skor gununun sinyalleri. Tum skor gecmisi uzerinde ROW_NUMBER
+    # (her gun ~600 satir buyuyen tablo) yerine yalniz son gun indeksle okunur.
+    latest_signal_date = await db.scalar(
+        select(func.max(CompositeSignalSnapshot.as_of_date)).where(
+            CompositeSignalSnapshot.model_version == MODEL_VERSION
         )
-        SELECT ticker, composite_score, signal_label
-        FROM ranked_signals
-        WHERE rn = 1;
-    """)
-    signals_result = await db.execute(signals_query, {"model_version": MODEL_VERSION})
+    )
+    signals_result = (
+        await db.execute(
+            select(
+                CompositeSignalSnapshot.ticker,
+                CompositeSignalSnapshot.composite_score,
+                CompositeSignalSnapshot.signal_label,
+            ).where(
+                CompositeSignalSnapshot.as_of_date == latest_signal_date,
+                CompositeSignalSnapshot.model_version == MODEL_VERSION,
+            )
+        )
+        if latest_signal_date
+        else []
+    )
     signal_data = {
-        row.ticker: {"score": row.composite_score, "label": row.signal_label}
+        row.ticker: {"score": float(row.composite_score), "label": row.signal_label}
         for row in signals_result
     }
 
@@ -294,34 +300,33 @@ async def compare_companies(
                 float(f_row.net_income) if f_row.net_income is not None else None
             )
 
-    # 4. Analist Konsensuslari
-    consensus_map: dict[str, AnalystConsensus] = {}
-    for t in cleaned_tickers:
-        c_stmt = (
-            select(AnalystConsensus)
-            .where(AnalystConsensus.ticker == t)
-            .order_by(desc(AnalystConsensus.as_of_date))
-            .limit(1)
-        )
-        c_row = await db.scalar(c_stmt)
-        if c_row:
-            consensus_map[t] = c_row
-
-    # 5. Bilesik Sinyaller
-    signal_map: dict[str, CompositeSignalSnapshot] = {}
-    for t in cleaned_tickers:
-        s_stmt = (
-            select(CompositeSignalSnapshot)
-            .where(
-                CompositeSignalSnapshot.ticker == t,
-                CompositeSignalSnapshot.model_version == MODEL_VERSION,
+    # 4. Analist konsensuslari ve 5. bilesik sinyaller: hisse basina ayri sorgu
+    # yerine tek sorguda her hissenin en guncel satiri.
+    consensus_map: dict[str, AnalystConsensus] = {
+        row.ticker: row
+        for row in (
+            await db.scalars(
+                select(AnalystConsensus)
+                .where(AnalystConsensus.ticker.in_(cleaned_tickers))
+                .ext(distinct_on(AnalystConsensus.ticker))
+                .order_by(AnalystConsensus.ticker, desc(AnalystConsensus.as_of_date))
             )
-            .order_by(desc(CompositeSignalSnapshot.as_of_date))
-            .limit(1)
-        )
-        s_row = await db.scalar(s_stmt)
-        if s_row:
-            signal_map[t] = s_row
+        ).all()
+    }
+    signal_map: dict[str, CompositeSignalSnapshot] = {
+        row.ticker: row
+        for row in (
+            await db.scalars(
+                select(CompositeSignalSnapshot)
+                .where(
+                    CompositeSignalSnapshot.ticker.in_(cleaned_tickers),
+                    CompositeSignalSnapshot.model_version == MODEL_VERSION,
+                )
+                .ext(distinct_on(CompositeSignalSnapshot.ticker))
+                .order_by(CompositeSignalSnapshot.ticker, desc(CompositeSignalSnapshot.as_of_date))
+            )
+        ).all()
+    }
 
     # 6. Karsilastirma kartlari olustur
     companies: list[dict[str, Any]] = []

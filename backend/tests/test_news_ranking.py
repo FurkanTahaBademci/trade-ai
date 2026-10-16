@@ -81,3 +81,24 @@ async def test_smart_news_with_custom_min_impact_and_offset():
     assert 50 in compiled.params.values()
     assert 20 in compiled.params.values()
     assert 10 in compiled.params.values()
+
+
+async def test_smart_news_uses_fixed_reference_time_and_recent_window():
+    from datetime import UTC, datetime, timedelta
+
+    db = AsyncMock()
+    result = MagicMock()
+    result.all.return_value = []
+    db.execute.return_value = result
+    ref = datetime(2026, 10, 16, 9, 30, tzinfo=UTC)
+
+    await list_news(db=db, mode="smart", offset=12, ref=ref, limit=12)
+
+    compiled = db.execute.await_args.args[0].compile(dialect=postgresql.dialect())
+    values = list(compiled.params.values())
+    # Siralama "simdi" yerine sayfalar arasi sabit referansla hesaplanir...
+    assert "now()" not in str(compiled).lower()
+    assert ref in values
+    # ...ve yalniz son 30 gunun haberleri puanlanir.
+    assert ref - timedelta(days=30) in values
+    assert 12 in values

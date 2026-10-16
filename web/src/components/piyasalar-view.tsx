@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { Instrument, MarketHeatmapData, MarketHeatmapStock } from "@/lib/types";
+import type { InstrumentSummary, MarketHeatmapData, MarketHeatmapStock } from "@/lib/types";
 import { InstrumentList } from "./instrument-list";
 import { MarketHeatmap } from "./market-heatmap";
 import { Icon } from "./icon";
@@ -10,7 +10,7 @@ export function PiyasalarView({
   instruments,
   heatmap,
 }: {
-  instruments: Instrument[];
+  instruments: InstrumentSummary[];
   heatmap: MarketHeatmapData | null;
 }) {
   const [view, setView] = useState<"heatmap" | "table">("table");

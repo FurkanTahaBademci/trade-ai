@@ -38,10 +38,16 @@ from app.schemas.llm import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Iterable, Sequence
+
+    from sqlalchemy.engine import Row
 
 PROMPT_VERSION = "v1"
 PROMPT_PATH = Path(__file__).parent / "prompts" / f"{PROMPT_VERSION}.md"
+# Sinyal motoru yalniz son 14 gunde yayimlanan kaynaklarin degerlendirmelerini
+# kullanir. Degerlendirilmemis/basarisiz backlog ve Tier 2 adaylari bu pencereyle
+# sinirlanir; model degisince tum gecmis yeniden taranmaz ve ucretlendirilmez.
+BACKLOG_MAX_AGE_DAYS = 30
 _PROMPT_SECTION_RE = re.compile(
     r"<!-- (?P<name>TIER[12]_SYSTEM) -->\s*(?P<body>.*?)\s*<!-- END_(?P=name) -->",
     re.DOTALL,
@@ -152,7 +158,32 @@ def _truncate(value: str | None, max_chars: int) -> str | None:
     return f"{text[:max_chars].rstrip()}\n[TRUNCATED]"
 
 
-def document_from_news(article: NewsArticle, *, max_chars: int) -> SourceDocument:
+# Belge uretimi yalniz bu kolonlari okur. raw_entry, body_html, raw_detail ve
+# ek listesi (selectin) her 10 dakikalik kosuda yuzlerce satir icin cekilmez.
+NEWS_DOCUMENT_COLUMNS = (
+    NewsArticle.id,
+    NewsArticle.source,
+    NewsArticle.canonical_url,
+    NewsArticle.published_at,
+    NewsArticle.title,
+    NewsArticle.summary,
+    NewsArticle.ticker_codes,
+)
+KAP_DOCUMENT_COLUMNS = (
+    KapDisclosure.disclosure_index,
+    KapDisclosure.published_at,
+    KapDisclosure.kap_title,
+    KapDisclosure.subject,
+    KapDisclosure.summary,
+    KapDisclosure.body_text,
+    KapDisclosure.disclosure_class,
+    KapDisclosure.disclosure_type,
+    KapDisclosure.disclosure_category,
+    KapDisclosure.ticker_codes,
+)
+
+
+def document_from_news(article: NewsArticle | Row, *, max_chars: int) -> SourceDocument:
     full_payload = {
         "source": article.source,
         "canonical_url": article.canonical_url,
@@ -174,7 +205,7 @@ def document_from_news(article: NewsArticle, *, max_chars: int) -> SourceDocumen
     )
 
 
-def document_from_kap(disclosure: KapDisclosure, *, max_chars: int) -> SourceDocument:
+def document_from_kap(disclosure: KapDisclosure | Row, *, max_chars: int) -> SourceDocument:
     full_payload = {
         "published_at": disclosure.published_at.isoformat(),
         "kap_title": disclosure.kap_title,
@@ -637,6 +668,7 @@ class LlmEvaluationService:
         scan_limit = max(self._settings.llm_batch_size * 5, 100)
         model = self._settings.gemini_model_tier1
         api_mode = self._settings.gemini_api_mode
+        backlog_since = datetime.now(UTC) - timedelta(days=BACKLOG_MAX_AGE_DAYS)
         news_evaluated = (
             select(LlmEvaluation.id)
             .where(
@@ -662,43 +694,55 @@ class LlmEvaluationService:
             .exists()
         )
 
+        # Son girdiler degerlendirme durumundan bagimsiz okunur: icerigi sonradan
+        # degisen (orn. KAP detayi gec gelen) girdinin yeni content_hash'i burada
+        # yakalanir. Zaten degerlendirilmis olanlar asagida tek sorguyla elenir.
         recent_news = (
-            await self._session.scalars(
-                select(NewsArticle).order_by(NewsArticle.published_at.desc()).limit(scan_limit)
+            await self._session.execute(
+                select(*NEWS_DOCUMENT_COLUMNS)
+                .order_by(NewsArticle.published_at.desc())
+                .limit(scan_limit)
             )
         ).all()
         backlog_news = (
-            await self._session.scalars(
-                select(NewsArticle)
-                .where(~news_evaluated)
+            await self._session.execute(
+                select(*NEWS_DOCUMENT_COLUMNS)
+                .where(~news_evaluated, NewsArticle.published_at >= backlog_since)
                 .order_by(NewsArticle.published_at.desc())
                 .limit(scan_limit)
             )
         ).all()
         recent_disclosures = (
-            await self._session.scalars(
-                select(KapDisclosure).order_by(KapDisclosure.published_at.desc()).limit(scan_limit)
-            )
-        ).unique().all()
-        backlog_disclosures = (
-            await self._session.scalars(
-                select(KapDisclosure)
-                .where(~kap_evaluated)
+            await self._session.execute(
+                select(*KAP_DOCUMENT_COLUMNS)
                 .order_by(KapDisclosure.published_at.desc())
                 .limit(scan_limit)
             )
-        ).unique().all()
+        ).all()
+        backlog_disclosures = (
+            await self._session.execute(
+                select(*KAP_DOCUMENT_COLUMNS)
+                .where(~kap_evaluated, KapDisclosure.published_at >= backlog_since)
+                .order_by(KapDisclosure.published_at.desc())
+                .limit(scan_limit)
+            )
+        ).all()
 
         stale_before = datetime.now(UTC) - timedelta(minutes=30)
         retry_records = (
-            await self._session.scalars(
-                select(LlmEvaluation)
+            await self._session.execute(
+                select(
+                    LlmEvaluation.source_type,
+                    LlmEvaluation.source_id,
+                    LlmEvaluation.content_hash,
+                )
                 .where(
                     LlmEvaluation.tier == 1,
                     LlmEvaluation.prompt_version == PROMPT_VERSION,
                     LlmEvaluation.model == model,
                     LlmEvaluation.api_mode == api_mode,
                     LlmEvaluation.attempt_count < self._settings.llm_max_attempts,
+                    LlmEvaluation.created_at >= backlog_since,
                     or_(
                         LlmEvaluation.status == "failed",
                         (LlmEvaluation.status == "running")
@@ -718,18 +762,63 @@ class LlmEvaluationService:
             document = document_from_kap(row, max_chars=self._settings.llm_max_source_chars)
             documents[(document.source_type, document.source_id, document.content_hash)] = document
         retry_keys: set[tuple[str, int, str]] = set()
+        retry_documents = await self._load_documents(
+            [(record.source_type, record.source_id) for record in retry_records]
+        )
         for record in retry_records:
-            document = await self._load_document(record.source_type, record.source_id)
+            document = retry_documents.get((record.source_type, record.source_id))
             if document is not None and document.content_hash == record.content_hash:
                 key = (document.source_type, document.source_id, document.content_hash)
                 documents[key] = document
                 retry_keys.add(key)
 
-        documents = await self._filter_off_topic_news(documents, model=model)
+        # Mevcut kayitlar tek sorguda okunur; basarili/filtrelenmis veya deneme
+        # hakki bitmis belgeler gruplara hic girmez (belge basina SELECT yok).
+        records = await self._tier1_records(documents.values(), model=model)
+        documents = await self._filter_off_topic_news(
+            documents, model=model, existing_keys=set(records)
+        )
+        max_attempts = self._settings.llm_max_attempts
+        documents = {
+            key: document
+            for key, document in documents.items()
+            if self._can_attempt(
+                records.get(evaluation_key(document, tier=1, model=model, api_mode=api_mode)),
+                max_attempts,
+            )
+        }
         return _prioritize_documents(documents, retry_keys)
 
+    async def _tier1_records(
+        self, documents: Iterable[SourceDocument], *, model: str
+    ) -> dict[str, Row]:
+        """Belgelerin Tier 1 kayitlarinin durumunu evaluation_key ile tek sorguda okur."""
+        keys = [
+            evaluation_key(
+                document, tier=1, model=model, api_mode=self._settings.gemini_api_mode
+            )
+            for document in documents
+        ]
+        if not keys:
+            return {}
+        rows = (
+            await self._session.execute(
+                select(
+                    LlmEvaluation.evaluation_key,
+                    LlmEvaluation.status,
+                    LlmEvaluation.attempt_count,
+                    LlmEvaluation.started_at,
+                ).where(LlmEvaluation.evaluation_key.in_(keys))
+            )
+        ).all()
+        return {row.evaluation_key: row for row in rows}
+
     async def _filter_off_topic_news(
-        self, documents: dict[tuple[str, int, str], SourceDocument], *, model: str
+        self,
+        documents: dict[tuple[str, int, str], SourceDocument],
+        *,
+        model: str,
+        existing_keys: set[str],
     ) -> dict[tuple[str, int, str], SourceDocument]:
         """Piyasa disi haberleri 'filtered' olarak kaydeder ve LLM listesinden cikarir."""
         kept: dict[tuple[str, int, str], SourceDocument] = {}
@@ -742,14 +831,17 @@ class LlmEvaluationService:
             ):
                 kept[key] = document
                 continue
+            record_key = evaluation_key(
+                document,
+                tier=1,
+                model=model,
+                api_mode=self._settings.gemini_api_mode,
+            )
+            if record_key in existing_keys:
+                continue
             filtered.append(
                 LlmEvaluation(
-                    evaluation_key=evaluation_key(
-                        document,
-                        tier=1,
-                        model=model,
-                        api_mode=self._settings.gemini_api_mode,
-                    ),
+                    evaluation_key=record_key,
                     source_type=document.source_type,
                     source_id=document.source_id,
                     content_hash=document.content_hash,
@@ -769,31 +861,37 @@ class LlmEvaluationService:
                 )
             )
         if filtered:
-            for record in filtered:
-                if await self._existing(record.evaluation_key) is None:
-                    self._session.add(record)
+            self._session.add_all(filtered)
             try:
                 await self._session.commit()
             except IntegrityError:
                 await self._session.rollback()
         return kept
 
-    async def _load_document(self, source_type: str, source_id: int) -> SourceDocument | None:
-        if source_type == "news":
-            article = await self._session.get(NewsArticle, source_id)
-            return (
-                document_from_news(article, max_chars=self._settings.llm_max_source_chars)
-                if article
-                else None
-            )
-        disclosure = await self._session.get(KapDisclosure, source_id)
-        return (
-            document_from_kap(disclosure, max_chars=self._settings.llm_max_source_chars)
-            if disclosure
-            else None
-        )
+    async def _load_documents(
+        self, sources: Iterable[tuple[str, int]]
+    ) -> dict[tuple[str, int], SourceDocument]:
+        """Kaynaklari tur basina tek sorguda ve yalniz belge kolonlariyla yukler."""
+        wanted = set(sources)
+        news_ids = sorted(source_id for source_type, source_id in wanted if source_type == "news")
+        kap_ids = sorted(source_id for source_type, source_id in wanted if source_type == "kap")
+        max_chars = self._settings.llm_max_source_chars
+        documents: dict[tuple[str, int], SourceDocument] = {}
+        if news_ids:
+            for row in await self._session.execute(
+                select(*NEWS_DOCUMENT_COLUMNS).where(NewsArticle.id.in_(news_ids))
+            ):
+                documents[("news", row.id)] = document_from_news(row, max_chars=max_chars)
+        if kap_ids:
+            for row in await self._session.execute(
+                select(*KAP_DOCUMENT_COLUMNS).where(KapDisclosure.disclosure_index.in_(kap_ids))
+            ):
+                documents[("kap", row.disclosure_index)] = document_from_kap(
+                    row, max_chars=max_chars
+                )
+        return documents
 
-    async def _tier2_parents(self) -> Sequence[LlmEvaluation]:
+    async def _tier2_parents(self) -> Sequence[Row]:
         child = aliased(LlmEvaluation)
         api_mode = self._settings.gemini_api_mode
         tier2_model = self._settings.gemini_model_tier2
@@ -821,15 +919,25 @@ class LlmEvaluationService:
             )
             .exists()
         )
+        # Yalniz Tier 2 girdisi icin gereken kolonlar: input_document/raw_response
+        # gibi buyuk alanlar cekilmez. Duz satirlar rollback sonrasi da okunabilir.
         return (
-            await self._session.scalars(
-                select(LlmEvaluation)
+            await self._session.execute(
+                select(
+                    LlmEvaluation.evaluation_key,
+                    LlmEvaluation.source_type,
+                    LlmEvaluation.source_id,
+                    LlmEvaluation.content_hash,
+                    LlmEvaluation.result,
+                )
                 .where(
                     LlmEvaluation.tier == 1,
                     LlmEvaluation.api_mode == api_mode,
                     LlmEvaluation.model == self._settings.gemini_model_tier1,
                     LlmEvaluation.status == "succeeded",
                     LlmEvaluation.requires_tier2.is_(True),
+                    LlmEvaluation.created_at
+                    >= datetime.now(UTC) - timedelta(days=BACKLOG_MAX_AGE_DAYS),
                     or_(~child_exists, retryable_child_exists),
                 )
                 .order_by(LlmEvaluation.impact_score.desc(), LlmEvaluation.completed_at.desc())
@@ -843,7 +951,7 @@ class LlmEvaluationService:
         )
 
     @staticmethod
-    def _can_attempt(record: LlmEvaluation | None, max_attempts: int) -> bool:
+    def _can_attempt(record: LlmEvaluation | Row | None, max_attempts: int) -> bool:
         if record is None:
             return True
         if record.status in {"succeeded", "filtered"} or record.attempt_count >= max_attempts:
@@ -1141,7 +1249,7 @@ class LlmEvaluationService:
         *,
         tier: int,
         known_tickers: set[str],
-        parent: LlmEvaluation | None = None,
+        parent: Row | None = None,
     ) -> tuple[str, GatewayResponse | None]:
         model = (
             self._settings.gemini_model_tier1
@@ -1263,13 +1371,17 @@ class LlmEvaluationService:
         tier2_attempted = 0
         tier2_batch_size = max(1, self._settings.llm_batch_size // 4)
         if not result["budget_exhausted"] and not self._provider_pause:
-            for parent in await self._tier2_parents():
+            parents = await self._tier2_parents()
+            parent_documents = await self._load_documents(
+                (parent.source_type, parent.source_id) for parent in parents
+            )
+            for parent in parents:
                 if tier2_attempted >= tier2_batch_size:
                     break
                 if not self._budget_available(input_tokens, output_tokens):
                     result["budget_exhausted"] = True
                     break
-                document = await self._load_document(parent.source_type, parent.source_id)
+                document = parent_documents.get((parent.source_type, parent.source_id))
                 if document is None or document.content_hash != parent.content_hash:
                     result["skipped"] += 1
                     continue

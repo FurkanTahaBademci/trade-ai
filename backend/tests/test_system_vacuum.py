@@ -86,11 +86,19 @@ async def test_get_system_stats_endpoint(test_app, monkeypatch):
 
     # Mock DB queries
     async def fake_get_db():
+        class Rows(list):
+            # Planlayici istatistigi yok (tablo analiz edilmemis) -> kesin sayim yolu.
+            def scalar(self):
+                return None
+
+            def all(self):
+                return list(self)
+
         class FakeSession:
             async def scalar(self, stmt):
                 return 42
-            async def execute(self, stmt):
-                return [("src1", 10), ("src2", 20)]
+            async def execute(self, stmt, params=None):
+                return Rows([("src1", 10), ("src2", 20)])
         yield FakeSession()
 
     from app.core.db import get_db
@@ -103,7 +111,8 @@ async def test_get_system_stats_endpoint(test_app, monkeypatch):
     assert data["instruments_total"] == 42
     assert data["news_total"] == 42
     assert data["disclosures_total"] == 42
-    assert data["signals_total"] == 42
+    # Son gunun etiket sayilarinin toplami.
+    assert data["signals_total"] == 30
     assert data["funds_total"] == 42
     assert "src1" in data["news_by_source"]
 

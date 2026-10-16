@@ -9,6 +9,59 @@ bu bölümü yeni sürüm numarasıyla kapatır.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-17
+
+### Değişti
+
+- **Daha az veritabanı yükü (okuma tarafı).**
+  - Sistem sayaçları (haber, KAP, AI analizi toplamları ve kırılımları) büyük
+    tablolarda `count(*)` ile tüm tabloyu taramak yerine PostgreSQL planlayıcı
+    istatistiğinden tahmin edilir; 100 binden küçük tablolarda kesin sayım
+    sürer. Sayaçlar 5 dakika önbelleklenir. "Takip edilen fon" tüm geçmişte
+    `DISTINCT` yerine son günün fonlarını sayar.
+  - Isı haritası son skoru bulmak için tüm skor geçmişini taramaz; yalnız son
+    skor günü okunur.
+  - Akıllı haber sıralaması yalnız son 30 günü puanlar; değerlendirme seçimi
+    pencere fonksiyonu yerine `DISTINCT ON` ile yapılır.
+  - Karşılaştırma, hisse başına ayrı sorgu yerine iki toplu sorgu kullanır;
+    sabah bülteni skorların yalnız gereken kolonlarını okur.
+  - AI analizleri listesi ve günlük LLM token bütçesi kontrolü için yeni
+    indeksler (`d4b8e2f1a6c3` migration'ı).
+- **Daha az veritabanı yükü (yazma tarafı, arka plan işleri).**
+  - LLM değerlendirmesi (10 dakikada bir) belgeleri yalnız gereken kolonlarla
+    okur; daha önce değerlendirilmiş belgeleri belge başına sorgu yerine tek
+    sorguda eler. Durgun bir koşu ~580 yerine ~80 SQL ifadesi çalıştırır.
+  - KAP, haber, temel analiz, analist ve hisse listesi toplayıcıları satır satır
+    yerine çok satırlı toplu upsert kullanır. KAP ve haberde içeriği değişmeyen
+    satırlar her koşuda yeniden yazılmaz (ölü satır ve WAL üretmez);
+    `updated_at` yalnız içerik değişince güncellenir.
+  - KAP koşusu detay kontrolü için büyük detay JSON'unu çekmez; bildirimler,
+    fon akımı, paper portföy ve analist konsensüsü yalnız ihtiyaç duyduğu
+    kolonları ve tarih aralığını okur.
+  - Fiyat toplayıcısı ilk kurulum kontrolü için tüm fiyat tablosunu saymaz;
+    kısa geçmişli hisse tespiti `GROUP BY` yerine indeksli `NOT EXISTS` kullanır.
+- LLM backlog'u ve yeniden denemeler son 30 günle sınırlandı: model/prompt
+  değişince tüm geçmiş yeniden değerlendirilip ücretlendirilmez (sinyaller
+  zaten yalnız son 14 günü kullanır).
+- Analist konsensüsündeki piyasa fiyatı son 30 günün kapanışından alınır.
+- **Hisse sayfası akışla yüklenir.** İlk ekran için 8 istek beklenir (önceden
+  13 + 2 sıralı); haber/KAP, AI/portföy ve faiz bölümleri hazır oldukça gelir.
+  Fiyat geçmişi grafiğe nesne yerine kompakt diziler olarak gönderilir (aynı
+  veri JSON'da yarıdan az yer tutar).
+- Hisse Tarayıcı tablosu ve Piyasalar listesi istemciye yalnız gösterilen
+  alanları gönderir.
+
+### Düzeltildi
+
+- Akıllı haber akışında aşağı kaydırırken haberler tekrar ediyor veya
+  atlanıyordu: sıralama her sayfada "şimdi"ye göre yeniden hesaplanıyordu.
+  Artık tüm sayfalar ilk sayfanın zamanıyla sıralanır (`ref` parametresi).
+- Bileşik sinyal listesinde gece yarısı yeni skor günü oluşursa sonraki
+  sayfalar başka günden geliyordu; imleç artık skor tarihini taşır.
+- KAP listesinde index'i veya tarihi bozuk tek bir satır tüm toplama koşusunu
+  durduruyordu; artık o satır loglanıp atlanır ve sonuçta `list_failures`
+  olarak raporlanır.
+
 ## [0.5.1] - 2026-10-16
 
 ### Düzeltildi

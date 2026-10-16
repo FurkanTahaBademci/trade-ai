@@ -17,13 +17,15 @@ export function InfiniteNewsFeed({
   source,
   mode = "smart",
   ticker,
+  rankingRef,
 }: {
   initialItems: NewsArticle[];
   source?: string;
   mode?: "smart" | "chronological";
   ticker?: string;
+  rankingRef?: string;
 }) {
-  const filters = useMemo(() => ({ source, mode, ticker }), [source, mode, ticker]);
+  const filters = useMemo(() => ({ source, mode, ticker, ref: rankingRef }), [source, mode, ticker, rankingRef]);
 
   const cursorFor = useCallback(
     (item: NewsArticle, itemCount: number) => newsFeedCursor(mode, item, itemCount),

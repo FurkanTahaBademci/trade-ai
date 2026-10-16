@@ -13,6 +13,7 @@ from datetime import date
 from typing import Any
 
 from sqlalchemy import func, select, text
+from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.sectors import resolve_sector
@@ -223,7 +224,7 @@ async def load_screener_rows(session: AsyncSession) -> tuple[date | None, list[d
                     AnalystConsensus.recommendation_score,
                     AnalystConsensus.institution_count,
                 )
-                .distinct(AnalystConsensus.ticker)
+                .ext(distinct_on(AnalystConsensus.ticker))
                 .order_by(AnalystConsensus.ticker, AnalystConsensus.as_of_date.desc())
             )
         ).all()

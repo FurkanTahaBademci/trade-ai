@@ -10,7 +10,10 @@ import { InfiniteFeedStatus } from "./infinite-feed-status";
 import { EmptyState, ScoreMeter } from "./ui";
 
 const PAGE_SIZE = 15;
+// Tarih de imlece girer: gece yarısı yeni skor günü oluşursa sonraki sayfalar
+// başka günün listesinden gelmesin.
 const signalCursor = (item: CompositeSignal) => ({
+  as_of: item.as_of_date,
   after_score: item.composite_score,
   after_ticker: item.ticker,
   after_id: item.id,

@@ -1,11 +1,11 @@
 """RSS haberlerini listeleme ve detay endpoint'leri."""
 
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import and_, cast, func, or_, select
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import and_, cast, func, literal, or_, select
+from sqlalchemy.dialects.postgresql import JSONB, distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
@@ -13,6 +13,8 @@ from app.models import LlmEvaluation, NewsArticle
 from app.schemas.news import NewsArticleDetailOut, NewsArticleListOut
 
 router = APIRouter(prefix="/api/news", tags=["news"])
+# Akilli siralama yalniz bu kadar yeni haberleri puanlar (kronolojik akis sinirsiz).
+SMART_WINDOW_DAYS = 30
 
 
 @router.get("", response_model=list[NewsArticleListOut])
@@ -36,41 +38,43 @@ async def list_news(
         Query(ge=1, description="Ayni yayin zamanindaki haberler icin cursor ID"),
     ] = None,
     offset: Annotated[int, Query(ge=0, description="Sayfalama ofseti")] = 0,
+    ref: Annotated[
+        datetime | None,
+        Query(
+            description=(
+                "Akilli siralamanin referans zamani. Sonsuz kaydirmada ilk sayfanin "
+                "zamani tum sayfalara verilir; aksi halde siralama sayfalar arasinda "
+                "kayar ve offset ile haber tekrar eder ya da atlanir."
+            )
+        ),
+    ] = None,
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
 ) -> list[NewsArticleListOut]:
     is_chronological = mode == "chronological" or before is not None
+    reference = ref or datetime.now(UTC)
+    if reference.tzinfo is None:
+        reference = reference.replace(tzinfo=UTC)
+    smart_since = reference - timedelta(days=SMART_WINDOW_DAYS)
 
-    # Succeeded evaluations ranked by tier and id to pick the best evaluation per article
-    eval_rn = func.row_number().over(
-        partition_by=LlmEvaluation.source_id,
-        order_by=[LlmEvaluation.tier.desc(), LlmEvaluation.id.desc()],
-    ).label("eval_rn")
-
-    eval_subq = (
+    # Haber basina en iyi basarili degerlendirme: once Tier 2, sonra en yeni.
+    eval_stmt = (
         select(
             LlmEvaluation.source_id.label("source_id"),
             LlmEvaluation.impact_score.label("impact_score"),
             LlmEvaluation.sentiment_score.label("sentiment_score"),
             LlmEvaluation.event_type.label("event_type"),
-            eval_rn,
         )
         .where(
             LlmEvaluation.source_type == "news",
             LlmEvaluation.status == "succeeded",
         )
-        .subquery("eval_subq")
+        .ext(distinct_on(LlmEvaluation.source_id))
+        .order_by(LlmEvaluation.source_id, LlmEvaluation.tier.desc(), LlmEvaluation.id.desc())
     )
-
-    latest_eval = (
-        select(
-            eval_subq.c.source_id,
-            eval_subq.c.impact_score,
-            eval_subq.c.sentiment_score,
-            eval_subq.c.event_type,
-        )
-        .where(eval_subq.c.eval_rn == 1)
-        .subquery("latest_eval")
-    )
+    if not is_chronological:
+        # Degerlendirme haber yayinlandiktan sonra yapilir; pencere disi taranmaz.
+        eval_stmt = eval_stmt.where(LlmEvaluation.created_at >= smart_since - timedelta(days=1))
+    latest_eval = eval_stmt.subquery("latest_eval")
 
     stmt = select(
         NewsArticle,
@@ -108,9 +112,13 @@ async def list_news(
             # Genel akis: Sadece pozitif etki puanina sahip onemli haberler
             stmt = stmt.where(latest_eval.c.impact_score > 0)
 
+        # Puan zamanla hizla soner (30 gunde ~1/60); daha eskisi siralamaya giremez.
+        stmt = stmt.where(
+            NewsArticle.published_at >= smart_since, NewsArticle.published_at <= reference
+        )
         # Zaman asimi / guncellik fonksiyonu: impact / ((saat + 2)^0.7)
         hours_elapsed = func.greatest(
-            (func.extract("epoch", func.now() - NewsArticle.published_at) / 3600.0),
+            (func.extract("epoch", literal(reference) - NewsArticle.published_at) / 3600.0),
             0.0,
         )
         impact = func.coalesce(latest_eval.c.impact_score, 20)

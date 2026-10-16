@@ -23,6 +23,7 @@ from app.core.config import Settings
 from app.core.db import engine, get_db
 from app.core.dynamic_settings import resolve_settings
 from app.core.redis import get_redis
+from app.core.table_stats import fast_count, fast_grouped_count, value_frequencies
 from app.llm.quota import get_provider_pause
 from app.llm.service import PROMPT_VERSION
 from app.models import (
@@ -108,14 +109,20 @@ async def get_system_stats(
         )
         or 0
     )
-    news_total = int(await db.scalar(select(func.count(NewsArticle.id))) or 0)
-    news_source_rows = await db.execute(
-        select(NewsArticle.source, func.count(NewsArticle.id)).group_by(NewsArticle.source)
+    # Buyuk tablolarda tam tarama yerine planlayici istatistigi (app/core/table_stats.py).
+    news_total, news_estimated = await fast_count(
+        db, "news_article", select(func.count(NewsArticle.id))
     )
-    news_by_source = {str(row[0]): int(row[1]) for row in news_source_rows}
-
-    disclosures_total = int(
-        await db.scalar(select(func.count(KapDisclosure.disclosure_index))) or 0
+    news_by_source = await fast_grouped_count(
+        db,
+        "news_article",
+        "source",
+        select(NewsArticle.source, func.count(NewsArticle.id)).group_by(NewsArticle.source),
+        total=news_total,
+        estimated=news_estimated,
+    )
+    disclosures_total, _ = await fast_count(
+        db, "kap_disclosure", select(func.count(KapDisclosure.disclosure_index))
     )
 
     latest_signal_date = await db.scalar(
@@ -123,18 +130,9 @@ async def get_system_stats(
             CompositeSignalSnapshot.model_version == MODEL_VERSION
         )
     )
-    signals_total = 0
     signals_by_label: dict[str, int] = {}
     if latest_signal_date is not None:
-        signals_total = int(
-            await db.scalar(
-                select(func.count(CompositeSignalSnapshot.id)).where(
-                    CompositeSignalSnapshot.as_of_date == latest_signal_date,
-                    CompositeSignalSnapshot.model_version == MODEL_VERSION,
-                )
-            )
-            or 0
-        )
+        # Yalniz son gunun ~600 satiri; (as_of_date, composite_score) indeksiyle okunur.
         signal_label_rows = await db.execute(
             select(
                 CompositeSignalSnapshot.signal_label, func.count(CompositeSignalSnapshot.id)
@@ -146,22 +144,43 @@ async def get_system_stats(
             .group_by(CompositeSignalSnapshot.signal_label)
         )
         signals_by_label = {str(row[0]): int(row[1]) for row in signal_label_rows}
+    signals_total = sum(signals_by_label.values())
 
-    evaluations_total = int(
-        await db.scalar(
-            select(func.count(LlmEvaluation.id)).where(LlmEvaluation.status != "filtered")
+    not_filtered = LlmEvaluation.status != "filtered"
+    evaluations_total, evaluations_estimated = await fast_count(
+        db, "llm_evaluation", select(func.count(LlmEvaluation.id)).where(not_filtered)
+    )
+    if evaluations_estimated:
+        # Tahmin tum satirlari sayar; on filtrenin eledigi kayitlarin payi dusulur.
+        filtered_share = (await value_frequencies(db, "llm_evaluation", "status")).get(
+            "filtered", 0.0
         )
-        or 0
-    )
-    evaluation_source_rows = await db.execute(
+        evaluations_total = round(evaluations_total * (1 - filtered_share))
+    evaluations_by_source = await fast_grouped_count(
+        db,
+        "llm_evaluation",
+        "source_type",
         select(LlmEvaluation.source_type, func.count(LlmEvaluation.id))
-        .where(LlmEvaluation.status != "filtered")
-        .group_by(LlmEvaluation.source_type)
+        .where(not_filtered)
+        .group_by(LlmEvaluation.source_type),
+        total=evaluations_total,
+        estimated=evaluations_estimated,
     )
-    evaluations_by_source = {str(row[0]): int(row[1]) for row in evaluation_source_rows}
 
-    funds_total = int(
-        await db.scalar(select(func.count(func.distinct(FundSnapshot.fund_code)))) or 0
+    # Takip edilen fon: tum gecmiste DISTINCT yerine son gunun fonlari
+    # ((date, fund_kind) indeksiyle tek gun okunur).
+    latest_fund_date = await db.scalar(select(func.max(FundSnapshot.date)))
+    funds_total = (
+        int(
+            await db.scalar(
+                select(func.count(func.distinct(FundSnapshot.fund_code))).where(
+                    FundSnapshot.date == latest_fund_date
+                )
+            )
+            or 0
+        )
+        if latest_fund_date is not None
+        else 0
     )
 
     stats = SystemStatsOut(
@@ -177,7 +196,8 @@ async def get_system_stats(
     )
 
     try:
-        await redis.set(cache_key, stats.model_dump_json(), ex=60)
+        # Sayaclar dakikalar mertebesinde degisir; 5 dakika yeterince taze.
+        await redis.set(cache_key, stats.model_dump_json(), ex=300)
     except RedisError as exc:
         logger.warning("system_stats_cache_write_failed", error=str(exc))
 

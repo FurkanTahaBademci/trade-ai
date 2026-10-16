@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends
 from redis.exceptions import RedisError
 from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import load_only
 
 from app.core.db import get_db
 from app.core.redis import get_redis
@@ -93,8 +94,16 @@ async def get_market_briefing(
         .where(CompositeSignalSnapshot.model_version == MODEL_VERSION)
         .scalar_subquery()
     )
+    # Yalniz uc kolon gerekir; ~600 satirin kanit/bilesen JSON'lari cekilmez.
     pos_signals_stmt = (
         select(CompositeSignalSnapshot)
+        .options(
+            load_only(
+                CompositeSignalSnapshot.ticker,
+                CompositeSignalSnapshot.composite_score,
+                CompositeSignalSnapshot.confidence,
+            )
+        )
         .where(
             CompositeSignalSnapshot.as_of_date == latest_signal_date,
             CompositeSignalSnapshot.model_version == MODEL_VERSION,

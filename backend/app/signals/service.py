@@ -30,6 +30,7 @@ from types import SimpleNamespace
 from typing import Any
 
 from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import load_only
@@ -453,7 +454,7 @@ async def run_signal_engine(
             # Alt sinir tum fiyat gecmisini (yillar) taramayi onler; 30 gundur
             # islem gormeyen hissede analist getiri potansiyeli zaten anlamsizdir.
             .where(PriceDaily.date <= as_of, PriceDaily.date >= as_of - timedelta(days=30))
-            .distinct(PriceDaily.ticker)
+            .ext(distinct_on(PriceDaily.ticker))
             .order_by(PriceDaily.ticker, PriceDaily.date.desc())
         )
     ).all()

@@ -22,7 +22,7 @@ from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.collectors.base import BaseCollector, CollectorError
+from app.collectors.base import BaseCollector, CollectorError, chunked, row_changed
 from app.models import Instrument, NewsArticle
 
 
@@ -55,6 +55,20 @@ _TRACKING_QUERY_KEYS = {
     "referrer",
 }
 _EXPLICIT_TICKER_RE = re.compile(r"(?<![A-Za-z0-9])([A-Z]{3,8})(?![A-Za-z0-9])")
+# Tek upsert ifadesindeki satir sayisi (11 kolon x 500 < 32767 parametre).
+NEWS_UPSERT_CHUNK_SIZE = 500
+_UPDATE_COLUMNS = (
+    "source",
+    "source_guid",
+    "canonical_url",
+    "title",
+    "summary",
+    "author",
+    "image_url",
+    "published_at",
+    "ticker_codes",
+    "raw_entry",
+)
 
 
 class _TextParser(HTMLParser):
@@ -281,23 +295,16 @@ class NewsCollector(BaseCollector):
             )
             existing_hashes = set(result.all())
 
-        for fields in by_hash.values():
-            stmt = pg_insert(NewsArticle).values(**fields)
+        for batch in chunked(list(by_hash.values()), NEWS_UPSERT_CHUNK_SIZE):
+            stmt = pg_insert(NewsArticle).values(list(batch))
             stmt = stmt.on_conflict_do_update(
                 index_elements=[NewsArticle.url_hash],
                 set_={
-                    "source": stmt.excluded.source,
-                    "source_guid": stmt.excluded.source_guid,
-                    "canonical_url": stmt.excluded.canonical_url,
-                    "title": stmt.excluded.title,
-                    "summary": stmt.excluded.summary,
-                    "author": stmt.excluded.author,
-                    "image_url": stmt.excluded.image_url,
-                    "published_at": stmt.excluded.published_at,
-                    "ticker_codes": stmt.excluded.ticker_codes,
-                    "raw_entry": stmt.excluded.raw_entry,
+                    **{column: stmt.excluded[column] for column in _UPDATE_COLUMNS},
                     "updated_at": func.now(),
                 },
+                # RSS ayni haberleri her kosuda yeniden listeler; degismeyen satir yazilmaz.
+                where=row_changed(NewsArticle, stmt.excluded, _UPDATE_COLUMNS),
             )
             await self._session.execute(stmt)
         await self._session.commit()

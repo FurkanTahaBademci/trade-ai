@@ -191,6 +191,8 @@ async def _latest_prices(
 ) -> dict[str, tuple[date, Decimal]]:
     if not tickers:
         return {}
+    # Cagiran yalniz MAX_MARK_STALE_DAYS icindeki fiyatlari kullanir; ~600 hissenin
+    # tum fiyat gecmisi pencere fonksiyonuyla siralanmaz.
     ranked = (
         select(
             PriceDaily.ticker.label("ticker"),
@@ -200,7 +202,11 @@ async def _latest_prices(
             .over(partition_by=PriceDaily.ticker, order_by=PriceDaily.date.desc())
             .label("rank"),
         )
-        .where(PriceDaily.ticker.in_(tickers), PriceDaily.date <= as_of_date)
+        .where(
+            PriceDaily.ticker.in_(tickers),
+            PriceDaily.date <= as_of_date,
+            PriceDaily.date >= as_of_date - timedelta(days=MAX_MARK_STALE_DAYS),
+        )
         .subquery()
     )
     rows = (await session.execute(select(ranked).where(ranked.c.rank == 1))).all()
@@ -337,11 +343,18 @@ async def _run_day(
             CompositeSignalSnapshot.as_of_date < execution_date,
         )
     )
+    # Strateji yalniz bu kolonlari okur; bilesen/kanit JSONB'leri yuklenmez.
     signals = (
         list(
             (
-                await session.scalars(
-                    select(CompositeSignalSnapshot)
+                await session.execute(
+                    select(
+                        CompositeSignalSnapshot.id,
+                        CompositeSignalSnapshot.ticker,
+                        CompositeSignalSnapshot.composite_score,
+                        CompositeSignalSnapshot.confidence,
+                        CompositeSignalSnapshot.coverage_count,
+                    )
                     .where(
                         CompositeSignalSnapshot.as_of_date == signal_date,
                         CompositeSignalSnapshot.model_version == SIGNAL_MODEL_VERSION,

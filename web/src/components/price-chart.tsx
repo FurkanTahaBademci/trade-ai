@@ -1,7 +1,8 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import type { Price } from "@/lib/types";
+import { useMemo } from "react";
+import { expandPrices, type CompactPrice } from "@/lib/price-series";
 
 const DynamicTvChart = dynamic(
   () => import("./tradingview-chart").then((m) => m.TradingViewChart),
@@ -16,12 +17,13 @@ const DynamicTvChart = dynamic(
 );
 
 interface PriceChartProps {
-  prices: Price[];
+  series: CompactPrice[];
   error?: boolean;
   ticker?: string;
 }
 
-export function PriceChart({ prices, error = false, ticker = "THYAO" }: PriceChartProps) {
+export function PriceChart({ series, error = false, ticker = "THYAO" }: PriceChartProps) {
+  const prices = useMemo(() => expandPrices(series), [series]);
   return (
     <div className="space-y-4">
       <DynamicTvChart prices={prices} error={error} ticker={ticker} />
