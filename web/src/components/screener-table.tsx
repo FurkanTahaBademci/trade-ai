@@ -37,11 +37,11 @@ export function ScreenerTable({ rows, headers }: { rows: TableRow[]; headers: He
   return <>
     {/* Mobil: kart görünümü + sıralama çipleri */}
     <div className="md:hidden">
-      <nav aria-label="Sıralama" className="no-scrollbar relative -mx-3 mb-3 flex gap-1.5 overflow-x-auto px-3 pb-1">{headers.map((column) => <Link key={column.key} href={column.href} scroll={false} aria-current={column.sort ? "true" : undefined} className={`pill shrink-0 whitespace-nowrap transition ${column.sort ? "pill-primary" : "hover:text-[var(--text)]"}`}>{column.label}{column.sort && <span aria-hidden="true">{column.sort === "asc" ? "↑" : "↓"}</span>}{column.sort && <span className="sr-only">{column.sort === "asc" ? " (artan)" : " (azalan)"}</span>}</Link>)}</nav>
+      <nav aria-label="Sıralama" className="no-scrollbar relative -mx-3 mb-3 flex gap-1.5 overflow-x-auto px-3 pb-1">{headers.map((column) => <Link prefetch={false} key={column.key} href={column.href} scroll={false} aria-current={column.sort ? "true" : undefined} className={`pill shrink-0 whitespace-nowrap transition ${column.sort ? "pill-primary" : "hover:text-[var(--text)]"}`}>{column.label}{column.sort && <span aria-hidden="true">{column.sort === "asc" ? "↑" : "↓"}</span>}{column.sort && <span className="sr-only">{column.sort === "asc" ? " (artan)" : " (azalan)"}</span>}</Link>)}</nav>
       <ul className="space-y-2">{rows.map((row) => <ResultCard key={row.ticker} row={row}/>)}</ul>
     </div>
     {/* Masaüstü: başlık ve hisse sütunu kaydırırken sabit kalır */}
-    <div className="table-shell hidden max-h-[calc(100dvh-7rem)] overflow-auto md:block"><table className="data-table data-table-sticky min-w-[980px]"><caption className="sr-only">Tarama sonuçları</caption><thead><tr>{headers.map((column) => <th key={column.key} scope="col" title={column.title} aria-sort={column.sort === "asc" ? "ascending" : column.sort === "desc" ? "descending" : undefined} className={column.key === "ticker" ? "sticky-col" : "text-right"}><Link href={column.href} scroll={false} className="inline-flex items-center gap-1 hover:text-[var(--text)]">{column.label}{column.sort && <span aria-hidden="true">{column.sort === "asc" ? "↑" : "↓"}</span>}</Link></th>)}</tr></thead><tbody>{rows.map((row) => <ResultRow key={row.ticker} row={row}/>)}</tbody></table></div>
+    <div className="table-shell hidden max-h-[calc(100dvh-7rem)] overflow-auto md:block"><table className="data-table data-table-sticky min-w-[980px]"><caption className="sr-only">Tarama sonuçları</caption><thead><tr>{headers.map((column) => <th key={column.key} scope="col" title={column.title} aria-sort={column.sort === "asc" ? "ascending" : column.sort === "desc" ? "descending" : undefined} className={column.key === "ticker" ? "sticky-col" : "text-right"}><Link prefetch={false} href={column.href} scroll={false} className="inline-flex items-center gap-1 hover:text-[var(--text)]">{column.label}{column.sort && <span aria-hidden="true">{column.sort === "asc" ? "↑" : "↓"}</span>}</Link></th>)}</tr></thead><tbody>{rows.map((row) => <ResultRow key={row.ticker} row={row}/>)}</tbody></table></div>
   </>;
 }
 
@@ -55,7 +55,7 @@ function signalTone(label: string | null) {
 
 function ResultRow({ row }: { row: TableRow }) {
   return <tr>
-    <td className="sticky-col"><Link href={`/piyasalar/${row.ticker}`} className="font-semibold text-[var(--primary)]">{row.ticker}</Link><p className="mt-0.5 max-w-[220px] truncate text-xs text-[var(--text-muted)]" title={row.name ?? undefined}>{row.sector}{row.name ? ` · ${row.name}` : ""}</p></td>
+    <td className="sticky-col"><Link prefetch={false} href={`/piyasalar/${row.ticker}`} className="font-semibold text-[var(--primary)]">{row.ticker}</Link><p className="mt-0.5 max-w-[220px] truncate text-xs text-[var(--text-muted)]" title={row.name ?? undefined}>{row.sector}{row.name ? ` · ${row.name}` : ""}</p></td>
     <td className={`text-right ${tone(row.change_1d_pct)}`}><span className="block text-[var(--text)]">{formatMoney(row.last_price)}</span>{formatPercent(row.change_1d_pct, true)}</td>
     <td className={`text-right ${tone(row.change_1m_pct)}`}>{orMissing(row.change_1m_pct, "change_1m_pct", formatPercent(row.change_1m_pct, true))}</td>
     <td className="whitespace-nowrap text-right">{orMissing(row.market_cap_try, "market_cap_try", formatMoney(row.market_cap_try, true))}</td>
@@ -72,7 +72,7 @@ function ResultCard({ row }: { row: TableRow }) {
   return <li className="panel-flat p-3">
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
-        <p className="flex items-baseline gap-2"><Link href={`/piyasalar/${row.ticker}`} className="font-semibold text-[var(--primary)]">{row.ticker}</Link><span className="text-xs">{formatMoney(row.last_price)}</span></p>
+        <p className="flex items-baseline gap-2"><Link prefetch={false} href={`/piyasalar/${row.ticker}`} className="font-semibold text-[var(--primary)]">{row.ticker}</Link><span className="text-xs">{formatMoney(row.last_price)}</span></p>
         <p className="truncate text-xs text-[var(--text-muted)]" title={row.name ?? undefined}>{row.sector}{row.name ? ` · ${row.name}` : ""}</p>
       </div>
       <div className="shrink-0 text-right">

@@ -31,7 +31,8 @@ export default async function NewsPage({
   const query = `&${queryParts.join("&")}`;
 
   const [news, statsRes] = await Promise.all([
-    apiGet<NewsArticle[]>(`/api/news?limit=12${query}`, []),
+    // İlk sayfa 30 sn önbellekli; sonraki sayfalar canlı akıştan gelir ve tekrarlar ayıklanır.
+    apiGet<NewsArticle[]>(`/api/news?limit=12${query}`, [], { revalidate: 30 }),
     apiGet<SystemStats | null>("/api/system/stats", null, { revalidate: 60 }),
   ]);
   const stats = statsRes.data;
@@ -74,7 +75,7 @@ export default async function NewsPage({
       {/* Sıralama modu ve hisse filtresi tek satırda; mobilde gerekirse alta kayar. */}
       <div className="mb-1 flex flex-wrap items-start gap-x-3 gap-y-2">
         <div className="flex shrink-0 rounded border border-[var(--border)] bg-[var(--surface-raised)] p-1" role="group" aria-label="Sıralama">
-          <Link
+          <Link prefetch={false}
             href={buildUrl("smart", source)}
             aria-current={mode === "smart" ? "true" : undefined}
             className={`flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-semibold transition ${
@@ -86,7 +87,7 @@ export default async function NewsPage({
           >
             Öne çıkanlar
           </Link>
-          <Link
+          <Link prefetch={false}
             href={buildUrl("chronological", source)}
             aria-current={mode === "chronological" ? "true" : undefined}
             className={`flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-semibold transition ${
@@ -129,7 +130,7 @@ function Filter({
   children: React.ReactNode;
 }) {
   return (
-    <Link
+    <Link prefetch={false}
       href={href}
       aria-current={active ? "true" : undefined}
       className={`pill shrink-0 transition ${active ? "pill-primary" : "hover:text-[var(--text)]"}`}

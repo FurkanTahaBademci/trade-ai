@@ -24,6 +24,11 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+asyncpg://tradeai:tradeai@localhost:5432/tradeai"
     redis_url: str = "redis://localhost:6379/0"
+    # Surec basina SQLAlchemy havuzu. api (API_WORKERS adet surec) ve worker ayri
+    # havuz acar; toplam (API_WORKERS + 1) * (size + overflow) Postgres
+    # max_connections'in (varsayilan 100) altinda kalmali.
+    db_pool_size: int = 5
+    db_max_overflow: int = 10
 
     gemini_api_key: str = ""
     # TCMB EVDS (kur, TUFE). Bos ise makro seri toplayicisi calismaz.

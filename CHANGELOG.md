@@ -9,6 +9,24 @@ bu bölümü yeni sürüm numarasıyla kapatır.
 
 ## [Unreleased]
 
+### Değişti
+
+- **Canlı kapasite.**
+  - API artık birden fazla uvicorn süreciyle çalışır (`API_WORKERS`,
+    varsayılan 2). Migration'lar süreçler açılmadan önce bir kez çalışır.
+  - Veritabanı bağlantı havuzu ayarlanabilir (`DB_POOL_SIZE`,
+    `DB_MAX_OVERFLOW`); toplam bağlantı hesabı `docs/CONFIGURATION.md`'de.
+  - Sık değişmeyen sayfa verileri (sinyal listeleri, ısı haritası, haber ve
+    KAP akışlarının ilk sayfası, fon akımı, makro, portföy, karşılaştırma)
+    web sunucusunda 30 sn-10 dk önbelleklenir. Yönetim sayfaları ve
+    backtest listesi önbelleksizdir.
+  - Kenar menüsü bağlantıları yalnız fareyle üzerine gelince ön yükleme
+    yapar. Sayfa içi listeler ve filtreler ön yükleme yapmaz; her sayfa
+    açılışı artık arka planda 15-20 ek sunucu isteği üretmez.
+  - Haber, KAP ve AI analiz listeleri yanıtta olmayan büyük alanları (KAP
+    gövdesi ve ekleri, ham RSS/KAP JSON'u, analiz kaynak metni ve ham model
+    yanıtı) veritabanından okumaz.
+
 ## [0.8.0] - 2026-10-17
 
 ### Düzeltildi

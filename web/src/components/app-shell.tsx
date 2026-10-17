@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { HoverPrefetchLink } from "./hover-prefetch-link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "./icon";
@@ -11,7 +11,7 @@ import { NAV_GROUPS, NAV_ITEMS, isActiveRoute } from "@/lib/navigation";
 
 
 function Brand() {
-  return <Link href="/" className="flex items-center gap-2.5" aria-label="TradeAI ana sayfa"><span className="grid h-8 w-8 place-items-center rounded bg-[var(--primary)] text-[var(--primary-contrast)]"><Icon name="trend" size={18}/></span><span className="text-[17px] font-semibold tracking-[-0.03em]">Trade<span className="text-[var(--primary)]">AI</span></span></Link>;
+  return <HoverPrefetchLink href="/" className="flex items-center gap-2.5" aria-label="TradeAI ana sayfa"><span className="grid h-8 w-8 place-items-center rounded bg-[var(--primary)] text-[var(--primary-contrast)]"><Icon name="trend" size={18}/></span><span className="text-[17px] font-semibold tracking-[-0.03em]">Trade<span className="text-[var(--primary)]">AI</span></span></HoverPrefetchLink>;
 }
 
 function BuildInfo() {
@@ -54,7 +54,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <nav aria-label="Ana gezinme" className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 py-3">{NAV_GROUPS.map((group) => <div key={group.label} className="mb-4"><p className="terminal-mono mb-1.5 px-3 text-[10px] tracking-wider text-[var(--text-muted)]">{group.label}</p>{group.routes.map((route) => {
         const item = NAV_ITEMS.find((entry) => entry.href === route)!;
         const active = isActiveRoute(item.href, pathname);
-        return <Link key={item.href} href={item.href} prefetch={item.locked ? false : undefined} aria-current={active ? "page" : undefined} title={item.locked ? "Yönetici girişi gerekir" : undefined} onClick={() => setOpen(false)} className={`flex min-h-9 items-center gap-2.5 border-l-2 px-3 py-2 text-xs font-medium transition-colors ${active ? "border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary)]" : "border-transparent text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)]"}`}><Icon name={item.icon} size={15}/>{item.label}{item.locked && <><Icon name="lock" size={12} className="ml-auto text-[var(--text-muted)]"/><span className="sr-only"> (yönetici girişi gerekir)</span></>}</Link>;
+        return <HoverPrefetchLink key={item.href} href={item.href} prefetch={!item.locked} aria-current={active ? "page" : undefined} title={item.locked ? "Yönetici girişi gerekir" : undefined} onClick={() => setOpen(false)} className={`flex min-h-9 items-center gap-2.5 border-l-2 px-3 py-2 text-xs font-medium transition-colors ${active ? "border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary)]" : "border-transparent text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)]"}`}><Icon name={item.icon} size={15}/>{item.label}{item.locked && <><Icon name="lock" size={12} className="ml-auto text-[var(--text-muted)]"/><span className="sr-only"> (yönetici girişi gerekir)</span></>}</HoverPrefetchLink>;
       })}</div>)}
         {/* Mobil çekmecede sürüm bilgisi menünün sonunda kayar; son menü öğesini örtmez. */}
         <div className="mt-2 border-t border-[var(--border)] px-2 pt-3 lg:hidden"><BuildInfo/></div>

@@ -15,6 +15,6 @@ export function TickerFilter({ action, ticker, keep = {} }: { action: string; ti
     {Object.entries(keep).map(([name, value]) => value ? <input key={name} type="hidden" name={name} value={value}/> : null)}
     <label className="relative"><span className="sr-only">Hisse kodu</span><Icon name="search" size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]"/><input name="hisse" defaultValue={ticker ?? ""} placeholder="Hisse kodu (ör. THYAO)" autoComplete="off" className="input h-9 w-52 pl-8 text-xs uppercase"/></label>
     <button type="submit" className="pill h-9 transition hover:text-[var(--text)]">Filtrele</button>
-    {ticker && <><Link href={`/piyasalar/${ticker}`} className="pill pill-primary h-9">{ticker} sayfası</Link><Link href={clear ? `${action}?${clear}` : action} className="pill h-9 transition hover:text-[var(--text)]" aria-label={`${ticker} filtresini kaldır`}>Filtreyi kaldır <Icon name="close" size={12}/></Link></>}
+    {ticker && <><Link prefetch={false} href={`/piyasalar/${ticker}`} className="pill pill-primary h-9">{ticker} sayfası</Link><Link prefetch={false} href={clear ? `${action}?${clear}` : action} className="pill h-9 transition hover:text-[var(--text)]" aria-label={`${ticker} filtresini kaldır`}>Filtreyi kaldır <Icon name="close" size={12}/></Link></>}
   </form>;
 }

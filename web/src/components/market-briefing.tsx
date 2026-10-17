@@ -103,7 +103,7 @@ export function MarketBriefing({ briefing }: { briefing: Briefing | null }) {
                       </span>
                     </div>
                     {cat.href ? (
-                      <Link href={cat.href} className="line-clamp-2 text-xs font-semibold leading-snug text-[var(--text)] hover:text-[var(--primary)]">
+                      <Link prefetch={false} href={cat.href} className="line-clamp-2 text-xs font-semibold leading-snug text-[var(--text)] hover:text-[var(--primary)]">
                         {cat.title}
                       </Link>
                     ) : (

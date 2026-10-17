@@ -22,7 +22,8 @@ export default async function SignalsPage({ searchParams }: { searchParams: Prom
   // Sonsuz liste analiz bölümlerini aşağı ittiği için ikisi ayrı sekmede; yalnız açık sekmenin verisi çekilir.
   const empty = { data: [], ok: true as const };
   const [result, accuracy, statsRes, movers, power, scenarios] = await Promise.all([
-    apiGet<CompositeSignal[]>(`/api/signals?limit=15${query}`, []),
+    // Bileşik skorlar toplu yeniden hesaplanıyor (en sık ~10 dk); 60 sn önbellek yeterli.
+    apiGet<CompositeSignal[]>(`/api/signals?limit=15${query}`, [], { revalidate: 60 }),
     view === "dogruluk" ? apiGet<SignalHorizonStat[]>("/api/signals/accuracy", [], { revalidate: 900 }) : Promise.resolve(empty),
     apiGet<SystemStats | null>("/api/system/stats", null, { revalidate: 60 }),
     view === "siralama" ? apiGet<SignalMovers | null>(`/api/signals/movers?days=${period.days}&limit=6`, null, { revalidate: 300 }) : Promise.resolve({ data: null, ok: true as const }),
@@ -60,7 +61,7 @@ export default async function SignalsPage({ searchParams }: { searchParams: Prom
 
 const LABEL_FILTERS: [string, string][] = [["VERY_POSITIVE", "Çok pozitif"], ["POSITIVE", "Pozitif"], ["NEUTRAL", "Nötr"], ["NEGATIVE", "Negatif"], ["VERY_NEGATIVE", "Çok negatif"]];
 
-function Tab({ href, active, children }: { href: string; active: boolean; children: React.ReactNode }) { return <Link href={href} aria-current={active ? "page" : undefined} className={`rounded px-3 py-1.5 text-xs font-semibold transition ${active ? "bg-[var(--primary)] text-[var(--primary-contrast)]" : "text-[var(--text-muted)] hover:text-[var(--text)]"}`}>{children}</Link>; }
+function Tab({ href, active, children }: { href: string; active: boolean; children: React.ReactNode }) { return <Link prefetch={false} href={href} aria-current={active ? "page" : undefined} className={`rounded px-3 py-1.5 text-xs font-semibold transition ${active ? "bg-[var(--primary)] text-[var(--primary-contrast)]" : "text-[var(--text-muted)] hover:text-[var(--text)]"}`}>{children}</Link>; }
 
-function Filter({ href, active, children }: { href: string; active: boolean; children: React.ReactNode }) { return <Link href={href} aria-current={active ? "true" : undefined} className={`pill shrink-0 transition ${active ? "pill-primary" : "hover:text-[var(--text)]"}`}>{children}</Link>; }
+function Filter({ href, active, children }: { href: string; active: boolean; children: React.ReactNode }) { return <Link prefetch={false} href={href} aria-current={active ? "true" : undefined} className={`pill shrink-0 transition ${active ? "pill-primary" : "hover:text-[var(--text)]"}`}>{children}</Link>; }
 

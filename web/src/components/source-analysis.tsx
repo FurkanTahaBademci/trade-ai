@@ -26,7 +26,7 @@ export function SourceAnalyses({ items }: { items: Evaluation[] }) {
     </Link>
     {earlier.length > 0 && <details className="rounded border px-4 py-2.5 text-xs" style={{ borderColor: "var(--border)" }}>
       <summary className="cursor-pointer text-[var(--text-muted)]">{earlier.length === 1 ? `Ön değerlendirme (Etki ${earlier[0].impact_score ?? "—"})` : `${earlier.length} önceki değerlendirme`} — ayrıntılı analizden önce yapılan hızlı inceleme</summary>
-      <div className="mt-2 space-y-1.5">{earlier.map((item) => <Link key={item.id} href={`/analizler/${item.id}`} className="flex items-start gap-2 rounded px-2 py-1.5 transition hover:bg-[var(--surface-hover)]">
+      <div className="mt-2 space-y-1.5">{earlier.map((item) => <Link prefetch={false} key={item.id} href={`/analizler/${item.id}`} className="flex items-start gap-2 rounded px-2 py-1.5 transition hover:bg-[var(--surface-hover)]">
         <span className="min-w-0 flex-1"><span className="block leading-5 text-[var(--text-secondary)]">{item.summary || "Değerlendirme detayı"}</span><span className="block text-[11px] text-[var(--text-muted)]">{tierLabel(item.tier)} · Etki {item.impact_score ?? "—"} · {relativeTime(item.created_at)}</span></span>
         <Icon name="arrow" size={14} className="mt-1 shrink-0 text-[var(--text-muted)]"/>
       </Link>)}</div>

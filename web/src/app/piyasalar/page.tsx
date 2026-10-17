@@ -8,9 +8,11 @@ import { parseMarketsView } from "@/lib/markets-view";
 export const metadata: Metadata = { title: "Piyasalar & Sektörel Isı Haritası" };
 
 export default async function MarketsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  // Hisse listesi ve ısı haritası herkese açık, fiyat toplayıcısı en sık ~10 dk'da
+  // bir yazıyor: kısa önbellek yeterince taze.
   const [instruments, heatmap, initialView] = await Promise.all([
-    apiGet<Instrument[]>("/api/instruments", []),
-    apiGet<MarketHeatmapData | null>("/api/markets/heatmap", null),
+    apiGet<Instrument[]>("/api/instruments", [], { revalidate: 300 }),
+    apiGet<MarketHeatmapData | null>("/api/markets/heatmap", null, { revalidate: 60 }),
     searchParams.then(parseMarketsView),
   ]);
 

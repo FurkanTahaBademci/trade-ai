@@ -19,7 +19,7 @@ export function SignalMoversPanel({ movers, days, hrefFor }: { movers: SignalMov
   return <section className="mb-8">
     <div className="flex flex-wrap items-end justify-between gap-3">
       <SectionTitle title="Skor hareketleri" subtitle={`${period.text} içinde bileşik skoru en çok değişen hisseler · ${range}`}/>
-      <nav aria-label="Dönem" className="mb-3 flex gap-1.5">{MOVER_PERIODS.map((item) => <Link key={item.days} href={hrefFor(item.days)} scroll={false} aria-current={item.days === period.days ? "page" : undefined} className={`pill transition ${item.days === period.days ? "pill-primary" : "hover:text-[var(--text)]"}`}>{item.label}</Link>)}</nav>
+      <nav aria-label="Dönem" className="mb-3 flex gap-1.5">{MOVER_PERIODS.map((item) => <Link prefetch={false} key={item.days} href={hrefFor(item.days)} scroll={false} aria-current={item.days === period.days ? "page" : undefined} className={`pill transition ${item.days === period.days ? "pill-primary" : "hover:text-[var(--text)]"}`}>{item.label}</Link>)}</nav>
     </div>
     {movers && (movers.risers.length || movers.fallers.length) ? <div className="grid gap-4 lg:grid-cols-2">
       <MoverList title="Yükselenler" items={movers.risers} positive/>
@@ -33,7 +33,7 @@ function MoverList({ title, items, positive }: { title: string; items: SignalMov
   return <div className="panel-flat overflow-hidden">
     <p className="eyebrow border-b px-4 py-2.5" style={{ borderColor: "var(--border)" }}>{title}</p>
     {items.length ? <ul>{items.map((item, index) => <li key={item.ticker} className={index ? "border-t" : ""} style={{ borderColor: "var(--border)" }}>
-      <Link href={`/piyasalar/${item.ticker}`} className="flex items-center gap-3 px-4 py-2.5 transition hover:bg-[var(--surface-hover)]">
+      <Link prefetch={false} href={`/piyasalar/${item.ticker}`} className="flex items-center gap-3 px-4 py-2.5 transition hover:bg-[var(--surface-hover)]">
         <span className="w-16 font-semibold text-[var(--primary)]">{item.ticker}</span>
         <span className="terminal-mono text-xs text-[var(--text-muted)]">{formatNumber(item.previous_score, 0)} → <span className="text-[var(--text)]">{formatNumber(item.composite_score, 0)}</span></span>
         {item.previous_label !== item.signal_label && <span className="hidden text-[10px] text-[var(--text-muted)] sm:inline">{signalName(item.previous_label)} → {signalName(item.signal_label)}</span>}

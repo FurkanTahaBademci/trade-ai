@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import and_, cast, or_, select
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import defer
 
 from app.core.db import get_db
 from app.models import LlmEvaluation
@@ -38,8 +39,17 @@ async def list_evaluations(
     ] = None,
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
 ) -> list[LlmEvaluation]:
-    stmt = select(LlmEvaluation).order_by(
-        LlmEvaluation.created_at.desc(), LlmEvaluation.id.desc()
+    stmt = (
+        select(LlmEvaluation)
+        # Liste yanitinda olmayan buyuk alanlar (kaynak metin ~12k karakter, ham
+        # model yaniti) okunmaz; detay ucu hepsini yukler.
+        .options(
+            defer(LlmEvaluation.input_document),
+            defer(LlmEvaluation.result),
+            defer(LlmEvaluation.raw_response),
+            defer(LlmEvaluation.rationale),
+        )
+        .order_by(LlmEvaluation.created_at.desc(), LlmEvaluation.id.desc())
     )
     if source_type:
         stmt = stmt.where(LlmEvaluation.source_type == source_type)

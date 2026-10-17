@@ -10,6 +10,7 @@ from fastapi.responses import Response
 from sqlalchemy import and_, cast, or_, select
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import defer, raiseload
 
 from app.collectors.kap import KAP_FILE_URL, unwrap_java_serialized_byte_array
 from app.collectors.kap_content import (
@@ -44,6 +45,15 @@ async def list_disclosures(
     # olabilir; ana sayfa dahil hicbir listede gosterilmez.
     stmt = (
         select(KapDisclosure)
+        # Liste yanitinda govde, ham KAP JSON'u ve ekler yok: okunmaz, ekler icin
+        # ayri selectin sorgusu da atilmaz. Detay ucu hepsini yukler.
+        .options(
+            defer(KapDisclosure.body_html),
+            defer(KapDisclosure.body_text),
+            defer(KapDisclosure.raw_list_item),
+            defer(KapDisclosure.raw_detail),
+            raiseload(KapDisclosure.attachments),
+        )
         .where(not_kap_test_disclosure())
         .order_by(KapDisclosure.published_at.desc(), KapDisclosure.disclosure_index.desc())
     )

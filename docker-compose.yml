@@ -86,8 +86,13 @@ services:
       resources:
         limits:
           memory: ${API_MEMORY_LIMIT:-1G}
+    # Migration'lar uvicorn'dan once tek kez calisir; --workers ile acilan
+    # surecler yalniz uygulamayi yukler. Her worker kendi DB havuzunu acar
+    # (DB_POOL_SIZE + DB_MAX_OVERFLOW): toplam baglanti Postgres
+    # max_connections'i (varsayilan 100) asmamali, bkz. docs/CONFIGURATION.md.
+    # Worker basina ~150-300 MB: API_WORKERS artarsa API_MEMORY_LIMIT da artmali.
     command: >
-      sh -c "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips='*'"
+      sh -c "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers ${API_WORKERS:-2} --proxy-headers --forwarded-allow-ips='*'"
 
   worker:
     build:

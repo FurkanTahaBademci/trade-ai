@@ -27,7 +27,9 @@ export default async function ComparePage({ searchParams }: PageProps) {
 
   const comparison = await apiGet<CompanyComparisonData | null>(
     `/api/markets/compare?tickers=${encodeURIComponent(safeTickers)}`,
-    null
+    null,
+    // Çarpanlar bilanço + günlük fiyattan hesaplanıyor; 2 dk önbellek tazeliği bozmaz.
+    { revalidate: 120 },
   );
 
 

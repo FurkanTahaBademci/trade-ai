@@ -23,7 +23,7 @@ export function BacktestTrades({ initialItems, runId, ticker, side }: {
       <thead><tr><th>Tarih</th><th>Hisse</th><th>Yön</th><th>Adet</th><th>Fiyat</th><th>Tutar</th><th>Komisyon</th><th>Gerç. K/Z</th></tr></thead>
       <tbody>{feed.items.map((trade) => <tr key={trade.id}>
         <td><span className="block">{formatDate(trade.execution_date)}</span><span className="text-[10px] text-[var(--text-muted)]">Sinyal {formatDate(trade.signal_date)}</span></td>
-        <td><Link href={`/piyasalar/${trade.ticker}`} className="font-semibold text-[var(--primary)]">{trade.ticker}</Link></td>
+        <td><Link prefetch={false} href={`/piyasalar/${trade.ticker}`} className="font-semibold text-[var(--primary)]">{trade.ticker}</Link></td>
         <td><span className={`pill ${trade.side === "BUY" ? "pill-positive" : "pill-negative"}`}>{trade.side === "BUY" ? "Alış" : "Satış"}</span></td>
         <td>{formatNumber(trade.quantity, 0)}</td><td>{formatMoney(trade.price)}</td><td>{formatMoney(trade.gross_amount)}</td><td>{formatMoney(trade.fee_amount)}</td>
         <td className={(trade.realized_pnl ?? 0) >= 0 ? "text-[var(--positive)]" : "text-[var(--negative)]"}>{formatMoney(trade.realized_pnl)}</td>

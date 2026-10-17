@@ -10,7 +10,8 @@ export const metadata: Metadata = { title: "KAP Bildirimleri" };
 export default async function KapPage({ searchParams }: { searchParams: Promise<{ hisse?: string }> }) {
   const ticker = tickerParam((await searchParams).hisse);
   const [result, statsRes] = await Promise.all([
-    apiGet<Disclosure[]>(`/api/disclosures?limit=15${ticker ? `&ticker=${ticker}` : ""}`, []),
+    // İlk sayfa 30 sn önbellekli; sonraki sayfalar canlı akıştan gelir ve tekrarlar ayıklanır.
+    apiGet<Disclosure[]>(`/api/disclosures?limit=15${ticker ? `&ticker=${ticker}` : ""}`, [], { revalidate: 30 }),
     apiGet<SystemStats | null>("/api/system/stats", null, { revalidate: 60 }),
   ]);
   const total = statsRes.data?.disclosures_total;

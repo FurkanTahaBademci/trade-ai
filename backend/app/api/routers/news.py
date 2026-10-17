@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import and_, cast, func, literal, or_, select
 from sqlalchemy.dialects.postgresql import JSONB, distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import defer
 
 from app.core.db import get_db
 from app.models import LlmEvaluation, NewsArticle
@@ -82,6 +83,8 @@ async def list_news(
         latest_eval.c.sentiment_score,
         latest_eval.c.event_type,
     ).outerjoin(latest_eval, NewsArticle.id == latest_eval.c.source_id)
+    # Ham RSS kaydi liste yanitinda yok; satir basina JSON cozumlemesi gereksiz.
+    stmt = stmt.options(defer(NewsArticle.raw_entry))
 
     if source:
         stmt = stmt.where(NewsArticle.source == source.lower())

@@ -49,12 +49,12 @@ export function WatchlistView() {
   return <><div className="mb-3 flex flex-wrap items-center gap-2"><button type="button" onClick={exportCsv} className="pill transition hover:text-[var(--text)]"><Icon name="download" size={12}/>CSV indir</button><SyncBadge state={syncState}/></div>{missing.length > 0 &&<div className="mb-3 rounded border px-4 py-3 text-xs text-[var(--warning)]" style={{ borderColor: "color-mix(in srgb, var(--warning) 25%, transparent)", background: "var(--warning-soft)" }}>{missing.join(", ")} aktif piyasa evreninde bulunamadı.</div>}<div className="table-shell overflow-x-auto"><table className="data-table min-w-[720px]"><thead><tr><th className="w-10"><span className="sr-only">İşlem</span></th><th>Hisse</th><th>Şirket</th><th className="text-right">Son fiyat</th><th className="text-right">Günlük</th><th>Bileşik skor</th><th className="w-10"><span className="sr-only">İşlem</span></th></tr></thead><tbody>
     {watched.map((item) => <tr key={item.ticker}>
       <td><WatchlistStar ticker={item.ticker} size={16}/></td>
-      <td><Link href={`/piyasalar/${item.ticker}`} className="terminal-mono font-semibold text-[var(--primary)]">{item.ticker}</Link></td>
+      <td><Link prefetch={false} href={`/piyasalar/${item.ticker}`} className="terminal-mono font-semibold text-[var(--primary)]">{item.ticker}</Link></td>
       <td className="font-medium">{item.name}</td>
       <td className="text-right">{formatMoney(item.last_price)}</td>
       <td className={`text-right ${(item.change_1d_pct ?? 0) > 0 ? "text-[var(--positive)]" : (item.change_1d_pct ?? 0) < 0 ? "text-[var(--negative)]" : ""}`}>{formatPercent(item.change_1d_pct, true)}</td>
       <td>{item.composite_score != null ? <span className="pill">{Math.round(item.composite_score)}/100 · {signalName(item.signal_label ?? "")}</span> : <span className="text-[var(--text-muted)]">Sinyal yok</span>}</td>
-      <td><Link href={`/piyasalar/${item.ticker}`} aria-label={`${item.ticker} detayını aç`} className="text-[var(--text-muted)]"><Icon name="chevron" size={16}/></Link></td>
+      <td><Link prefetch={false} href={`/piyasalar/${item.ticker}`} aria-label={`${item.ticker} detayını aç`} className="text-[var(--text-muted)]"><Icon name="chevron" size={16}/></Link></td>
     </tr>)}
   </tbody></table></div></>;
 }

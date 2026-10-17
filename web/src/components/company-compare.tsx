@@ -535,7 +535,7 @@ export function CompanyCompareView({ initialData }: { initialData: CompanyCompar
                     <th key={c.ticker} className="min-w-28 p-3 font-bold text-[var(--text)] sm:p-3.5">
                       <div className="flex items-center gap-1.5">
                         <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color.stroke }} />
-                        <Link href={`/piyasalar/${c.ticker}`} className="hover:underline">
+                        <Link prefetch={false} href={`/piyasalar/${c.ticker}`} className="hover:underline">
                           {c.ticker}
                         </Link>
                       </div>

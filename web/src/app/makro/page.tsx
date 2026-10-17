@@ -12,7 +12,8 @@ const decisionText = { HIKE: "Faiz artırımı", CUT: "Faiz indirimi", HOLD: "Fa
 
 export default async function MacroPage() {
   const [result, series] = await Promise.all([
-    apiGet<MonetaryPolicyDecision[]>("/api/macro/policy-decisions?limit=40", []),
+    // PPK kararları ve makro seriler en sık günlük değişir.
+    apiGet<MonetaryPolicyDecision[]>("/api/macro/policy-decisions?limit=40", [], { revalidate: 600 }),
     apiGet<MacroSeries[]>("/api/macro/series", [], { revalidate: 600 }),
   ]);
   const published = result.data.filter((item) => item.status === "PUBLISHED");

@@ -31,6 +31,7 @@ trade-ai iki katmanlı yapılandırma kullanır:
 |---|---|
 | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` | PostgreSQL container'ının ilk kurulum bilgileri. |
 | `DATABASE_URL` | `postgresql+asyncpg://KULLANICI:PAROLA@postgres:5432/DB`. Parola `POSTGRES_PASSWORD` ile aynı olmalıdır. |
+| `DB_POOL_SIZE`, `DB_MAX_OVERFLOW` | Süreç başına SQLAlchemy bağlantı havuzu (varsayılan 5 + 10). Her API süreci ve worker ayrı havuz açar; `(API_WORKERS + 1) × (DB_POOL_SIZE + DB_MAX_OVERFLOW)` Postgres `max_connections` değerinin (varsayılan 100) altında kalmalıdır. |
 | `REDIS_URL` | Compose içinde `redis://redis:6379/0` olarak sabitlenir. |
 
 ### Yönetim erişimi
@@ -93,6 +94,7 @@ ayarlanır.
 |---|---|
 | `API_PORT`, `WEB_PORT` | Yerel geliştirmede host'a açılan portlar (`docker-compose.override.yml`). Coolify bu dosyayı kullanmaz. |
 | `POSTGRES_MEMORY_LIMIT`, `REDIS_MEMORY_LIMIT`, `API_MEMORY_LIMIT`, `WORKER_MEMORY_LIMIT`, `WEB_MEMORY_LIMIT` | Container bellek sınırları. |
+| `API_WORKERS` | API container'ındaki uvicorn süreç sayısı (varsayılan 2). Migration'lar süreçler açılmadan önce bir kez çalışır. Süreç başına ~150-300 MB bellek: 3 ve üstü için `API_MEMORY_LIMIT`'i artırın ve DB havuzu toplamını kontrol edin. Sunucunun CPU çekirdek sayısını aşmayın. |
 
 ### Veri toplayıcılar
 

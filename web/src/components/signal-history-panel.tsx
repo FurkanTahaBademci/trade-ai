@@ -52,7 +52,7 @@ export function SignalHistoryPanel({ history, error = false }: { history: Signal
 export function SignalDrivers({ history, error = false }: { history: SignalHistory; error?: boolean }) {
   if (error) return <EmptyState compact title="Skor nedenleri alınamadı"/>;
   if (!history.drivers.length) return <EmptyState compact title="Skoru etkileyen kayıt yok" description="Haber, KAP veya analist verisi bu skora katkı verdiğinde burada kronolojik olarak listelenir."/>;
-  return <div className="panel-flat overflow-hidden">{history.drivers.map((item, index) => <Link href={item.href} key={`${item.kind}-${item.href}-${item.occurred_at}-${index}`} className={`flex items-start gap-3 p-4 transition hover:bg-[var(--surface-hover)] ${index ? "border-t" : ""}`} style={{ borderColor: "var(--border)" }}>
+  return <div className="panel-flat overflow-hidden">{history.drivers.map((item, index) => <Link prefetch={false} href={item.href} key={`${item.kind}-${item.href}-${item.occurred_at}-${index}`} className={`flex items-start gap-3 p-4 transition hover:bg-[var(--surface-hover)] ${index ? "border-t" : ""}`} style={{ borderColor: "var(--border)" }}>
     <span className={`pill shrink-0 ${item.effect > 0 ? "pill-positive" : item.effect < 0 ? "pill-negative" : ""}`}>{item.effect > 0 ? "+" : ""}{formatNumber(item.effect, 0)}</span>
     <div className="min-w-0 flex-1"><div className="mb-1 flex items-center gap-2 text-[11px] text-[var(--text-muted)]"><span className="eyebrow">{driverKindName(item.kind)}</span>{item.occurred_at && <span>{relativeTime(item.occurred_at)}</span>}</div><p className="line-clamp-2 text-sm font-medium leading-5">{item.title}</p></div></Link>)}</div>;
 }

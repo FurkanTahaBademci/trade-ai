@@ -240,7 +240,7 @@ export function MarketHeatmap({ data }: { data: MarketHeatmapData | null }) {
             {/* Sektör içi hisse kutucukları */}
             <div id={`sektor-${slug(sector.name)}`} className={`${tilesClass(sector.name)} flex-1 grid-cols-3 gap-2 sm:grid-cols-4`}>
               {sector.stocks.slice(0, 16).map((stock) => (
-                <Link
+                <Link prefetch={false}
                   key={stock.ticker}
                   href={`/piyasalar/${stock.ticker}`}
                   className={`group relative flex flex-col justify-between rounded border p-2 text-center transition hover:scale-[1.03] hover:z-10 ${getStockBg(

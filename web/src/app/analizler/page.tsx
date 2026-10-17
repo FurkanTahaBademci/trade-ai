@@ -27,7 +27,8 @@ export default async function AnalysesPage({ searchParams }: { searchParams: Pro
   const filterHref = (value?: "news" | "kap") => hrefFor(value, minImpact);
   const impactHref = (impact?: number) => hrefFor(source, impact);
   const [result, statsRes] = await Promise.all([
-    apiGet<Evaluation[]>(`/api/evaluations?limit=12${query}`, []),
+    // İlk sayfa 30 sn önbellekli; sonraki sayfalar canlı akıştan gelir ve tekrarlar ayıklanır.
+    apiGet<Evaluation[]>(`/api/evaluations?limit=12${query}`, [], { revalidate: 30 }),
     apiGet<SystemStats | null>("/api/system/stats", null, { revalidate: 60 }),
   ]);
   const stats = statsRes.data;
@@ -41,4 +42,4 @@ export default async function AnalysesPage({ searchParams }: { searchParams: Pro
     <InfiniteAnalysisFeed key={`${source ?? "all"}-${ticker ?? "all"}-${minImpact ?? "all"}`} initialItems={result.data} source={source} ticker={ticker} minImpact={minImpact}/>
   </>;
 }
-function Filter({ href, active, children }: { href: string; active: boolean; children: React.ReactNode }) { return <Link href={href} aria-current={active ? "true" : undefined} className={`pill shrink-0 transition ${active ? "pill-primary" : "hover:text-[var(--text)]"}`}>{children}</Link>; }
+function Filter({ href, active, children }: { href: string; active: boolean; children: React.ReactNode }) { return <Link prefetch={false} href={href} aria-current={active ? "true" : undefined} className={`pill shrink-0 transition ${active ? "pill-primary" : "hover:text-[var(--text)]"}`}>{children}</Link>; }
