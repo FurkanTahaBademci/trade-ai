@@ -9,6 +9,8 @@ bu bölümü yeni sürüm numarasıyla kapatır.
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-17
+
 ### Düzeltildi
 
 - **Banka ve sigorta temel analizi.**
