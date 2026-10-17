@@ -9,6 +9,8 @@ bu bölümü yeni sürüm numarasıyla kapatır.
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-10-17
+
 ### Değişti
 
 - **Web birden fazla süreçle çalışır.** Next.js sunucusu artık `WEB_WORKERS`
