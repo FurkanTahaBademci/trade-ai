@@ -24,8 +24,10 @@ ENV HOSTNAME=0.0.0.0
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
+# WEB_WORKERS kadar Node sureci acar (varsayilan 2); 1 ise server.js'i dogrudan calistirir.
+COPY --from=builder /app/server-cluster.cjs ./server-cluster.cjs
 
 USER node
 
 EXPOSE 3000
-CMD ["node", "server.js"]
+CMD ["node", "server-cluster.cjs"]

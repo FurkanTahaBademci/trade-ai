@@ -95,6 +95,7 @@ ayarlanır.
 | `API_PORT`, `WEB_PORT` | Yerel geliştirmede host'a açılan portlar (`docker-compose.override.yml`). Coolify bu dosyayı kullanmaz. |
 | `POSTGRES_MEMORY_LIMIT`, `REDIS_MEMORY_LIMIT`, `API_MEMORY_LIMIT`, `WORKER_MEMORY_LIMIT`, `WEB_MEMORY_LIMIT` | Container bellek sınırları. |
 | `API_WORKERS` | API container'ındaki uvicorn süreç sayısı (varsayılan 2). Migration'lar süreçler açılmadan önce bir kez çalışır. Süreç başına ~150-300 MB bellek: 3 ve üstü için `API_MEMORY_LIMIT`'i artırın ve DB havuzu toplamını kontrol edin. Sunucunun CPU çekirdek sayısını aşmayın. |
+| `WEB_WORKERS` | Web container'ındaki Next.js süreç sayısı (varsayılan 2; `auto` = container'ın görebildiği CPU sayısı, en fazla 16). Next sayfaları tek iş parçacığında render ettiği için tek süreç tek çekirdeğe sınırlıdır; süreçler aynı portu Node cluster ile paylaşır. Süreç başına ~150-250 MB: `WEB_MEMORY_LIMIT` (varsayılan 1G) süreç sayısıyla birlikte artırılmalıdır, her sürecin V8 heap'i bu sınırın %75'inin süreç sayısına bölümüyle sınırlanır. Süreç belleğindeki durumlar süreç başınadır: kısa süreli API yanıt önbelleği her süreçte ayrı dolar (API'ye giden istek en fazla süreç sayısı kadar artar) ve `/giris` kaba kuvvet sınırları süreç sayısına bölünerek toplamda aynı kalır. `1` eski tek süreçli davranıştır. `/health` yanıtındaki `workers` alanı çalışan değeri gösterir. |
 
 ### Veri toplayıcılar
 

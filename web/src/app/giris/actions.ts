@@ -16,6 +16,8 @@ export type LoginState = { message?: string; username?: string };
 
 const globalForLogin = globalThis as typeof globalThis & { tradeAiLoginFailures?: FailureStore };
 const failures: FailureStore = (globalForLogin.tradeAiLoginFailures ??= new Map());
+// server-cluster.cjs her sürece gerçek süreç sayısını WEB_WORKERS olarak verir.
+const processes = Number(process.env.WEB_WORKERS) || 1;
 
 async function requestContext() {
   const incoming = await headers();
@@ -33,7 +35,7 @@ export async function loginAction(_previous: LoginState, formData: FormData): Pr
   if (config.mode === "misconfigured") return { username, message: "Yönetici girişi yapılandırılmamış. WEB_ADMIN_PASSWORD ayarlanmalı." };
 
   const { client, secure } = await requestContext();
-  const locked = lockoutRemainingMs(failures, client);
+  const locked = lockoutRemainingMs(failures, client, Date.now(), processes);
   if (locked > 0) {
     return { username, message: `Çok fazla hatalı deneme. ${Math.ceil(locked / 60000)} dakika sonra tekrar deneyin.` };
   }

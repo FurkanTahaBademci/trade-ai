@@ -92,6 +92,18 @@ test("global lockout stops attackers rotating client addresses", () => {
   assert.ok(limiter.lockoutRemainingMs(store, "203.0.113.9", now) > 0);
 });
 
+test("lockout limits are split across web processes", () => {
+  assert.equal(limiter.perProcessLimit(5, 1), 5);
+  assert.equal(limiter.perProcessLimit(5, 2), 3);
+  assert.equal(limiter.perProcessLimit(30, 4), 8);
+  assert.equal(limiter.perProcessLimit(5, 16), 1);
+  assert.equal(limiter.perProcessLimit(5, 0), 5);
+  const store = new Map();
+  for (let i = 0; i < 3; i += 1) limiter.recordFailure(store, "1.1.1.1", now);
+  assert.equal(limiter.lockoutRemainingMs(store, "1.1.1.1", now), 0);
+  assert.ok(limiter.lockoutRemainingMs(store, "1.1.1.1", now, 2) > 0);
+});
+
 test("successful login clears the client's failures", () => {
   const store = new Map();
   for (let i = 0; i < limiter.LOGIN_MAX_FAILURES_PER_CLIENT; i += 1) limiter.recordFailure(store, "1.1.1.1", now);

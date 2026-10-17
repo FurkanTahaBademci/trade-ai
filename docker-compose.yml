@@ -149,6 +149,9 @@ services:
       ADMIN_API_TOKEN: ${ADMIN_API_TOKEN:-}
       WEB_ADMIN_USERNAME: ${WEB_ADMIN_USERNAME:-admin}
       WEB_ADMIN_PASSWORD: ${WEB_ADMIN_PASSWORD:-}
+      # Next SSR surec sayisi (web/server-cluster.cjs); "auto" = CPU sayisi.
+      # Surec basina ~150-250 MB: WEB_WORKERS artarsa WEB_MEMORY_LIMIT da artmali.
+      WEB_WORKERS: ${WEB_WORKERS:-2}
     depends_on:
       api:
         condition: service_healthy
@@ -165,7 +168,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: ${WEB_MEMORY_LIMIT:-512M}
+          memory: ${WEB_MEMORY_LIMIT:-1G}
 
 volumes:
   postgres_data:

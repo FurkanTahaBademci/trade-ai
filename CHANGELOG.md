@@ -9,6 +9,15 @@ bu bölümü yeni sürüm numarasıyla kapatır.
 
 ## [Unreleased]
 
+### Değişti
+
+- **Web birden fazla süreçle çalışır.** Next.js sunucusu artık `WEB_WORKERS`
+  (varsayılan 2, `auto` = CPU sayısı) kadar Node süreciyle aynı portu paylaşır;
+  sayfa render'ı tek çekirdeğe sıkışmaz. Varsayılan `WEB_MEMORY_LIMIT` 512M'den
+  1G'ye çıktı. `/health` çalışan süreç sayısını (`workers`) döndürür. Yönetim
+  girişindeki kaba kuvvet sınırları süreçlere bölünür; toplam deneme hakkı
+  değişmez.
+
 ## [0.8.1] - 2026-10-17
 
 ### Değişti
