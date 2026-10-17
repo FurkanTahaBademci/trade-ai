@@ -9,6 +9,8 @@ bu bölümü yeni sürüm numarasıyla kapatır.
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-10-17
+
 ### Eklendi
 
 - **Web yük ölçümü.** Yönetici `/sistem` sayfasındaki yeni *Web yükü* bölümü
