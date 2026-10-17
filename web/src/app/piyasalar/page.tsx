@@ -3,13 +3,15 @@ import { apiGet } from "@/lib/api";
 import type { Instrument, MarketHeatmapData } from "@/lib/types";
 import { PiyasalarView } from "@/components/piyasalar-view";
 import { PageHeader, ServiceNotice } from "@/components/ui";
+import { parseMarketsView } from "@/lib/markets-view";
 
 export const metadata: Metadata = { title: "Piyasalar & Sektörel Isı Haritası" };
 
-export default async function MarketsPage() {
-  const [instruments, heatmap] = await Promise.all([
+export default async function MarketsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const [instruments, heatmap, initialView] = await Promise.all([
     apiGet<Instrument[]>("/api/instruments", []),
     apiGet<MarketHeatmapData | null>("/api/markets/heatmap", null),
+    searchParams.then(parseMarketsView),
   ]);
 
   return (
@@ -32,6 +34,7 @@ export default async function MarketsPage() {
         // İstemci yalnız kod ve adı kullanır; diğer alanlar sayfa yükünü büyütmesin.
         instruments={instruments.data.map(({ ticker, name }) => ({ ticker, name }))}
         heatmap={heatmap.data}
+        initialView={initialView}
       />
     </>
   );

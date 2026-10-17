@@ -70,6 +70,9 @@ export function TradingViewChart({
   const [activeRange, setActiveRange] = useState<number | null>(90);
   const [customRange, setCustomRange] = useState({ start: "", end: "" });
   const [isFullscreen, setIsFullscreen] = useState(false);
+  // Mobilde tarih/yakınlaştırma/gösterge satırı varsayılan olarak kapalı; grafik ilk ekranda görünsün.
+  const [showTools, setShowTools] = useState(false);
+  const toolsId = useId();
 
   // HUD / Legend state
   const [hoveredData, setHoveredData] = useState<{
@@ -176,6 +179,13 @@ export function TradingViewChart({
       window.removeEventListener("trade-ai:theme-change", handleCustom);
     };
   }, []);
+
+  useEffect(() => {
+    if (!isFullscreen) return;
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") setIsFullscreen(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [isFullscreen]);
 
   // Initialize TradingView Chart
   useEffect(() => {
@@ -528,21 +538,22 @@ export function TradingViewChart({
     );
   }
 
+  const activeIndicators = [showMa20, showMa50, showMa200, showBb, showAvgPrice, showRsi].filter(Boolean).length;
   const containerClasses = isFullscreen
     ? "fixed inset-0 z-50 flex flex-col bg-[var(--background)] p-4 overflow-y-auto"
     : "min-w-0";
 
   return (
     <div className={containerClasses} data-testid="price-chart">
-      {/* Top Controls Bar */}
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2.5">
-        {/* Time Ranges */}
+      {/* Top Controls Bar: dönem, grafik tipi, araçlar ve tam ekran tek satırda */}
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap gap-1" role="group" aria-label="Grafik dönemi">
           {ranges.map((r) => (
             <button
               key={r.label}
               type="button"
-              className={`${chartButton} ${
+              aria-pressed={activeRange === r.days}
+              className={`${chartButton} min-h-9 min-w-[40px] ${
                 activeRange === r.days
                   ? "border-transparent bg-[var(--primary-soft)] !text-[var(--primary)] font-semibold"
                   : ""
@@ -554,12 +565,12 @@ export function TradingViewChart({
           ))}
         </div>
 
-        {/* Chart Style (Candle / Area / Bar) */}
         <div className="flex items-center gap-1">
-          <div className="flex rounded border border-[var(--border)] p-0.5 bg-[var(--surface-raised)]">
+          <div className="flex rounded border border-[var(--border)] p-0.5 bg-[var(--surface-raised)]" role="group" aria-label="Grafik tipi">
             <button
               type="button"
-              className={`rounded px-2.5 py-1 text-xs transition ${
+              aria-pressed={chartMode === "candle"}
+              className={`min-h-9 min-w-[44px] rounded px-2.5 text-xs transition ${
                 chartMode === "candle"
                   ? "bg-[var(--primary)] text-[var(--primary-contrast)] font-medium"
                   : "text-[var(--text-muted)] hover:text-[var(--text)]"
@@ -571,7 +582,8 @@ export function TradingViewChart({
             </button>
             <button
               type="button"
-              className={`rounded px-2.5 py-1 text-xs transition ${
+              aria-pressed={chartMode === "area"}
+              className={`min-h-9 min-w-[44px] rounded px-2.5 text-xs transition ${
                 chartMode === "area"
                   ? "bg-[var(--primary)] text-[var(--primary-contrast)] font-medium"
                   : "text-[var(--text-muted)] hover:text-[var(--text)]"
@@ -583,7 +595,8 @@ export function TradingViewChart({
             </button>
             <button
               type="button"
-              className={`rounded px-2.5 py-1 text-xs transition ${
+              aria-pressed={chartMode === "bar"}
+              className={`min-h-9 min-w-[44px] rounded px-2.5 text-xs transition ${
                 chartMode === "bar"
                   ? "bg-[var(--primary)] text-[var(--primary-contrast)] font-medium"
                   : "text-[var(--text-muted)] hover:text-[var(--text)]"
@@ -595,44 +608,58 @@ export function TradingViewChart({
             </button>
           </div>
 
-          {/* Fullscreen Toggle Button */}
           <button
             type="button"
-            className={`${chartButton} hidden sm:inline-flex items-center gap-1.5`}
-            onClick={() => setIsFullscreen(!isFullscreen)}
-            title={isFullscreen ? "Tam ekrandan çık" : "Tam ekran"}
+            className={`${chartButton} min-h-9 sm:hidden ${showTools ? "!text-[var(--primary)]" : ""}`}
+            aria-expanded={showTools}
+            aria-controls={toolsId}
+            onClick={() => setShowTools(!showTools)}
           >
-            {isFullscreen ? "Küçült ✕" : "Tam Ekran ⛶"}
+            Araçlar{activeIndicators ? ` · ${activeIndicators}` : ""}
+          </button>
+
+          <button
+            type="button"
+            className={`${chartButton} inline-flex min-h-9 min-w-[40px] items-center justify-center gap-1.5`}
+            onClick={() => setIsFullscreen(!isFullscreen)}
+            title={isFullscreen ? "Tam ekrandan çık (Esc)" : "Tam ekran"}
+            aria-label={isFullscreen ? "Tam ekrandan çık" : "Tam ekran"}
+            aria-pressed={isFullscreen}
+          >
+            <span aria-hidden="true">{isFullscreen ? "✕" : "⛶"}</span>
+            <span className="hidden sm:inline">{isFullscreen ? "Küçült" : "Tam Ekran"}</span>
           </button>
         </div>
       </div>
 
-      {/* Date & Zoom Secondary Row */}
-      <div className="mb-3 grid grid-cols-2 items-end gap-2 sm:flex sm:flex-wrap">
-        <label className="min-w-0 flex-1 text-xs text-[var(--text-muted)]">
-          Başlangıç
-          <input
-            aria-label="Grafik başlangıcı"
-            className="input mt-1 min-w-0"
-            type="date"
-            value={customRange.start || (activeRange ? rangeStart(dataBundle.maxDate, activeRange) : dataBundle.minDate)}
-            onChange={(e) => handleCustomDate("start", e.target.value)}
-          />
-        </label>
-        <label className="min-w-0 flex-1 text-xs text-[var(--text-muted)]">
-          Bitiş
-          <input
-            aria-label="Grafik bitişi"
-            className="input mt-1 min-w-0"
-            type="date"
-            value={customRange.end || dataBundle.maxDate}
-            onChange={(e) => handleCustomDate("end", e.target.value)}
-          />
-        </label>
-        <div className="col-span-2 flex gap-1">
+      {/* Tarih, yakınlaştırma ve göstergeler: masaüstünde her zaman açık, mobilde "Araçlar" ile */}
+      <div id={toolsId} className={`${showTools ? "flex" : "hidden"} mb-3 flex-col gap-2 sm:flex sm:flex-row sm:flex-wrap sm:items-center`}>
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
+          <label className="flex min-w-0 flex-col gap-1 text-[11px] text-[var(--text-muted)] sm:flex-row sm:items-center sm:gap-1.5">
+            Başlangıç
+            <input
+              aria-label="Grafik başlangıcı"
+              className="input h-9 min-w-0 px-2 text-xs sm:w-[8.75rem]"
+              type="date"
+              value={customRange.start || (activeRange ? rangeStart(dataBundle.maxDate, activeRange) : dataBundle.minDate)}
+              onChange={(e) => handleCustomDate("start", e.target.value)}
+            />
+          </label>
+          <label className="flex min-w-0 flex-col gap-1 text-[11px] text-[var(--text-muted)] sm:flex-row sm:items-center sm:gap-1.5">
+            Bitiş
+            <input
+              aria-label="Grafik bitişi"
+              className="input h-9 min-w-0 px-2 text-xs sm:w-[8.75rem]"
+              type="date"
+              value={customRange.end || dataBundle.maxDate}
+              onChange={(e) => handleCustomDate("end", e.target.value)}
+            />
+          </label>
+        </div>
+        <div className="flex gap-1">
           <button
             type="button"
-            className={chartButton}
+            className={`${chartButton} min-h-9 min-w-[40px]`}
             aria-label="Yakınlaştır"
             onClick={() => handleZoom("in")}
             title="Yakınlaştır"
@@ -641,7 +668,7 @@ export function TradingViewChart({
           </button>
           <button
             type="button"
-            className={chartButton}
+            className={`${chartButton} min-h-9 min-w-[40px]`}
             aria-label="Uzaklaştır"
             onClick={() => handleZoom("out")}
             title="Uzaklaştır"
@@ -650,7 +677,7 @@ export function TradingViewChart({
           </button>
           <button
             type="button"
-            className={chartButton}
+            className={`${chartButton} min-h-9`}
             aria-label="Tümünü sığdır"
             onClick={() => handleRangePreset(0)}
             title="Tümünü sığdır"
@@ -658,82 +685,88 @@ export function TradingViewChart({
             Sığdır
           </button>
         </div>
-      </div>
-
-      {/* Technical Indicators Row */}
-      <div className="mb-3 flex flex-wrap items-center gap-1.5 text-xs">
-        <button
-          type="button"
-          className={`${chartButton} ${
-            showMa20
-              ? "border-transparent bg-[var(--primary-soft)] !text-[var(--positive)] font-medium"
-              : ""
-          }`}
-          onClick={() => setShowMa20(!showMa20)}
-        >
-          ● MA20
-        </button>
-        <button
-          type="button"
-          className={`${chartButton} ${
-            showMa50
-              ? "border-transparent bg-[var(--primary-soft)] !text-[var(--warning)] font-medium"
-              : ""
-          }`}
-          onClick={() => setShowMa50(!showMa50)}
-        >
-          ● MA50
-        </button>
-        <button
-          type="button"
-          className={`${chartButton} ${
-            showMa200
-              ? "border-transparent bg-[var(--primary-soft)] !text-[#ec4899] font-medium"
-              : ""
-          }`}
-          onClick={() => setShowMa200(!showMa200)}
-        >
-          ● MA200
-        </button>
-        <button
-          type="button"
-          className={`${chartButton} ${
-            showBb
-              ? "border-transparent bg-[var(--primary-soft)] !text-[#38bdf8] font-medium"
-              : ""
-          }`}
-          onClick={() => setShowBb(!showBb)}
-        >
-          ● BB (20,2)
-        </button>
-        <button
-          type="button"
-          className={`${chartButton} ${
-            showAvgPrice
-              ? "border-transparent bg-[var(--primary-soft)] !text-[var(--accent,#8b5cf6)] font-medium"
-              : ""
-          }`}
-          onClick={() => setShowAvgPrice(!showAvgPrice)}
-        >
-          ┄ AOF
-        </button>
-        <button
-          type="button"
-          className={`${chartButton} ${
-            showRsi
-              ? "border-transparent bg-[var(--primary-soft)] !text-[var(--primary)] font-medium"
-              : ""
-          }`}
-          onClick={() => setShowRsi(!showRsi)}
-        >
-          ● RSI (14)
-        </button>
+        <div className="flex flex-wrap items-center gap-1 text-xs sm:border-l sm:border-[var(--border)] sm:pl-2" role="group" aria-label="Teknik göstergeler">
+            <button
+              type="button"
+              aria-pressed={showMa20}
+              className={`${chartButton} min-h-9 ${
+                showMa20
+                  ? "border-transparent bg-[var(--primary-soft)] !text-[var(--positive)] font-medium"
+                  : ""
+              }`}
+              onClick={() => setShowMa20(!showMa20)}
+            >
+              ● MA20
+            </button>
+            <button
+              type="button"
+              aria-pressed={showMa50}
+              className={`${chartButton} min-h-9 ${
+                showMa50
+                  ? "border-transparent bg-[var(--primary-soft)] !text-[var(--warning)] font-medium"
+                  : ""
+              }`}
+              onClick={() => setShowMa50(!showMa50)}
+            >
+              ● MA50
+            </button>
+            <button
+              type="button"
+              aria-pressed={showMa200}
+              className={`${chartButton} min-h-9 ${
+                showMa200
+                  ? "border-transparent bg-[var(--primary-soft)] !text-[#ec4899] font-medium"
+                  : ""
+              }`}
+              onClick={() => setShowMa200(!showMa200)}
+            >
+              ● MA200
+            </button>
+            <button
+              type="button"
+              aria-pressed={showBb}
+              className={`${chartButton} min-h-9 ${
+                showBb
+                  ? "border-transparent bg-[var(--primary-soft)] !text-[#38bdf8] font-medium"
+                  : ""
+              }`}
+              onClick={() => setShowBb(!showBb)}
+            >
+              ● BB (20,2)
+            </button>
+            <button
+              type="button"
+              aria-pressed={showAvgPrice}
+              className={`${chartButton} min-h-9 ${
+                showAvgPrice
+                  ? "border-transparent bg-[var(--primary-soft)] !text-[var(--accent,#8b5cf6)] font-medium"
+                  : ""
+              }`}
+              onClick={() => setShowAvgPrice(!showAvgPrice)}
+            >
+              ┄ AOF
+            </button>
+            <button
+              type="button"
+              aria-pressed={showRsi}
+              className={`${chartButton} min-h-9 ${
+                showRsi
+                  ? "border-transparent bg-[var(--primary-soft)] !text-[var(--primary)] font-medium"
+                  : ""
+              }`}
+              onClick={() => setShowRsi(!showRsi)}
+            >
+              ● RSI (14)
+            </button>
+        </div>
       </div>
 
       {chartMode !== "area" && (
-        <p className="mb-2 text-xs text-[var(--text-muted)]">
-          Tahmini mum/çubuk: kaynak açılış fiyatı sağlamıyor. Açılış yerine önceki kapanış
-          (ilk kayıtta AOF veya kapanış) kullanılır; yüksek/düşük çizimleri bu değeri kapsayacak şekilde genişletilebilir.
+        <p
+          className="mb-2 text-[11px] leading-4 text-[var(--text-muted)]"
+          title="Kaynak açılış fiyatı sağlamıyor. Açılış yerine önceki kapanış (ilk kayıtta AOF veya kapanış) kullanılır; yüksek/düşük çizimleri bu değeri kapsayacak şekilde genişletilebilir."
+        >
+          Tahmini mum/çubuk: açılış yerine önceki kapanış kullanılır.
         </p>
       )}
 
@@ -746,7 +779,7 @@ export function TradingViewChart({
           <div className="font-semibold text-[var(--text)]">
             {formatDate(displayHud.date)}
           </div>
-          <div className="flex items-center gap-3 text-[var(--text-muted)]">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[var(--text-muted)]">
             <span>
               A (tahmini): <strong className="font-medium text-[var(--text)]">{formatMoney(displayHud.open)}</strong>
             </span>

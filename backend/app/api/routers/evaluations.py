@@ -32,6 +32,10 @@ async def list_evaluations(
         int | None,
         Query(ge=1, description="Ayni olusturma zamanindaki kayitlar icin cursor ID"),
     ] = None,
+    min_impact: Annotated[
+        int | None,
+        Query(ge=0, le=100, description="Yalniz etki skoru bu degere esit/ustu olanlar"),
+    ] = None,
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
 ) -> list[LlmEvaluation]:
     stmt = select(LlmEvaluation).order_by(
@@ -50,6 +54,9 @@ async def list_evaluations(
     else:
         # On filtrenin eledigi haberler LLM ciktisi degildir; acikca istenmedikce gizlenir.
         stmt = stmt.where(LlmEvaluation.status != "filtered")
+    if min_impact is not None:
+        # Etki skoru olmayan (basarisiz/isleniyor) kayitlar esige takilir.
+        stmt = stmt.where(LlmEvaluation.impact_score >= min_impact)
     if before and before_id:
         stmt = stmt.where(
             or_(

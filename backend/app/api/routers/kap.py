@@ -12,6 +12,11 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.collectors.kap import KAP_FILE_URL, unwrap_java_serialized_byte_array
+from app.collectors.kap_content import (
+    clean_kap_body_text,
+    is_kap_test_disclosure,
+    not_kap_test_disclosure,
+)
 from app.core.config import get_settings
 from app.core.db import get_db
 from app.models import KapAttachment, KapDisclosure
@@ -35,8 +40,12 @@ async def list_disclosures(
     ] = None,
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
 ) -> list[KapDisclosure]:
-    stmt = select(KapDisclosure).order_by(
-        KapDisclosure.published_at.desc(), KapDisclosure.disclosure_index.desc()
+    # KAP'in sistem test bildirimleri (KTEST vb.) eski kayitlarda DB'de kalmis
+    # olabilir; ana sayfa dahil hicbir listede gosterilmez.
+    stmt = (
+        select(KapDisclosure)
+        .where(not_kap_test_disclosure())
+        .order_by(KapDisclosure.published_at.desc(), KapDisclosure.disclosure_index.desc())
     )
     if ticker:
         # Uretim DB'si PostgreSQL. JSONB cast'i `ticker_codes @> ['THYAO']`
@@ -64,11 +73,20 @@ async def list_disclosures(
 async def get_disclosure(
     disclosure_index: int,
     db: Annotated[AsyncSession, Depends(get_db)],
-) -> KapDisclosure:
+) -> KapDisclosureDetailOut:
     disclosure = await db.get(KapDisclosure, disclosure_index)
-    if disclosure is None:
+    if disclosure is None or is_kap_test_disclosure(
+        ticker_codes=disclosure.ticker_codes,
+        kap_title=disclosure.kap_title,
+        subject=disclosure.subject,
+        summary=disclosure.summary,
+        body_text=disclosure.body_text,
+    ):
         raise HTTPException(status_code=404, detail="KAP bildirimi bulunamadi")
-    return disclosure
+    # Temizlik okuma aninda da uygulanir: eski kayitlardaki sablon artiklari
+    # (`oda_*|`, `[]`) migration gerekmeden kaybolur. ORM nesnesi degismez.
+    out = KapDisclosureDetailOut.model_validate(disclosure)
+    return out.model_copy(update={"body_text": clean_kap_body_text(out.body_text)})
 
 
 @router.get("/{disclosure_index}/attachments/{obj_id}")

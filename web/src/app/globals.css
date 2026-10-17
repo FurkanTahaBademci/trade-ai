@@ -98,7 +98,7 @@ button { color: inherit; }
 @layer components {
   .panel { @apply border; border-color: var(--border); border-radius: var(--radius-md); background: var(--surface); box-shadow: none; }
   .panel-flat { @apply border; border-color: var(--border); border-radius: var(--radius-md); background: var(--surface); }
-  .eyebrow { @apply text-[11px] font-semibold uppercase tracking-[0.16em]; color: var(--text-muted); }
+  .eyebrow { @apply text-xs font-semibold uppercase tracking-[0.12em]; color: var(--text-muted); }
   .page-title { @apply text-xl font-semibold tracking-[-0.025em] sm:text-2xl; }
   .muted { color: var(--text-secondary); }
   .subtle { color: var(--text-muted); }
@@ -113,9 +113,11 @@ button { color: inherit; }
   .input { @apply h-10 w-full rounded border px-3 text-sm outline-none transition; color: var(--text); border-color: var(--border); background: var(--surface-raised); }
   .input::placeholder { color: var(--text-muted); }
   .input:focus { border-color: color-mix(in srgb, var(--primary) 60%, var(--border)); box-shadow: 0 0 0 3px var(--primary-soft); }
+  /* Yumuşak gölge tek başına düşük kontrastlı; klavye odağında net halka göster. */
+  .input:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
   .table-shell { @apply overflow-hidden border; border-color: var(--border); border-radius: var(--radius-md); }
   .data-table { @apply w-full border-collapse text-left text-xs; }
-  .data-table th { @apply px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.1em]; color: var(--text-muted); background: var(--surface-raised); }
+  .data-table th { @apply px-3 py-2 text-xs font-semibold uppercase tracking-[0.08em]; color: var(--text-muted); background: var(--surface-raised); }
   .data-table td { @apply border-t px-3 py-2.5; border-color: var(--border); }
   .data-table tbody tr { @apply transition-colors; }
   .data-table tbody tr:hover { background: var(--surface-hover); }
@@ -137,4 +139,15 @@ summary::marker { color: var(--primary); }
   .data-table caption { @apply px-3 py-2 text-left text-xs; color: var(--text-muted); }
   .data-table th { position: relative; white-space: nowrap; }
   .data-table td { font-variant-numeric: tabular-nums; }
+  /* Yatay kaydırmada ilk sütun (hisse kodu) görünür kalır. */
+  .data-table .sticky-col { position: sticky; left: 0; z-index: 1; background: var(--sticky-bg, var(--background)); box-shadow: inset -1px 0 0 var(--border); }
+  .data-table th.sticky-col { z-index: 3; background: var(--surface-raised); }
+  .data-table tbody tr:hover .sticky-col { background: var(--surface-hover); }
+  /* Kaydırılabilir kap içinde (max-height + overflow-auto) başlık satırı sabit kalır. */
+  .data-table-sticky thead th { position: sticky; top: 0; z-index: 2; box-shadow: inset 0 -1px 0 var(--border); }
+  .data-table-sticky thead th.sticky-col { box-shadow: inset -1px -1px 0 var(--border); }
+  /* Dar ekranda hücre boşluklarını azalt. */
+  .data-table-compact th, .data-table-compact td { @apply px-2 sm:px-3; }
+  .no-scrollbar { scrollbar-width: none; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
 }

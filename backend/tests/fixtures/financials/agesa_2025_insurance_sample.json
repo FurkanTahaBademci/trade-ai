@@ -1,0 +1,148 @@
+{
+ "request": {
+  "companyCode": "AGESA",
+  "exchange": "TRY",
+  "financialGroup": "UFRS",
+  "year1": 2025,
+  "period1": 3,
+  "year2": 2025,
+  "period2": 6,
+  "year3": 2025,
+  "period3": 9,
+  "year4": 2025,
+  "period4": 12
+ },
+ "response_metadata": {
+  "ok": true,
+  "errorCode": null,
+  "errorDescription": null
+ },
+ "value": [
+  {
+   "itemCode": "1A",
+   "itemDescTr": "  A- Nakit Ve Nakit Benzeri Varlıklar ",
+   "itemDescEng": "  A- Cash and Equivalents",
+   "value1": "4712872493",
+   "value2": "4769604091",
+   "value3": "5618190756",
+   "value4": "6676805376"
+  },
+  {
+   "itemCode": "1AA",
+   "itemDescTr": "   1- Kasa",
+   "itemDescEng": "   1- Cash in Hand",
+   "value1": "0",
+   "value2": "0",
+   "value3": "0",
+   "value4": "0"
+  },
+  {
+   "itemCode": "1H",
+   "itemDescTr": " I- Cari Varlıklar Toplamı",
+   "itemDescEng": " I- Total Current Assets",
+   "value1": "39358615444",
+   "value2": "43762147136",
+   "value3": "50224285073",
+   "value4": "56105072442"
+  },
+  {
+   "itemCode": "1Z",
+   "itemDescTr": " AKTİF TOPLAMI",
+   "itemDescEng": " TOTAL ASSETS",
+   "value1": "304719250156",
+   "value2": "339908358735",
+   "value3": "401264203002",
+   "value4": "462472140887"
+  },
+  {
+   "itemCode": "2A",
+   "itemDescTr": "  A- Finansal Borçlar ",
+   "itemDescEng": "  A- Short Term Financial Liabilities",
+   "value1": "58651409",
+   "value2": "80395731",
+   "value3": "96519355",
+   "value4": "112595417"
+  },
+  {
+   "itemCode": "2AA",
+   "itemDescTr": "   1- Kredi Kuruluşlarına Borçlar ",
+   "itemDescEng": "   1- Loans to Financial Institutions",
+   "value1": "0",
+   "value2": "0",
+   "value3": "0",
+   "value4": "0"
+  },
+  {
+   "itemCode": "2I",
+   "itemDescTr": " III - Kısa Vadeli Yükümlülükler Toplamı",
+   "itemDescEng": " III- Total Short Term Liabilities",
+   "value1": "9601358669",
+   "value2": "9770485862",
+   "value3": "11684363001",
+   "value4": "12890807837"
+  },
+  {
+   "itemCode": "2O",
+   "itemDescTr": " Özsermaye Toplamı",
+   "itemDescEng": " Total Equity",
+   "value1": "5344223910",
+   "value2": "6671398101",
+   "value3": "8098837403",
+   "value4": "9575607955"
+  },
+  {
+   "itemCode": "2Z",
+   "itemDescTr": "PASİF TOPLAMI",
+   "itemDescEng": "TOTAL LIABILITIES",
+   "value1": "304719250156",
+   "value2": "339908358735",
+   "value3": "401264203002",
+   "value4": "462472140887"
+  },
+  {
+   "itemCode": "3A",
+   "itemDescTr": " A- Hayat Dışı Teknik Gelir ",
+   "itemDescEng": " A- Non-Life Technical Income",
+   "value1": "58184170",
+   "value2": "119664754",
+   "value3": "187671526",
+   "value4": "259198219"
+  },
+  {
+   "itemCode": "3C",
+   "itemDescTr": " C- Teknik Bölüm Dengesi- Hayat Dışı (A - B)",
+   "itemDescEng": " C- Non Life Technical Profit (A-B)",
+   "value1": "-434613",
+   "value2": "27618629",
+   "value3": "40916386",
+   "value4": "55313483"
+  },
+  {
+   "itemCode": "3D",
+   "itemDescTr": " D- Hayat Teknik Gelir ",
+   "itemDescEng": " D- Life Technical Income",
+   "value1": "6260858698",
+   "value2": "13182627004",
+   "value3": "20688590156",
+   "value4": "28395664839"
+  },
+  {
+   "itemCode": "3H",
+   "itemDescTr": " C- Teknik Bölüm Dengesi- Hayat Dışı",
+   "itemDescEng": " C- Non Life Technical Profit",
+   "value1": "-434613",
+   "value2": "27618629",
+   "value3": "40916386",
+   "value4": "55313483"
+  },
+  {
+   "itemCode": "3Z",
+   "itemDescTr": " N- Dönem Net Karı veya Zararı",
+   "itemDescEng": " N- Net Profit (Loss)",
+   "value1": "1124513554",
+   "value2": "2384633607",
+   "value3": "3700450832",
+   "value4": "5149878691"
+  }
+ ]
+}

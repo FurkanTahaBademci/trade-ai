@@ -7,3 +7,4 @@ def test_market_and_briefing_routes_registered():
     paths = set(app.openapi()["paths"])
     assert "/api/markets/heatmap" in paths
     assert "/api/ai/briefing" in paths
+    assert "/api/ai/focus" in paths

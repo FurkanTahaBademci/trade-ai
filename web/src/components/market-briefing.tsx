@@ -1,8 +1,16 @@
-import type { AIBriefingData } from "@/lib/types";
+import Link from "next/link";
+import type { AIBriefingCatalyst, AIBriefingData } from "@/lib/types";
+import { eventName } from "@/lib/format";
+import { moodLabel, type FocusItem } from "@/lib/overview";
 import { Icon } from "./icon";
 import { TickerPills } from "./ui";
 
-export function MarketBriefing({ briefing }: { briefing: AIBriefingData | null }) {
+// Bülten ucu ortak tipe ek alanlar döndürür (Türkçe olay türü, etki puanı,
+// kaynak bağlantısı); eski önbellek yanıtlarında bu alanlar olmayabilir.
+type Catalyst = AIBriefingCatalyst & Partial<Pick<FocusItem, "event_type" | "event_label" | "impact_score" | "href">>;
+type Briefing = Omit<AIBriefingData, "catalysts"> & { catalysts: Catalyst[]; mood_sample_size?: number };
+
+export function MarketBriefing({ briefing }: { briefing: Briefing | null }) {
   if (!briefing) return null;
 
   const isBullish = briefing.market_mood === "BULLISH";
@@ -32,11 +40,7 @@ export function MarketBriefing({ briefing }: { briefing: AIBriefingData | null }
                 }`}
               >
                 <span className="h-1.5 w-1.5 rounded-full bg-current" />
-                {isBullish
-                  ? "Pozitif Skor Görünümü"
-                  : isBearish
-                  ? "Negatif Skor Görünümü"
-                  : "Nötr / Yetersiz Veri"}
+                {moodLabel(briefing.market_mood, briefing.mood_sample_size)}
               </span>
             </div>
             <h2 className="mt-1 text-base font-semibold tracking-[-0.02em] text-[var(--text)] sm:text-lg">
@@ -61,12 +65,12 @@ export function MarketBriefing({ briefing }: { briefing: AIBriefingData | null }
           {briefing.summary}
         </p>
 
-        <details className="mt-3"><summary className="text-xs font-medium text-[var(--primary)]">Kaynaklar, sektör notları ve çıkarımlar</summary>
+        <details className="mt-3"><summary className="cursor-pointer text-xs font-medium text-[var(--primary)]">{briefing.catalysts?.length ? `Öne çıkan ${briefing.catalysts.length} gelişme ve çıkarımlar` : "Çıkarımlar"}</summary>
         {/* Günün Kritik Katalizörleri */}
         {briefing.catalysts && briefing.catalysts.length > 0 && (
           <div className="mt-6">
             <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-              Son Haberler ve KAP Değerlendirmeleri
+              Etki puanı en yüksek haber ve KAP gelişmeleri
             </h3>
             <div className="grid gap-2 sm:grid-cols-2">
               {briefing.catalysts.map((cat, idx) => (
@@ -76,31 +80,42 @@ export function MarketBriefing({ briefing }: { briefing: AIBriefingData | null }
                 >
                   <div>
                     <div className="mb-2 flex items-center justify-between gap-2">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
-                        {cat.category}
+                      <span className="min-w-0 truncate text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                        {cat.category} · {cat.event_label ?? eventName(cat.event_type ?? null)}
                       </span>
-                      <span
-                        className={`pill text-[10px] font-semibold ${
-                          cat.impact === "POSITIVE"
-                            ? "pill-positive"
+                      <span className="flex shrink-0 items-center gap-1.5">
+                        {cat.impact_score != null && <span className="terminal-mono text-[10px] text-[var(--text-muted)]">Etki {cat.impact_score}</span>}
+                        <span
+                          className={`pill text-[10px] font-semibold ${
+                            cat.impact === "POSITIVE"
+                              ? "pill-positive"
+                              : cat.impact === "NEGATIVE"
+                              ? "pill-negative"
+                              : ""
+                          }`}
+                        >
+                          {cat.impact === "POSITIVE"
+                            ? "Pozitif"
                             : cat.impact === "NEGATIVE"
-                            ? "pill-negative"
-                            : ""
-                        }`}
-                      >
-                        {cat.impact === "POSITIVE"
-                          ? "Pozitif"
-                          : cat.impact === "NEGATIVE"
-                          ? "Negatif"
-                          : "Nötr"}
+                            ? "Negatif"
+                            : "Nötr"}
+                        </span>
                       </span>
                     </div>
-                    <p className="line-clamp-2 text-xs font-semibold leading-snug text-[var(--text)]">
-                      {cat.title}
-                    </p>
-                    <p className="mt-1.5 line-clamp-2 text-[11px] leading-relaxed text-[var(--text-muted)]">
-                      {cat.description}
-                    </p>
+                    {cat.href ? (
+                      <Link href={cat.href} className="line-clamp-2 text-xs font-semibold leading-snug text-[var(--text)] hover:text-[var(--primary)]">
+                        {cat.title}
+                      </Link>
+                    ) : (
+                      <p className="line-clamp-2 text-xs font-semibold leading-snug text-[var(--text)]">
+                        {cat.title}
+                      </p>
+                    )}
+                    {cat.description && (
+                      <p className="mt-1.5 line-clamp-2 text-[11px] leading-relaxed text-[var(--text-muted)]">
+                        {cat.description}
+                      </p>
+                    )}
                   </div>
                   {cat.tickers && cat.tickers.length > 0 && (
                     <div className="mt-3 border-t border-[var(--border-subtle)] pt-2">
@@ -161,7 +176,7 @@ export function MarketBriefing({ briefing }: { briefing: AIBriefingData | null }
         className="border-t px-5 py-2.5 text-[11px] text-[var(--text-muted)]"
         style={{ borderColor: "var(--border)", background: "var(--surface-raised)" }}
       >
-        Son 24 saatteki haberler, tamamlanan KAP analizleri ve hesaplanan bileşik skorlar ile son kayıtlı faiz kararından derlenmiştir. Yatırım tavsiyesi içermez.
+        Son 24 saatin AI etki puanı ve güncelliğe göre seçilen haber/KAP gelişmeleri, hesaplanan bileşik skorlar ve son kayıtlı faiz kararından derlenmiştir. Yatırım tavsiyesi içermez.
       </div>
     </section>
   );

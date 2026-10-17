@@ -22,6 +22,18 @@ from app.models import Instrument
 
 KAP_COMPANY_ITEMS_URL = "https://www.kap.org.tr/tr/api/company/items/IGS/A"
 KAP_REFERER = "https://www.kap.org.tr/tr/bist-sirketler"
+# KAP satirinda islem goren payla ayni sirkete bagli gelen ama piyasada
+# fiilen islem gormeyen pay siniflari ve KAP'in test uyesi. Evrene girerlerse
+# milyon TL'lik nominal fiyat, anlamsiz F/K ve kopya analist hedefiyle
+# skorlanirlar.
+EXCLUDED_TICKERS = frozenset(
+    {
+        "ISATR",  # Is Bankasi A grubu
+        "ISBTR",  # Is Bankasi B grubu
+        "ISKUR",  # Is Bankasi kurucu payi
+        "KTEST",  # KAP test bildirimi uyesi
+    }
+)
 
 
 def map_kap_item_to_instrument_fields(item: dict) -> list[dict]:
@@ -37,6 +49,7 @@ def map_kap_item_to_instrument_fields(item: dict) -> list[dict]:
       ihrac eden bankalar vb.).
     - Ayni satirdaki 3 harfli kodlar (`A1CAP, ACP`; `GARAN, TGB`) borclanma
       araci ihracci kodudur; BIST pay kodlari 4-5 harflidir.
+    - `EXCLUDED_TICKERS`: islem gormeyen pay siniflari ve test uyesi.
     Saf fonksiyon oldugu icin
     DB/ag olmadan test edilebilir (bkz. tests/test_instrument_mapping.py).
     """
@@ -63,7 +76,10 @@ def map_kap_item_to_instrument_fields(item: dict) -> list[dict]:
         {
             "ticker": ticker,
             **common_fields,
-            "is_active": member_active and shares_traded and len(ticker) >= 4,
+            "is_active": member_active
+            and shares_traded
+            and len(ticker) >= 4
+            and ticker not in EXCLUDED_TICKERS,
         }
         for ticker in tickers
     ]

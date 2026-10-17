@@ -65,31 +65,47 @@ test("formatNumber respects the digits option and tr-TR grouping", () => {
   assert.equal(formatNumber(1234.567, 0), "1.235");
 });
 
-test("formatMoney falls back to em dash and switches compact notation", () => {
+test("formatMoney falls back to em dash and keeps two decimals in standard mode", () => {
   const standard = new Intl.NumberFormat("tr-TR", {
     style: "currency",
     currency: "TRY",
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
-  const compact = new Intl.NumberFormat("tr-TR", {
-    style: "currency",
-    currency: "TRY",
-    notation: "compact",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 1,
-  });
-
   assert.equal(formatMoney(null), "—");
+  assert.equal(formatMoney(Number.NaN, true), "—");
   assert.equal(formatMoney(1234.5), standard.format(1234.5));
-  assert.equal(formatMoney(1_500_000, true), compact.format(1_500_000));
 });
 
-test("formatPercent falls back to em dash and prefixes only positive signed values", () => {
+test("compact formatMoney uses a fixed single decimal and spells out Bin", () => {
+  // Intl, kısaltmadan önce bölünmez boşluk koyar; karşılaştırma için normalleştir.
+  const compact = (value) => formatMoney(value, true).replace(/\s/g, " ");
+  assert.equal(compact(1_500_000), "₺1,5 Mn");
+  assert.equal(compact(7.94e12), "₺7,9 Tn");
+  assert.equal(compact(8e12), "₺8,0 Tn");
+  assert.equal(compact(7.9e9), "₺7,9 Mr");
+  assert.equal(compact(5_000), "₺5,0 Bin");
+  assert.equal(compact(-3e6), "-₺3,0 Mn");
+  assert.equal(compact(950), "₺950");
+  assert.doesNotMatch(compact(12_000), / B$/);
+});
+
+test("formatPercent uses the Turkish prefix and a fixed number of decimals", () => {
   assert.equal(formatPercent(null), "—");
-  assert.equal(formatPercent(5.2), "5,2%");
-  assert.equal(formatPercent(5.2, true), "+5,2%");
-  assert.equal(formatPercent(-5.2, true), "-5,2%");
+  assert.equal(formatPercent(undefined, true), "—");
+  assert.equal(formatPercent(41.5), "%41,5");
+  assert.equal(formatPercent(37), "%37,0");
+  assert.equal(formatPercent(5.2, true), "+%5,2");
+  assert.equal(formatPercent(-3, true), "-%3,0");
+  assert.equal(formatPercent(-6.54), "-%6,5");
+  assert.equal(formatPercent(1234.56), "%1.234,6");
+  assert.equal(formatPercent(37, false, 0), "%37");
+});
+
+test("formatPercent never prints a sign for values that round to zero", () => {
+  assert.equal(formatPercent(0, true), "%0,0");
+  assert.equal(formatPercent(-0.04, true), "%0,0");
+  assert.equal(formatPercent(0.04, true), "%0,0");
 });
 
 test("formatBytes falls back to em dash and picks the right unit", () => {

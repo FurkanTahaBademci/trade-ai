@@ -221,6 +221,74 @@ async def get_market_heatmap(
     return result
 
 
+
+def _optional_float(value: Any) -> float | None:
+    return float(value) if value is not None else None
+
+
+def compare_valuation_empty() -> dict[str, Any]:
+    return {
+        "pe_ratio": None,
+        "pb_ratio": None,
+        "ttm_net_income_try": None,
+        "ttm_revenue_try": None,
+        "net_margin_pct": None,
+        "roe_pct": None,
+        "ttm_basis": None,
+        "fundamental_period": None,
+    }
+
+
+def compare_valuation(
+    *,
+    year: int,
+    period: int,
+    net_income: float | None,
+    revenue: float | None,
+    equity: float | None,
+    market_cap: float | None,
+    net_income_history: dict[tuple[int, int], float | None],
+    revenue_history: dict[tuple[int, int], float | None],
+) -> dict[str, Any]:
+    """Karsilastirma tablosundaki F/K, PD/DD, ROE ve net marji tek tabandan uretir.
+
+    F/K tarayicidaki kuralla ayni: son 12 ay net kari ile; zarar veya negatif
+    ozsermayede gosterilmez. ROE ve net marj da ayni son 12 ay karindan
+    hesaplanir; aksi halde mevsimsel bir ceyrek zarari yilliklandirilip
+    pozitif F/K'nin yaninda negatif ROE gorunur (F/K x ROE = PD/DD bozulur).
+    """
+    ttm_net_income, basis = trailing_net_income(
+        year=year, period=period, net_income=net_income, history=net_income_history
+    )
+    # Hasilat da yil ici kumulatif; ayni TTM formulu gecerli.
+    ttm_revenue, _ = trailing_net_income(
+        year=year, period=period, net_income=revenue, history=revenue_history
+    )
+    pe = price_multiple(market_cap, ttm_net_income)
+    pb = price_multiple(market_cap, equity)
+    roe = (
+        ttm_net_income / equity * 100
+        if ttm_net_income is not None and equity is not None and equity > 0
+        else None
+    )
+    net_margin = (
+        ttm_net_income / ttm_revenue * 100
+        if ttm_net_income is not None and ttm_revenue is not None and ttm_revenue > 0
+        else None
+    )
+    return {
+        "pe_ratio": round(pe, 2) if pe is not None else None,
+        "pb_ratio": round(pb, 2) if pb is not None else None,
+        "ttm_net_income_try": ttm_net_income,
+        "ttm_revenue_try": ttm_revenue,
+        "net_margin_pct": round(net_margin, 2) if net_margin is not None else None,
+        "roe_pct": round(roe, 2) if roe is not None else None,
+        # "annual" | "ttm" | "annualized": arayuz etiketi icin hesap tabani.
+        "ttm_basis": basis,
+        "fundamental_period": f"{year}/{period}",
+    }
+
+
 @router.get("/compare")
 async def compare_companies(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -242,7 +310,7 @@ async def compare_companies(
         )
 
 
-    cache_key = f"markets:compare:{','.join(sorted(cleaned_tickers))}"
+    cache_key = f"markets:compare:v2:{','.join(sorted(cleaned_tickers))}"
     redis = get_redis()
     try:
         cached = await redis.get(cache_key)
@@ -286,6 +354,7 @@ async def compare_companies(
     # 3. Temel Analiz Snapshot'lari: en son donem + TTM kar icin onceki yil donemleri
     fund_map: dict[str, FundamentalSnapshot] = {}
     net_income_history: dict[str, dict[tuple[int, int], float | None]] = {}
+    revenue_history: dict[str, dict[tuple[int, int], float | None]] = {}
     f_rows = (
         await db.scalars(
             select(FundamentalSnapshot)
@@ -298,6 +367,9 @@ async def compare_companies(
         if f_row.financial_group == latest_row.financial_group:
             net_income_history.setdefault(f_row.ticker, {})[(f_row.year, f_row.period)] = (
                 float(f_row.net_income) if f_row.net_income is not None else None
+            )
+            revenue_history.setdefault(f_row.ticker, {})[(f_row.year, f_row.period)] = (
+                float(f_row.revenue) if f_row.revenue is not None else None
             )
 
     # 4. Analist konsensuslari ve 5. bilesik sinyaller: hisse basina ayri sorgu
@@ -361,37 +433,27 @@ async def compare_companies(
         latest_mc = p_series[-1]["market_cap_try"] if p_series else 0.0
 
         # Finansal metrikler
-        net_income = float(fund.net_income) if fund and fund.net_income else None
-        revenue = float(fund.revenue) if fund and fund.revenue else None
-        equity = float(fund.equity) if fund and fund.equity else None
-        net_margin = float(fund.net_margin * 100) if fund and fund.net_margin is not None else None
-        roe = float(fund.annualized_roe * 100) if fund and fund.annualized_roe is not None else None
-        debt_to_equity = (
-            float(fund.debt_to_equity) if fund and fund.debt_to_equity is not None else None
-        )
-        current_ratio = (
-            float(fund.current_ratio) if fund and fund.current_ratio is not None else None
-        )
-        fundamental_score = (
-            float(fund.fundamental_score) if fund and fund.fundamental_score is not None else None
-        )
-
-        # F/K son 12 ay kariyla; donem kari yil ici kumulatif oldugundan dogrudan
-        # bolmek ara donemlerde carpani sisirir (bkz. app/core/valuation.py).
-        ttm_net_income = (
-            trailing_net_income(
+        net_income = _optional_float(fund.net_income) if fund else None
+        revenue = _optional_float(fund.revenue) if fund else None
+        debt_to_equity = _optional_float(fund.debt_to_equity) if fund else None
+        current_ratio = _optional_float(fund.current_ratio) if fund else None
+        fundamental_score = _optional_float(fund.fundamental_score) if fund else None
+        valuation = (
+            compare_valuation(
                 year=fund.year,
                 period=fund.period,
                 net_income=net_income,
-                history=net_income_history.get(ticker, {}),
-            )[0]
+                revenue=revenue,
+                equity=_optional_float(fund.equity),
+                market_cap=latest_mc,
+                net_income_history=net_income_history.get(ticker, {}),
+                revenue_history=revenue_history.get(ticker, {}),
+            )
             if fund
-            else None
+            else compare_valuation_empty()
         )
-        pe = price_multiple(latest_mc, ttm_net_income)
-        pb = price_multiple(latest_mc, equity)
-        pe_ratio = round(pe, 2) if pe is not None else None
-        pb_ratio = round(pb, 2) if pb is not None else None
+        pe_ratio = valuation["pe_ratio"]
+        roe = valuation["roe_pct"]
 
         # Analist konsensus metrikleri
         target_price = float(cons.average_target) if cons and cons.average_target else None
@@ -445,13 +507,9 @@ async def compare_companies(
                     "market_cap_try": latest_mc,
                 },
                 "multiples": {
-                    "pe_ratio": pe_ratio,
-                    "pb_ratio": pb_ratio,
+                    **valuation,
                     "revenue_try": revenue,
                     "net_income_try": net_income,
-                    "ttm_net_income_try": ttm_net_income,
-                    "net_margin_pct": round(net_margin, 2) if net_margin is not None else None,
-                    "roe_pct": round(roe, 2) if roe is not None else None,
                     "debt_to_equity": round(debt_to_equity, 2)
                     if debt_to_equity is not None
                     else None,

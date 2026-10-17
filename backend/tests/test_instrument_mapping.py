@@ -100,3 +100,17 @@ def test_debt_issuer_code_next_to_equity_ticker_is_inactive():
 def test_member_without_traded_shares_is_inactive():
     rows = map_kap_item_to_instrument_fields(_kap_item("ADB, ADBNK", pay="0"))
     assert [row["is_active"] for row in rows] == [False, False]
+
+
+def test_non_traded_share_classes_and_test_member_are_inactive():
+    item = {
+        "stockCode": "ISATR, ISBTR, ISCTR, ISKUR",
+        "kapMemberOid": "x",
+        "kapMemberTitle": "TÜRKİYE İŞ BANKASI A.Ş.",
+        "kapMemberState": "A",
+    }
+    active = {row["ticker"]: row["is_active"] for row in map_kap_item_to_instrument_fields(item)}
+    assert active == {"ISATR": False, "ISBTR": False, "ISCTR": True, "ISKUR": False}
+
+    test_member = {"stockCode": "KTEST", "kapMemberOid": "y", "kapMemberTitle": "KAP TEST"}
+    assert map_kap_item_to_instrument_fields(test_member)[0]["is_active"] is False

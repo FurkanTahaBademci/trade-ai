@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { InstrumentSummary, MarketHeatmapData, MarketHeatmapStock } from "@/lib/types";
+import { DEFAULT_MARKETS_VIEW, marketsViewQuery, nextSort, parseMarketsView, type MarketsSortKey, type MarketsViewMode, type MarketsViewState } from "@/lib/markets-view";
 import { InstrumentList } from "./instrument-list";
 import { MarketHeatmap } from "./market-heatmap";
 import { Icon } from "./icon";
@@ -9,16 +10,40 @@ import { Icon } from "./icon";
 export function PiyasalarView({
   instruments,
   heatmap,
+  initialView = DEFAULT_MARKETS_VIEW,
 }: {
   instruments: InstrumentSummary[];
   heatmap: MarketHeatmapData | null;
+  initialView?: MarketsViewState;
 }) {
-  const [view, setView] = useState<"heatmap" | "table">("table");
+  const [state, setState] = useState<MarketsViewState>(initialView);
   const quotes = useMemo(() => {
     const map: Record<string, MarketHeatmapStock> = {};
     for (const sector of heatmap?.sectors ?? []) for (const stock of sector.stocks) map[stock.ticker] = stock;
     return map;
   }, [heatmap]);
+
+  // Geri/ileri tuşu: görünüm değişimi geçmişe yazıldığı için adresten yeniden oku.
+  useEffect(() => {
+    const onPop = () => setState(parseMarketsView(Object.fromEntries(new URLSearchParams(window.location.search))));
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
+  // Görünüm değişimi geçmişe eklenir (geri tuşu önceki görünümü açar); sıralama
+  // yalnız mevcut adresi günceller. Next native History API'yi router'la eşler.
+  const commit = useCallback((next: MarketsViewState, mode: "push" | "replace") => {
+    setState(next);
+    const query = marketsViewQuery(next);
+    const url = `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`;
+    if (mode === "push") window.history.pushState(null, "", url);
+    else window.history.replaceState(null, "", url);
+  }, []);
+
+  const setView = (view: MarketsViewMode) => { if (view !== state.view) commit({ ...state, view }, "push"); };
+  const onSort = (column: MarketsSortKey) => commit({ ...state, ...nextSort(state, column) }, "replace");
+  const onSortChange = (sort: MarketsSortKey, order: MarketsViewState["order"]) => commit({ ...state, sort, order }, "replace");
+  const view = state.view;
 
   return (
     <div className="space-y-4">
@@ -64,7 +89,7 @@ export function PiyasalarView({
       {view === "heatmap" ? (
         <MarketHeatmap data={heatmap} />
       ) : (
-        <InstrumentList instruments={instruments} quotes={quotes} />
+        <InstrumentList instruments={instruments} quotes={quotes} sort={state.sort} order={state.order} onSort={onSort} onSortChange={onSortChange} />
       )}
     </div>
   );

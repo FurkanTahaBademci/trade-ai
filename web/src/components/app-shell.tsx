@@ -3,47 +3,27 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Icon, type IconName } from "./icon";
+import { Icon } from "./icon";
 import { CommandPalette } from "./command-palette";
 import { ThemeToggle } from "./theme-toggle";
 import { APP_COMMIT, fullVersion, versionLabel } from "@/lib/build-info";
+import { NAV_GROUPS, NAV_ITEMS, isActiveRoute } from "@/lib/navigation";
 
-
-const nav: { label: string; href: string; icon: IconName }[] = [
-  { label: "Genel Bakış", href: "/", icon: "home" },
-  { label: "Piyasalar", href: "/piyasalar", icon: "markets" },
-  { label: "Karşılaştır", href: "/karsilastir", icon: "activity" },
-  { label: "Hisse Tarayıcı", href: "/tarayici", icon: "search" },
-  { label: "İzleme Listesi", href: "/izleme-listesi", icon: "star" },
-  { label: "Bileşik Sinyaller", href: "/sinyaller", icon: "activity" },
-  { label: "Paper Portföy", href: "/portfoy", icon: "trend" },
-  { label: "Backtest", href: "/backtest", icon: "activity" },
-  { label: "Faiz & Makro", href: "/makro", icon: "building" },
-  { label: "Takvim", href: "/takvim", icon: "calendar" },
-  { label: "Haber Akışı", href: "/haberler", icon: "news" },
-  { label: "KAP Bildirimleri", href: "/kap", icon: "kap" },
-  { label: "AI Analizleri", href: "/analizler", icon: "ai" },
-  { label: "Kurumsal Veriler", href: "/kurumsal", icon: "funds" },
-  { label: "Sistem Sağlığı", href: "/sistem", icon: "activity" },
-];
 
 function Brand() {
   return <Link href="/" className="flex items-center gap-2.5" aria-label="TradeAI ana sayfa"><span className="grid h-8 w-8 place-items-center rounded bg-[var(--primary)] text-[var(--primary-contrast)]"><Icon name="trend" size={18}/></span><span className="text-[17px] font-semibold tracking-[-0.03em]">Trade<span className="text-[var(--primary)]">AI</span></span></Link>;
 }
 
-const groups = [
-  { label: "01 / PİYASA", routes: ["/", "/piyasalar", "/tarayici", "/izleme-listesi", "/karsilastir"] },
-  { label: "02 / ARAŞTIRMA", routes: ["/sinyaller", "/haberler", "/kap", "/analizler", "/makro", "/takvim", "/kurumsal"] },
-  { label: "03 / STRATEJİ", routes: ["/portfoy", "/backtest"] },
-  { label: "04 / OPERASYON", routes: ["/sistem"] },
-];
+function BuildInfo() {
+  return <div className="text-[10px] leading-5 text-[var(--text-muted)]"><p className="terminal-mono text-[var(--text-secondary)]">BIST / TRY / EOD</p><p>Paper işlem · Simülasyon</p><p className="terminal-mono mt-1.5 flex items-center gap-1.5" title={`Sürüm ${fullVersion()}`}><span className="rounded border border-[var(--border)] px-1.5 text-[var(--text-secondary)]">{versionLabel()}</span>{APP_COMMIT && <span>{APP_COMMIT}</span>}</p></div>;
+}
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const menuButton = useRef<HTMLButtonElement>(null);
   const sidebar = useRef<HTMLElement>(null);
-  const title = nav.find((item) => item.href === "/" ? pathname === "/" : pathname.startsWith(item.href))?.label ?? "Piyasa Terminali";
+  const title = NAV_ITEMS.find((item) => isActiveRoute(item.href, pathname))?.label ?? "Piyasa Terminali";
 
   useEffect(() => {
     if (!open) return;
@@ -68,15 +48,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return <div className="min-h-screen">
     <a href="#workspace" className="fixed left-3 top-3 z-[60] -translate-y-20 rounded bg-[var(--primary)] px-4 py-2 text-[var(--primary-contrast)] focus:translate-y-0">İçeriğe geç</a>
     {open && <button className="fixed inset-0 z-40 bg-[var(--overlay)] lg:hidden" aria-label="Menüyü kapat" onClick={() => { setOpen(false); menuButton.current?.focus(); }}/>}
-    <aside ref={sidebar} id="terminal-navigation" aria-label="Terminal menüsü" role={open ? "dialog" : undefined} aria-modal={open || undefined} className={`fixed inset-y-0 left-0 z-50 flex w-[208px] flex-col border-r border-[var(--border)] bg-[var(--sidebar)] lg:visible lg:translate-x-0 ${open ? "visible translate-x-0" : "invisible -translate-x-full"}`}>
+    {/* h-dvh: mobil tarayıcıda adres çubuğu altında kalan alan menü sonunu gizlemesin. */}
+    <aside ref={sidebar} id="terminal-navigation" aria-label="Terminal menüsü" role={open ? "dialog" : undefined} aria-modal={open || undefined} className={`fixed left-0 top-0 z-50 flex h-dvh w-[232px] flex-col border-r border-[var(--border)] bg-[var(--sidebar)] lg:visible lg:w-[208px] lg:translate-x-0 ${open ? "visible translate-x-0" : "invisible -translate-x-full"}`}>
       <div className="flex h-14 shrink-0 items-center justify-between border-b border-[var(--border)] px-4"><Brand/><button className="icon-button border-0 lg:hidden" onClick={() => { setOpen(false); menuButton.current?.focus(); }} aria-label="Menüyü kapat"><Icon name="close"/></button></div>
-      <nav aria-label="Ana gezinme" className="min-h-0 flex-1 overflow-y-auto px-2 py-3">{groups.map((group) => <div key={group.label} className="mb-4"><p className="terminal-mono mb-1.5 px-3 text-[10px] tracking-wider text-[var(--text-muted)]">{group.label}</p>{group.routes.map((route) => {
-        const item = nav.find((entry) => entry.href === route)!;
-        const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
-        const protectedRoute = item.href === "/sistem" || item.href === "/backtest";
-        return <Link key={item.href} href={item.href} prefetch={protectedRoute ? false : undefined} aria-current={active ? "page" : undefined} onClick={() => setOpen(false)} className={`flex min-h-9 items-center gap-2.5 border-l-2 px-3 py-2 text-xs font-medium transition-colors ${active ? "border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary)]" : "border-transparent text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)]"}`}><Icon name={item.icon} size={15}/>{item.label}</Link>;
-      })}</div>)}</nav>
-      <div className="shrink-0 border-t border-[var(--border)] px-4 py-3 text-[10px] leading-5 text-[var(--text-muted)]"><p className="terminal-mono text-[var(--text-secondary)]">BIST / TRY / EOD</p><p>Paper işlem · Simülasyon</p><p className="terminal-mono mt-1.5 flex items-center gap-1.5" title={`Sürüm ${fullVersion()}`}><span className="rounded border border-[var(--border)] px-1.5 text-[var(--text-secondary)]">{versionLabel()}</span>{APP_COMMIT && <span>{APP_COMMIT}</span>}</p></div>
+      <nav aria-label="Ana gezinme" className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 py-3">{NAV_GROUPS.map((group) => <div key={group.label} className="mb-4"><p className="terminal-mono mb-1.5 px-3 text-[10px] tracking-wider text-[var(--text-muted)]">{group.label}</p>{group.routes.map((route) => {
+        const item = NAV_ITEMS.find((entry) => entry.href === route)!;
+        const active = isActiveRoute(item.href, pathname);
+        return <Link key={item.href} href={item.href} prefetch={item.locked ? false : undefined} aria-current={active ? "page" : undefined} title={item.locked ? "Yönetici girişi gerekir" : undefined} onClick={() => setOpen(false)} className={`flex min-h-9 items-center gap-2.5 border-l-2 px-3 py-2 text-xs font-medium transition-colors ${active ? "border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary)]" : "border-transparent text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text)]"}`}><Icon name={item.icon} size={15}/>{item.label}{item.locked && <><Icon name="lock" size={12} className="ml-auto text-[var(--text-muted)]"/><span className="sr-only"> (yönetici girişi gerekir)</span></>}</Link>;
+      })}</div>)}
+        {/* Mobil çekmecede sürüm bilgisi menünün sonunda kayar; son menü öğesini örtmez. */}
+        <div className="mt-2 border-t border-[var(--border)] px-2 pt-3 lg:hidden"><BuildInfo/></div>
+      </nav>
+      <div className="hidden shrink-0 border-t border-[var(--border)] px-4 py-3 lg:block"><BuildInfo/></div>
     </aside>
     <div className="min-w-0 lg:pl-[208px]">
       <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-[var(--border)] bg-[var(--background)] px-4 lg:px-5">

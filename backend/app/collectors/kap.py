@@ -32,6 +32,7 @@ from app.collectors.base import (
     row_changed,
     settings,
 )
+from app.collectors.kap_content import clean_kap_body_text, is_kap_test_disclosure
 from app.market_calendar.event_dates import disclosure_event_date
 from app.models import Instrument, KapAttachment, KapDisclosure
 
@@ -153,6 +154,11 @@ def map_disclosure_list_item(item: dict) -> dict:
 class _VisibleTextParser(HTMLParser):
     """KAP HTML'indeki gizli Ingilizce hucreleri atmali basit metin cikarici."""
 
+    # Form sablonunun ic alan anahtarlari (`oda_*|`) ve dil sutunu basligi.
+    _NOISE_CLASSES: ClassVar[frozenset[str]] = frozenset(
+        {"taxonomy-field-name-cell", "taxonomy-field-name", "report-lang-header"}
+    )
+
     _BLOCK_TAGS: ClassVar[set[str]] = {"br", "div", "li", "p", "table", "td", "th", "tr"}
     _VOID_TAGS: ClassVar[set[str]] = {
         "area",
@@ -184,7 +190,12 @@ class _VisibleTextParser(HTMLParser):
         attr_map = {key: value or "" for key, value in attrs}
         classes = set(attr_map.get("class", "").split())
         style = re.sub(r"\s+", "", attr_map.get("style", "").lower())
-        return tag in {"script", "style"} or "content-en" in classes or "display:none" in style
+        return (
+            tag in {"script", "style"}
+            or "content-en" in classes
+            or "display:none" in style
+            or not classes.isdisjoint(_VisibleTextParser._NOISE_CLASSES)
+        )
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         hidden = self._hidden or self._element_is_hidden(tag, attrs)
@@ -236,7 +247,7 @@ def map_disclosure_detail(payload: dict | list) -> dict:
         bodies = [bodies]
     html_parts = [part for part in bodies if isinstance(part, str)]
     body_html = "\n".join(html_parts) or None
-    body_text = html_to_visible_text(body_html) if body_html else None
+    body_text = clean_kap_body_text(html_to_visible_text(body_html)) if body_html else None
 
     attachments = detail.get("attachments") or []
     if not isinstance(attachments, list):
@@ -440,12 +451,23 @@ class KapCollector(BaseCollector):
         # upsert/detay istegi yap. Son gorulen metadata guncel kabul edilir.
         by_index: dict[int, dict] = {}
         list_failures: list[dict[str, str | int]] = []
+        test_skipped = 0
         for position, item in enumerate(raw_items):
             try:
                 mapped = map_disclosure_list_item(item)
             except Exception as exc:  # noqa: BLE001 - tek bozuk satir pencereyi durdurmasin
                 list_failures.append({"position": position, "error": str(exc)})
                 self.log.warning("kap_list_item_failed", position=position, error=str(exc))
+                continue
+            # KAP'in kendi sistem test bildirimleri (KTEST, "Test bildirimi")
+            # yatirimci icin anlamsizdir; satir da detay istegi de olusmaz.
+            if is_kap_test_disclosure(
+                ticker_codes=mapped["ticker_codes"],
+                kap_title=mapped["kap_title"],
+                subject=mapped["subject"],
+                summary=mapped["summary"],
+            ):
+                test_skipped += 1
                 continue
             by_index[mapped["disclosure_index"]] = mapped
         mapped_items = list(by_index.values())
@@ -504,4 +526,5 @@ class KapCollector(BaseCollector):
             "detail_failures": detail_failures,
             "attachments_saved": attachments_saved,
             "list_failures": list_failures,
+            "test_skipped": test_skipped,
         }

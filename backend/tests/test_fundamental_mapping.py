@@ -8,7 +8,11 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.collectors.base import CollectorError
-from app.collectors.fundamentals import build_snapshots, map_financial_response
+from app.collectors.fundamentals import (
+    build_snapshots,
+    detect_statement_format,
+    map_financial_response,
+)
 from app.core.db import get_db
 from app.main import app
 
@@ -149,3 +153,53 @@ def test_ticker_rotation_covers_whole_universe_not_first_letters():
 
     # Hic cekilmemisler once (gundemdeki THYAO en basta), sonra en eski cekilen.
     assert selected == ["THYAO", "PGSUS", "ASELS"]
+
+
+def _ufrs_facts(name: str, ticker: str) -> list[dict]:
+    fixture = json.loads((FIXTURE.parent / name).read_text(encoding="utf-8"))
+    payload = {**fixture["response_metadata"], "value": fixture["value"]}
+    return map_financial_response(ticker, "UFRS", 2025, payload)
+
+
+def test_bank_statement_reads_equity_from_2o_not_2n():
+    """Banka tablosunda 2N satis amacli varlik borcudur (0); ozsermaye 2O'dur."""
+    facts = _ufrs_facts("garan_2025_bank_sample.json", "GARAN")
+
+    assert detect_statement_format("UFRS", facts) == "bank"
+    snapshot = next(row for row in build_snapshots(facts) if row["period"] == 12)
+
+    assert snapshot["equity"] == Decimal(444369537000)
+    assert snapshot["revenue"] == Decimal(165311594000)  # net faiz geliri
+    assert snapshot["net_income"] == Decimal(110604633000)
+    assert snapshot["annualized_roe"] == Decimal(110604633000) / Decimal(444369537000)
+    # Sanayi kalemleri bankada baska anlam tasir; okunmaz.
+    assert snapshot["current_liabilities"] is None
+    assert snapshot["current_ratio"] is None
+    assert snapshot["debt_to_equity"] is None
+    assert snapshot["net_margin"] is None
+    assert snapshot["score_components"]["balance_sheet"] is not None
+    assert snapshot["score_components"]["cash_flow"] is None
+    assert snapshot["fundamental_score"] is not None
+
+
+def test_insurance_statement_does_not_read_technical_balance_as_revenue():
+    facts = _ufrs_facts("agesa_2025_insurance_sample.json", "AGESA")
+
+    assert detect_statement_format("UFRS", facts) == "insurance"
+    snapshot = next(row for row in build_snapshots(facts) if row["period"] == 12)
+
+    assert snapshot["equity"] == Decimal(9575607955)
+    assert snapshot["revenue"] is None
+    assert snapshot["annualized_roe"] == Decimal(5149878691) / Decimal(9575607955)
+    assert snapshot["score_components"]["balance_sheet"] is None
+
+
+def test_statement_format_without_item_names_is_conservative():
+    assert detect_statement_format("XI_29") == "industrial"
+    assert detect_statement_format("UFRS") == "insurance"
+    assert (
+        detect_statement_format(
+            "UFRS_K", [{"item_code": "3C", "item_name_tr": "III. NET FAİZ GELİRİ/GİDERİ"}]
+        )
+        == "bank"
+    )

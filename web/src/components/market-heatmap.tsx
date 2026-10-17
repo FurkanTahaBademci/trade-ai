@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import type { MarketHeatmapData, MarketHeatmapStock } from "@/lib/types";
 import { formatMoney, formatPercent, signalName } from "@/lib/format";
@@ -12,6 +12,11 @@ export function MarketHeatmap({ data }: { data: MarketHeatmapData | null }) {
   const [selectedSector, setSelectedSector] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
+  // Mobilde 60+ sektör alt alta binlerce piksel tutuyordu: dar ekranda sektörler
+  // varsayılan olarak tek satırlık özet halinde gelir, dokununca açılır. Kullanıcı
+  // seçimi yoksa (undefined) görünürlüğü CSS kırılımı belirler.
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const isDesktop = useMediaQuery("(min-width: 768px)");
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -43,6 +48,12 @@ export function MarketHeatmap({ data }: { data: MarketHeatmapData | null }) {
       })
       .filter((sec) => sec.stocks.length > 0);
   }, [sectors, selectedSector, debouncedQuery]);
+
+  const forceOpen = Boolean(selectedSector || debouncedQuery.trim());
+  const isOpen = (name: string) => forceOpen || (expanded[name] ?? isDesktop);
+  const toggleSector = (name: string) => setExpanded((current) => ({ ...current, [name]: !(current[name] ?? window.matchMedia("(min-width: 768px)").matches) }));
+  const setAll = (open: boolean) => setExpanded(Object.fromEntries(sectors.map((sector) => [sector.name, open])));
+  const tilesClass = (name: string) => forceOpen || expanded[name] === true ? "grid" : expanded[name] === false ? "hidden" : "hidden md:grid";
 
   if (!data || !sectors.length) {
     return (
@@ -180,34 +191,54 @@ export function MarketHeatmap({ data }: { data: MarketHeatmapData | null }) {
         ))}
       </div>
 
+      {!forceOpen && filteredSectors.length > 1 && (
+        <div className="flex items-center justify-between text-xs text-[var(--text-muted)] md:hidden">
+          <span>Hisseleri görmek için sektöre dokunun.</span>
+          <span className="flex shrink-0 gap-1.5">
+            <button type="button" className="pill" onClick={() => setAll(true)}>Tümünü aç</button>
+            <button type="button" className="pill" onClick={() => setAll(false)}>Kapat</button>
+          </span>
+        </div>
+      )}
+
       {/* 3. Sektörel Isı Haritası Izgarası (Treemap / Grid) */}
-      <div className="grid gap-5 sm:grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-2 md:grid-cols-2 md:gap-5 xl:grid-cols-3">
         {filteredSectors.map((sector) => (
           <div
             key={sector.name}
-            className="flex flex-col rounded border border-[var(--border)] bg-[var(--surface)] p-4 shadow-xs transition hover:border-[var(--border-strong)]"
+            className="flex flex-col rounded border border-[var(--border)] bg-[var(--surface)] p-3 shadow-xs transition hover:border-[var(--border-strong)] md:p-4"
           >
-            {/* Sektör Başlığı */}
-            <div className="mb-3 flex items-center justify-between border-b border-[var(--border-subtle)] pb-2.5">
-              <div>
-                <h3 className="text-sm font-semibold tracking-[-0.01em] text-[var(--text)]">
+            {/* Sektör Başlığı: mobilde aç/kapa düğmesi */}
+            <button
+              type="button"
+              onClick={() => toggleSector(sector.name)}
+              aria-expanded={isOpen(sector.name)}
+              aria-controls={`sektor-${slug(sector.name)}`}
+              disabled={forceOpen}
+              className={`flex w-full items-center justify-between gap-3 text-left ${isOpen(sector.name) ? "mb-3 border-b border-[var(--border-subtle)] pb-2.5" : ""}`}
+            >
+              <div className="min-w-0">
+                <h3 className="truncate text-sm font-semibold tracking-[-0.01em] text-[var(--text)]">
                   {sector.name}
                 </h3>
-                <p className="text-[10px] text-[var(--text-muted)]">
+                <p className="text-xs text-[var(--text-muted)]">
                   {sector.stocks.length} hisse · {formatMoney(sector.total_market_cap_try, true)}
                 </p>
               </div>
-              <span
-                className={`pill text-[11px] font-semibold ${
-                  sector.avg_change_pct >= 0 ? "pill-positive" : "pill-negative"
-                }`}
-              >
-                {formatPercent(sector.avg_change_pct, true)}
+              <span className="flex shrink-0 items-center gap-2">
+                <span
+                  className={`pill text-xs font-semibold ${
+                    sector.avg_change_pct >= 0 ? "pill-positive" : "pill-negative"
+                  }`}
+                >
+                  {formatPercent(sector.avg_change_pct, true)}
+                </span>
+                {!forceOpen && <Icon name="chevron" size={16} className={`text-[var(--text-muted)] transition-transform ${isOpen(sector.name) ? "rotate-90" : ""}`} />}
               </span>
-            </div>
+            </button>
 
             {/* Sektör içi hisse kutucukları */}
-            <div className="grid flex-1 grid-cols-3 gap-2 sm:grid-cols-4">
+            <div id={`sektor-${slug(sector.name)}`} className={`${tilesClass(sector.name)} flex-1 grid-cols-3 gap-2 sm:grid-cols-4`}>
               {sector.stocks.slice(0, 16).map((stock) => (
                 <Link
                   key={stock.ticker}
@@ -225,18 +256,18 @@ export function MarketHeatmap({ data }: { data: MarketHeatmapData | null }) {
                   <span className="truncate text-xs font-bold leading-tight tracking-tight">
                     {stock.ticker}
                   </span>
-                  <div className="mt-1 flex flex-col text-[10px] font-medium leading-none">
+                  <div className="mt-1 flex flex-col text-[11px] font-medium leading-none">
                     {metric === "change" ? (
                       <>
                         <span className="opacity-90">{formatPercent(stock.change_pct, true)}</span>
-                        <span className="mt-1 text-[8px] opacity-75">
+                        <span className="mt-1 text-[10px] opacity-75">
                           {formatMoney(stock.last_price)}
                         </span>
                       </>
                     ) : (
                       <>
                         <span className="font-bold">{stock.composite_score == null ? "—" : Math.round(stock.composite_score)}</span>
-                        <span className="mt-1 text-[8px] opacity-75 truncate">
+                        <span className="mt-1 text-[10px] opacity-75 truncate">
                           {stock.signal_label ? signalName(stock.signal_label) : "Skor yok"}
                         </span>
                       </>
@@ -246,8 +277,8 @@ export function MarketHeatmap({ data }: { data: MarketHeatmapData | null }) {
               ))}
             </div>
 
-            {sector.stocks.length > 16 && (
-              <p className="mt-2.5 text-center text-[10px] text-[var(--text-muted)]">
+            {sector.stocks.length > 16 && isOpen(sector.name) && (
+              <p className="mt-2.5 text-center text-xs text-[var(--text-muted)]">
                 + {sector.stocks.length - 16} hisse daha
               </p>
             )}
@@ -255,5 +286,22 @@ export function MarketHeatmap({ data }: { data: MarketHeatmapData | null }) {
         ))}
       </div>
     </div>
+  );
+}
+
+function slug(value: string) {
+  return value.toLocaleLowerCase("tr-TR").replace(/[^a-z0-9ğüşıöç]+/g, "-");
+}
+
+/** Sunucuda ve ilk hidrasyonda masaüstü varsayılır; yalnız aria-expanded için kullanılır. */
+function useMediaQuery(query: string) {
+  return useSyncExternalStore(
+    (onChange) => {
+      const media = window.matchMedia(query);
+      media.addEventListener("change", onChange);
+      return () => media.removeEventListener("change", onChange);
+    },
+    () => window.matchMedia(query).matches,
+    () => true,
   );
 }

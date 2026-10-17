@@ -15,6 +15,12 @@ const COMPANY_COLORS = [
   { stroke: "#f43f5e", fill: "rgba(244, 63, 94, 0.18)", text: "text-[#f43f5e]", bg: "bg-[#f43f5e]" },
 ];
 
+const TABLE_TABS = [
+  { key: "all", label: "Tümü" },
+  { key: "multiples", label: "Değerleme" },
+  { key: "consensus", label: "Analist ve Sinyal" },
+] as const;
+
 const PRESET_COMPARISONS = [
   { label: "Havacılık", tickers: ["THYAO", "PGSUS"] },
   { label: "Bankacılık", tickers: ["GARAN", "AKBNK", "ISCTR"] },
@@ -23,13 +29,49 @@ const PRESET_COMPARISONS = [
   { label: "Sanayi & Enerji", tickers: ["ASELS", "TUPRS"] },
 ];
 
+/** Çarpanlar Türkçe ondalıkla: 2,84x. */
+function formatMultiple(value: number | null | undefined) {
+  return value == null || !Number.isFinite(value) ? "—" : `${formatNumber(value, 2)}x`;
+}
+
+const BASIS_LABELS: Record<string, string> = {
+  ttm: "son 12 ay",
+  annual: "yıllık",
+  annualized: "yıllıklandırılmış",
+};
+
+function basisLabel(basis: string | null | undefined) {
+  return basis ? BASIS_LABELS[basis] ?? basis : null;
+}
+
+function changeTone(value: number | null | undefined) {
+  if (value == null) return "text-[var(--text)]";
+  return value >= 0 ? "text-[var(--positive)]" : "text-[var(--negative)]";
+}
+
+// Geniş tablo kendi kabında kayar; metrik adı sütunu solda sabit kalır.
+const STICKY_CELL =
+  "sticky left-0 z-10 bg-[var(--surface)] shadow-[1px_0_0_var(--border-subtle)]";
+const LABEL_CELL = `${STICKY_CELL} w-36 min-w-36 p-3 font-medium text-[var(--text-secondary)] sm:w-56 sm:p-3.5`;
+const VALUE_CELL = "whitespace-nowrap p-3 sm:p-3.5";
+
+function SectionRow({ colSpan, children }: { colSpan: number; children: React.ReactNode }) {
+  return (
+    <tr className="bg-[var(--surface-raised)] font-semibold text-[var(--text)]">
+      <td colSpan={colSpan} className="p-2.5 text-[11px] uppercase tracking-wider">
+        <span className="sticky left-2.5">{children}</span>
+      </td>
+    </tr>
+  );
+}
+
 export function CompanyCompareView({ initialData }: { initialData: CompanyComparisonData | null }) {
   const router = useRouter();
   // Hisse ekleme/çıkarma URL'yi değiştirir ve sunucu yeni veriyle yeniden render
   // eder; veri state'e kopyalanırsa istemci bileşeni eski karşılaştırmada kalır.
   const data = initialData;
   const [newTickerInput, setNewTickerInput] = useState("");
-  const [activeTab, setActiveTab] = useState<"all" | "multiples" | "consensus" | "chart">("all");
+  const [activeTab, setActiveTab] = useState<(typeof TABLE_TABS)[number]["key"]>("all");
 
   const companies = data?.companies || [];
   const tickers = data?.tickers || [];
@@ -187,8 +229,8 @@ export function CompanyCompareView({ initialData }: { initialData: CompanyCompar
                 >
                   <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color.stroke }} />
                   <span className="font-bold text-[var(--text)]">{comp.ticker}</span>
-                  <span className="text-[11px] font-normal text-[var(--text-muted)]">
-                    {comp.name.slice(0, 16)}
+                  <span className="max-w-[9rem] truncate text-[11px] font-normal text-[var(--text-muted)]" title={comp.name}>
+                    {comp.name}
                   </span>
                   {tickers.length > 2 && (
                     <button
@@ -196,6 +238,7 @@ export function CompanyCompareView({ initialData }: { initialData: CompanyCompar
                       onClick={() => handleRemoveTicker(comp.ticker)}
                       className="ml-1 text-[var(--text-muted)] hover:text-[var(--negative)]"
                       title="Kaldır"
+                      aria-label={`${comp.ticker} karşılaştırmadan kaldır`}
                     >
                       ×
                     </button>
@@ -209,10 +252,12 @@ export function CompanyCompareView({ initialData }: { initialData: CompanyCompar
               <form onSubmit={handleAddTicker} className="flex items-center gap-1.5">
                 <input
                   type="text"
-                  placeholder="+ Hisse (örn: SAHOL)"
+                  placeholder="Hisse kodu"
+                  aria-label="Karşılaştırmaya hisse ekle (örn. SAHOL)"
+                  title="Karşılaştırmaya hisse ekle (örn. SAHOL)"
                   value={newTickerInput}
                   onChange={(e) => setNewTickerInput(e.target.value)}
-                  className="input h-8 w-28 text-xs font-medium uppercase"
+                  className="input h-8 w-28 text-xs font-medium uppercase placeholder:normal-case"
                 />
                 <button type="submit" className="btn-secondary h-8 px-2.5 text-xs">
                   Ekle
@@ -222,7 +267,7 @@ export function CompanyCompareView({ initialData }: { initialData: CompanyCompar
           </div>
 
           {/* Hazır kıyaslama butonları */}
-          <div className="no-scrollbar flex items-center gap-1.5 overflow-x-auto text-xs">
+          <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto text-xs [scrollbar-width:none]">
             <span className="shrink-0 text-[11px] text-[var(--text-muted)]">Hazır:</span>
             {PRESET_COMPARISONS.map((preset) => (
               <button
@@ -241,7 +286,7 @@ export function CompanyCompareView({ initialData }: { initialData: CompanyCompar
       {/* 2. Radar Grafik & Performans Görsel Paneli */}
       <div className="grid gap-4 lg:grid-cols-12">
         {/* A. 5-Eksenli Spider / Radar Grafiği */}
-        <div className="flex flex-col justify-between rounded-[16px] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-xs lg:col-span-5">
+        <div className="flex flex-col justify-between rounded-[16px] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-xs min-w-0 lg:col-span-5">
           <div>
             <div className="flex items-center justify-between border-b border-[var(--border-subtle)] pb-3">
               <div>
@@ -252,12 +297,17 @@ export function CompanyCompareView({ initialData }: { initialData: CompanyCompar
                   Değerleme, Kârlılık, Momentum, Analist ve AI Sinyal dengesi
                 </p>
               </div>
-              <span className="pill text-[10px] font-semibold">5 Eksen</span>
+              <span className="pill shrink-0 text-[10px] font-semibold">5 Eksen</span>
             </div>
 
             {/* SVG Radar */}
             <div className="relative my-4 flex items-center justify-center">
-              <svg width="300" height="300" viewBox="0 0 300 300" className="overflow-visible">
+              <svg
+                viewBox="0 0 300 300"
+                className="h-auto w-full max-w-[300px]"
+                role="img"
+                aria-label="Şirketlerin beş eksenli radar karşılaştırması"
+              >
                 {/* Dairesel / Çokgen Seviye Çizgileri (%25, %50, %75, %100) */}
                 {[0.25, 0.5, 0.75, 1.0].map((level) => {
                   const r = radarCoords.radius * level;
@@ -341,7 +391,7 @@ export function CompanyCompareView({ initialData }: { initialData: CompanyCompar
         </div>
 
         {/* B. 1-Yıllık Karşılaştırmalı Getiri Çizgisi (Normalized Return) */}
-        <div className="flex flex-col justify-between rounded-[16px] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-xs lg:col-span-7">
+        <div className="flex flex-col justify-between rounded-[16px] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-xs min-w-0 lg:col-span-7">
           <div>
             <div className="flex items-center justify-between border-b border-[var(--border-subtle)] pb-3">
               <div>
@@ -349,11 +399,11 @@ export function CompanyCompareView({ initialData }: { initialData: CompanyCompar
                   1 Yıllık Normalize Getiri Performansı
                 </h3>
                 <p className="text-[11px] text-[var(--text-muted)]">
-                  Başlangıç tarihi = 0% baz alınarak kümülatif getiri farkı
+                  Başlangıç tarihi %0 baz alınarak kümülatif getiri farkı
                 </p>
               </div>
-              <span className="pill text-[10px] font-semibold text-[var(--positive)]">
-                Kümülatif %
+              <span className="pill shrink-0 text-[10px] font-semibold text-[var(--positive)]">
+                Kümülatif
               </span>
             </div>
 
@@ -378,9 +428,9 @@ export function CompanyCompareView({ initialData }: { initialData: CompanyCompar
                     x="28"
                     y={chartSvg.zeroY + 3}
                     textAnchor="end"
-                    className="fill-[var(--text-muted)] text-[9px]"
+                    className="fill-[var(--text-muted)] text-[13px]"
                   >
-                    0%
+                    %0
                   </text>
 
                   {/* Tepe / Dip değer etiketleri */}
@@ -388,7 +438,7 @@ export function CompanyCompareView({ initialData }: { initialData: CompanyCompar
                     x="28"
                     y="20"
                     textAnchor="end"
-                    className="fill-[var(--text-muted)] text-[9px]"
+                    className="fill-[var(--text-muted)] text-[13px]"
                   >
                     {formatPercent(chartSvg.domainMax)}
                   </text>
@@ -396,7 +446,7 @@ export function CompanyCompareView({ initialData }: { initialData: CompanyCompar
                     x="28"
                     y={chartSvg.height - 15}
                     textAnchor="end"
-                    className="fill-[var(--text-muted)] text-[9px]"
+                    className="fill-[var(--text-muted)] text-[13px]"
                   >
                     {formatPercent(chartSvg.domainMin)}
                   </text>
@@ -449,40 +499,26 @@ export function CompanyCompareView({ initialData }: { initialData: CompanyCompar
         <div className="flex flex-col gap-3 border-b border-[var(--border)] p-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h3 className="text-sm font-semibold tracking-[-0.01em] text-[var(--text)]">
-              Detaylı Finansal ve Teknik Kıyaslama Matrisi
+              Detaylı Finansal ve Teknik Kıyaslama
             </h3>
             <p className="text-xs text-[var(--text-muted)]">
-              Çarpanlar, Bilanço Rasyoları, Analist Hedefleri ve AI Sinyal Gücü
+              Çarpanlar, kârlılık rasyoları, analist hedefleri ve kompozit sinyal
             </p>
           </div>
-          <div className="flex rounded border border-[var(--border)] bg-[var(--surface-raised)] p-0.5 text-xs">
-            <button
-              type="button"
-              onClick={() => setActiveTab("all")}
-              className={`rounded-[8px] px-3 py-1 font-medium transition ${
-                activeTab === "all" ? "bg-[var(--surface)] font-semibold text-[var(--text)]" : "text-[var(--text-muted)]"
-              }`}
-            >
-              Tümü
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab("multiples")}
-              className={`rounded-[8px] px-3 py-1 font-medium transition ${
-                activeTab === "multiples" ? "bg-[var(--surface)] font-semibold text-[var(--text)]" : "text-[var(--text-muted)]"
-              }`}
-            >
-              Değerleme & Bilanço
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab("consensus")}
-              className={`rounded-[8px] px-3 py-1 font-medium transition ${
-                activeTab === "consensus" ? "bg-[var(--surface)] font-semibold text-[var(--text)]" : "text-[var(--text-muted)]"
-              }`}
-            >
-              Analist & Sinyal
-            </button>
+          <div className="flex self-start rounded border border-[var(--border)] bg-[var(--surface-raised)] p-0.5 text-xs sm:self-auto">
+            {TABLE_TABS.map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setActiveTab(tab.key)}
+                aria-pressed={activeTab === tab.key}
+                className={`whitespace-nowrap rounded-[8px] px-3 py-1 font-medium transition ${
+                  activeTab === tab.key ? "bg-[var(--surface)] font-semibold text-[var(--text)]" : "text-[var(--text-muted)]"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -490,11 +526,13 @@ export function CompanyCompareView({ initialData }: { initialData: CompanyCompar
           <table className="w-full text-left text-xs">
             <thead>
               <tr className="border-b border-[var(--border-subtle)] bg-[var(--surface-raised)] text-[var(--text-muted)]">
-                <th className="p-3.5 font-semibold">Metrik / Gösterge</th>
+                <th className={`${STICKY_CELL} w-36 min-w-36 bg-[var(--surface-raised)] p-3 font-semibold sm:w-56 sm:p-3.5`}>
+                  Metrik
+                </th>
                 {companies.map((c, idx) => {
                   const color = COMPANY_COLORS[idx % COMPANY_COLORS.length];
                   return (
-                    <th key={c.ticker} className="p-3.5 font-bold text-[var(--text)]">
+                    <th key={c.ticker} className="min-w-28 p-3 font-bold text-[var(--text)] sm:p-3.5">
                       <div className="flex items-center gap-1.5">
                         <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color.stroke }} />
                         <Link href={`/piyasalar/${c.ticker}`} className="hover:underline">
@@ -512,43 +550,33 @@ export function CompanyCompareView({ initialData }: { initialData: CompanyCompar
             <tbody className="divide-y divide-[var(--border-subtle)]">
               {/* Piyasa Fiyatı & Hacim */}
               <tr>
-                <td className="p-3.5 font-medium text-[var(--text-secondary)]">Son Fiyat</td>
+                <td className={LABEL_CELL}>Son Fiyat</td>
                 {companies.map((c) => (
-                  <td key={c.ticker} className="p-3.5 font-semibold text-[var(--text)]">
+                  <td key={c.ticker} className={`${VALUE_CELL} font-semibold text-[var(--text)]`}>
                     {formatMoney(c.price.last_price)}
                   </td>
                 ))}
               </tr>
               <tr>
-                <td className="p-3.5 font-medium text-[var(--text-secondary)]">Günlük Değişim</td>
+                <td className={LABEL_CELL}>Günlük Değişim</td>
                 {companies.map((c) => (
-                  <td
-                    key={c.ticker}
-                    className={`p-3.5 font-semibold ${
-                      c.price.change_1d_pct >= 0 ? "text-[var(--positive)]" : "text-[var(--negative)]"
-                    }`}
-                  >
+                  <td key={c.ticker} className={`${VALUE_CELL} font-semibold ${changeTone(c.price.change_1d_pct)}`}>
                     {formatPercent(c.price.change_1d_pct, true)}
                   </td>
                 ))}
               </tr>
               <tr>
-                <td className="p-3.5 font-medium text-[var(--text-secondary)]">1 Aylık Değişim</td>
+                <td className={LABEL_CELL}>1 Aylık Değişim</td>
                 {companies.map((c) => (
-                  <td
-                    key={c.ticker}
-                    className={`p-3.5 font-semibold ${
-                      c.price.change_1m_pct >= 0 ? "text-[var(--positive)]" : "text-[var(--negative)]"
-                    }`}
-                  >
+                  <td key={c.ticker} className={`${VALUE_CELL} font-semibold ${changeTone(c.price.change_1m_pct)}`}>
                     {formatPercent(c.price.change_1m_pct, true)}
                   </td>
                 ))}
               </tr>
               <tr>
-                <td className="p-3.5 font-medium text-[var(--text-secondary)]">Piyasa Değeri</td>
+                <td className={LABEL_CELL}>Piyasa Değeri</td>
                 {companies.map((c) => (
-                  <td key={c.ticker} className="p-3.5 text-[var(--text-secondary)]">
+                  <td key={c.ticker} className={`${VALUE_CELL} text-[var(--text-secondary)]`}>
                     {formatMoney(c.price.market_cap_try, true)}
                   </td>
                 ))}
@@ -557,65 +585,85 @@ export function CompanyCompareView({ initialData }: { initialData: CompanyCompar
               {/* Değerleme Çarpanları */}
               {(activeTab === "all" || activeTab === "multiples") && (
                 <>
-                  <tr className="bg-[var(--surface-raised)] font-semibold text-[var(--text)]">
-                    <td colSpan={companies.length + 1} className="p-2.5 text-[11px] uppercase tracking-wider">
-                      Değerleme Çarpanları & Kârlılık
-                    </td>
+                  <SectionRow colSpan={companies.length + 1}>Değerleme ve Kârlılık</SectionRow>
+                  <tr>
+                    <td className={LABEL_CELL}>Bilanço Dönemi</td>
+                    {companies.map((c) => {
+                      const basis = basisLabel(c.multiples.ttm_basis);
+                      return (
+                        <td key={c.ticker} className={`${VALUE_CELL} text-[var(--text-secondary)]`}>
+                          {c.multiples.fundamental_period ?? "—"}
+                          {basis && (
+                            <span className="block text-[10px] text-[var(--text-muted)]">{basis}</span>
+                          )}
+                        </td>
+                      );
+                    })}
                   </tr>
                   <tr>
-                    <td className="p-3.5 font-medium text-[var(--text-secondary)]">
-                      Fiyat / Kazanç (F/K)
-                    </td>
+                    <td className={LABEL_CELL}>F/K (son 12 ay)</td>
+                    {companies.map((c) => {
+                      const ttm = c.multiples.ttm_net_income_try;
+                      const loss = c.multiples.pe_ratio == null && ttm != null && ttm <= 0;
+                      return (
+                        <td
+                          key={c.ticker}
+                          className={`${VALUE_CELL} font-medium text-[var(--text)]`}
+                          title={loss ? "Son 12 ay net kârı negatif; F/K hesaplanmaz" : undefined}
+                        >
+                          {formatMultiple(c.multiples.pe_ratio)}
+                          {loss && (
+                            <span className="ml-1 text-[10px] font-normal text-[var(--text-muted)]">zarar</span>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                  <tr>
+                    <td className={LABEL_CELL}>PD/DD (son bilanço)</td>
                     {companies.map((c) => (
-                      <td key={c.ticker} className="p-3.5 font-medium text-[var(--text)]">
-                        {c.multiples.pe_ratio !== null ? `${c.multiples.pe_ratio}x` : "—"}
+                      <td key={c.ticker} className={`${VALUE_CELL} font-medium text-[var(--text)]`}>
+                        {formatMultiple(c.multiples.pb_ratio)}
                       </td>
                     ))}
                   </tr>
                   <tr>
-                    <td className="p-3.5 font-medium text-[var(--text-secondary)]">
-                      Piyasa Değeri / Defter Değeri (PD/DD)
-                    </td>
-                    {companies.map((c) => (
-                      <td key={c.ticker} className="p-3.5 font-medium text-[var(--text)]">
-                        {c.multiples.pb_ratio !== null ? `${c.multiples.pb_ratio}x` : "—"}
-                      </td>
-                    ))}
-                  </tr>
-                  <tr>
-                    <td className="p-3.5 font-medium text-[var(--text-secondary)]">
-                      Özkaynak Kârlılığı (ROE %)
-                    </td>
+                    <td className={LABEL_CELL}>ROE (son 12 ay)</td>
                     {companies.map((c) => (
                       <td
                         key={c.ticker}
-                        className={`p-3.5 font-semibold ${
-                          (c.multiples.roe_pct ?? 0) >= 20
+                        className={`${VALUE_CELL} font-semibold ${
+                          c.multiples.roe_pct == null
+                            ? "text-[var(--text)]"
+                            : c.multiples.roe_pct < 0
+                            ? "text-[var(--negative)]"
+                            : c.multiples.roe_pct >= 20
                             ? "text-[var(--positive)]"
                             : "text-[var(--text)]"
                         }`}
                       >
-                        {c.multiples.roe_pct !== null ? `${c.multiples.roe_pct}%` : "—"}
+                        {formatPercent(c.multiples.roe_pct)}
                       </td>
                     ))}
                   </tr>
                   <tr>
-                    <td className="p-3.5 font-medium text-[var(--text-secondary)]">
-                      Net Kâr Marjı (%)
-                    </td>
+                    <td className={LABEL_CELL}>Net Kâr Marjı (son 12 ay)</td>
                     {companies.map((c) => (
-                      <td key={c.ticker} className="p-3.5 text-[var(--text)]">
-                        {c.multiples.net_margin_pct !== null ? `${c.multiples.net_margin_pct}%` : "—"}
+                      <td
+                        key={c.ticker}
+                        className={`${VALUE_CELL} ${
+                          (c.multiples.net_margin_pct ?? 0) < 0 ? "text-[var(--negative)]" : "text-[var(--text)]"
+                        }`}
+                      >
+                        {formatPercent(c.multiples.net_margin_pct)}
                       </td>
                     ))}
                   </tr>
                   <tr>
-                    <td className="p-3.5 font-medium text-[var(--text-secondary)]">
-                      Borç / Özkaynak Oranı
-                    </td>
+                    <td className={LABEL_CELL}>Borç / Özsermaye</td>
                     {companies.map((c) => (
-                      <td key={c.ticker} className="p-3.5 text-[var(--text)]">
-                        {c.multiples.debt_to_equity !== null ? c.multiples.debt_to_equity : "—"}
+                      <td key={c.ticker} className={`${VALUE_CELL} text-[var(--text)]`}>
+                        {formatNumber(c.multiples.debt_to_equity, 2)}
                       </td>
                     ))}
                   </tr>
@@ -625,17 +673,11 @@ export function CompanyCompareView({ initialData }: { initialData: CompanyCompar
               {/* Analist & Sinyal Matrisi */}
               {(activeTab === "all" || activeTab === "consensus") && (
                 <>
-                  <tr className="bg-[var(--surface-raised)] font-semibold text-[var(--text)]">
-                    <td colSpan={companies.length + 1} className="p-2.5 text-[11px] uppercase tracking-wider">
-                      Analist Beklentisi & TradeAI Sinyali
-                    </td>
-                  </tr>
+                  <SectionRow colSpan={companies.length + 1}>Analist Görüşü ve Sinyal</SectionRow>
                   <tr>
-                    <td className="p-3.5 font-medium text-[var(--text-secondary)]">
-                      TradeAI Kompozit Puanı
-                    </td>
+                    <td className={LABEL_CELL}>Kompozit Sinyal Puanı</td>
                     {companies.map((c) => (
-                      <td key={c.ticker} className="p-3.5">
+                      <td key={c.ticker} className={VALUE_CELL}>
                         <span
                           className={`pill font-bold ${
                             c.signal.composite_score >= 60
@@ -651,41 +693,35 @@ export function CompanyCompareView({ initialData }: { initialData: CompanyCompar
                     ))}
                   </tr>
                   <tr>
-                    <td className="p-3.5 font-medium text-[var(--text-secondary)]">
-                      Ortalama Analist Hedef Fiyatı
-                    </td>
+                    <td className={LABEL_CELL}>Analist Hedef Fiyatı (Ort.)</td>
                     {companies.map((c) => (
-                      <td key={c.ticker} className="p-3.5 font-medium text-[var(--text)]">
+                      <td key={c.ticker} className={`${VALUE_CELL} font-medium text-[var(--text)]`}>
                         {formatMoney(c.consensus.target_price)}
                       </td>
                     ))}
                   </tr>
                   <tr>
-                    <td className="p-3.5 font-medium text-[var(--text-secondary)]">
-                      Konsensüs Getiri Potansiyeli
-                    </td>
+                    <td className={LABEL_CELL}>Analist Getiri Potansiyeli</td>
                     {companies.map((c) => (
                       <td
                         key={c.ticker}
-                        className={`p-3.5 font-bold ${
-                          (c.consensus.upside_pct ?? 0) > 0
+                        className={`${VALUE_CELL} font-bold ${
+                          c.consensus.upside_pct == null
+                            ? "text-[var(--text-muted)]"
+                            : c.consensus.upside_pct > 0
                             ? "text-[var(--positive)]"
-                            : "text-[var(--text-muted)]"
+                            : "text-[var(--negative)]"
                         }`}
                       >
-                        {c.consensus.upside_pct !== null
-                          ? formatPercent(c.consensus.upside_pct, true)
-                          : "—"}
+                        {formatPercent(c.consensus.upside_pct, true)}
                       </td>
                     ))}
                   </tr>
                   <tr>
-                    <td className="p-3.5 font-medium text-[var(--text-secondary)]">
-                      Kurum Tavsiye Dağılımı
-                    </td>
+                    <td className={LABEL_CELL}>Analist Tavsiye Dağılımı</td>
                     {companies.map((c) => (
-                      <td key={c.ticker} className="p-3.5 text-[11px] text-[var(--text-muted)]">
-                        {c.consensus.buy_count} Al / {c.consensus.hold_count} Tut / {c.consensus.sell_count} Sat
+                      <td key={c.ticker} className={`${VALUE_CELL} text-[11px] text-[var(--text-muted)]`}>
+                        {c.consensus.buy_count} Al · {c.consensus.hold_count} Tut · {c.consensus.sell_count} Sat
                       </td>
                     ))}
                   </tr>
@@ -694,6 +730,13 @@ export function CompanyCompareView({ initialData }: { initialData: CompanyCompar
             </tbody>
           </table>
         </div>
+        {(activeTab === "all" || activeTab === "multiples") && (
+          <p className="border-t border-[var(--border-subtle)] px-4 py-3 text-[11px] leading-relaxed text-[var(--text-muted)]">
+            F/K son 12 ay net kârıyla, PD/DD son bilançodaki özsermayeyle hesaplanır; zarar eden veya
+            özsermayesi negatif şirketlerde gösterilmez. ROE ve net kâr marjı da aynı son 12 ay
+            kârından hesaplanır; önceki yıl verisi eksikse son dönem yıllıklandırılır.
+          </p>
+        )}
       </div>
     </div>
   );

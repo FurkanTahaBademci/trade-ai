@@ -35,3 +35,17 @@ export function parseTypes(value: string | undefined): CalendarEventType[] {
   const known = new Set<string>(EVENT_TYPES.map((t) => t.value));
   return [...new Set((value ?? "").split(",").filter((item) => known.has(item)))] as CalendarEventType[];
 }
+
+/** BIST takvimi İstanbul saatine göre işler; sunucu UTC'de olsa da "bugün" İstanbul günüdür. */
+export function istanbulToday(now: Date = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Istanbul", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+}
+
+/**
+ * "Bugün" işaretinin konacağı yer: bugünün grubu varsa o, yoksa bugünden sonraki ilk grup
+ * (işaret onun önüne "olay yok" satırıyla girer). Ay bitmişse null.
+ */
+export function todayAnchor(dates: string[], today: string): { date: string; exact: boolean } | null {
+  const next = dates.find((date) => date >= today);
+  return next ? { date: next, exact: next === today } : null;
+}

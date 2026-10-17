@@ -26,6 +26,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
+from app.collectors.kap_content import not_kap_test_disclosure
 from app.core.config import Settings, get_settings
 from app.core.dynamic_settings import resolve_settings
 from app.llm.quota import get_provider_pause, quota_pause
@@ -715,6 +716,7 @@ class LlmEvaluationService:
         recent_disclosures = (
             await self._session.execute(
                 select(*KAP_DOCUMENT_COLUMNS)
+                .where(not_kap_test_disclosure(include_body=True))
                 .order_by(KapDisclosure.published_at.desc())
                 .limit(scan_limit)
             )
@@ -722,7 +724,11 @@ class LlmEvaluationService:
         backlog_disclosures = (
             await self._session.execute(
                 select(*KAP_DOCUMENT_COLUMNS)
-                .where(~kap_evaluated, KapDisclosure.published_at >= backlog_since)
+                .where(
+                    ~kap_evaluated,
+                    KapDisclosure.published_at >= backlog_since,
+                    not_kap_test_disclosure(include_body=True),
+                )
                 .order_by(KapDisclosure.published_at.desc())
                 .limit(scan_limit)
             )
@@ -884,7 +890,10 @@ class LlmEvaluationService:
                 documents[("news", row.id)] = document_from_news(row, max_chars=max_chars)
         if kap_ids:
             for row in await self._session.execute(
-                select(*KAP_DOCUMENT_COLUMNS).where(KapDisclosure.disclosure_index.in_(kap_ids))
+                select(*KAP_DOCUMENT_COLUMNS).where(
+                    KapDisclosure.disclosure_index.in_(kap_ids),
+                    not_kap_test_disclosure(include_body=True),
+                )
             ):
                 documents[("kap", row.disclosure_index)] = document_from_kap(
                     row, max_chars=max_chars

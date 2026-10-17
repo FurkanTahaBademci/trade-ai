@@ -9,6 +9,65 @@ bu bölümü yeni sürüm numarasıyla kapatır.
 
 ## [Unreleased]
 
+### Düzeltildi
+
+- **Banka ve sigorta temel analizi.**
+  - Finansal kurum tabloları (UFRS / UFRS_K) sanayi kalem kodlarıyla
+    okunuyordu. Bankada özsermaye `2O`'dur, `2N` ise satış amaçlı varlık
+    borcudur (0). Bu yüzden bankalarda PD/DD ve ROE boş, temel skor yanlıştı.
+  - Bankada özsermaye, net faiz geliri, net kâr ve aktif toplamı okunur.
+    Sigortada gelir okunmaz.
+  - Finansallarda skor büyüme, özsermaye kârlılığı ve (bankada)
+    özsermaye/aktif oranından hesaplanır.
+  - `a3f9d2c7e1b4` migration'ı veri silmez. Bu hisseleri bir sonraki temel
+    analiz partisinde yeniden çekime alır.
+- **Hisse evreni.** İşlem görmeyen İş Bankası A, B ve kurucu payları (ISATR,
+  ISBTR, ISKUR) ile KAP test üyesi (KTEST) artık skorlanmaz ve listelenmez.
+- **KAP.**
+  - Bildirim metnindeki `oda_*|` ve `[]` şablon artıkları hem kayıt sırasında
+    hem okuma anında temizlenir.
+  - Detay sayfası etiket–değer çiftlerini tanım listesi olarak gösterir.
+  - KAP test bildirimleri kaydedilmez, listelenmez ve LLM'e gönderilmez.
+- **Genel Bakış.**
+  - AI gündem özeti son 24 saatin en yüksek etkili değerlendirmesini seçer.
+    Eşik altındaysa kart gösterilmez.
+  - Sabah bülteni haberleri etki ve güncelliğe göre seçer. Olay türleri
+    Türkçedir.
+- **Karşılaştırma.**
+  - F/K, PD/DD, ROE ve net marj aynı son 12 ay temelinde hesaplanır.
+  - Zarar eden şirkette F/K gösterilmez.
+  - Oranlar Türkçe biçimdedir.
+- **Hisse sayfası.** "Şirket haberleri" artık tüm ilgili haberleri listeler.
+  Aynı belgenin tekrarlanan AI değerlendirmeleri tekilleştirildi.
+
+### Değişti
+
+- **Genel Bakış.** Üst satırda BIST100 ve piyasa genişliği gösterilir. En çok
+  yükselen ve düşen hisseler eklendi.
+- **Hisse sayfası.**
+  - Bölüm çubuğu yapışkandır.
+  - Analist hedeflerinin yaşı gösterilir.
+  - Finansal kartların alt yüzdeleri etiketlidir.
+  - Grafik kontrolleri sadeleşti. Tam ekran mobilde de vardır.
+- **Piyasalar ve Hisse Tarayıcı.**
+  - Sıralama iki yönlüdür. Görünüm ve sıralama adres çubuğunda tutulur.
+  - Tablo başlıkları yapışkandır.
+  - Mobilde kompakt liste, daraltılabilir filtreler ve özet ısı haritası
+    gösterilir.
+- **Araştırma sayfaları.**
+  - Sinyaller listesi analiz bölümlerini aşağı itmez.
+  - Takvimde "Bugün" işareti var.
+  - AI analizlerinde minimum etki filtresi var (`GET /api/evaluations?min_impact=`).
+  - Analiz detayındaki teknik alanlar yalnız yöneticiye görünür.
+  - Portföy tavanı aşan pozisyonu uyarı rengiyle gösterir.
+  - Detay sayfalarının sekme başlıkları içerik başlığıdır.
+- **Menü ve arama.** Girişli sayfalarda kilit simgesi var. Global arama
+  sayfaları da bulur.
+- **Biçim ve erişilebilirlik.**
+  - Yüzdeler Türkçe "%41,5" biçimindedir.
+  - Bin kısaltması "Bin" olarak yazılır.
+  - Odak halkası görünürdür.
+
 ## [0.7.0] - 2026-10-17
 
 ### Eklendi

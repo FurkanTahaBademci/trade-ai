@@ -46,6 +46,46 @@ ITEM_CODES = {
     "free_cash_flow": "4CB",
 }
 
+# UFRS / UFRS_K grubu (banka ve sigorta) ayni kodlari baska kalemler icin
+# kullanir: bankada 2N "satis amacli elde tutulan varliklara iliskin borclar",
+# 2A mevduat, 1A nakit + merkez bankasidir. Bu yuzden sanayi kodlari yalniz
+# XI_29'da kullanilir; finansallarda yalniz anlami ayni olan kalemler okunur.
+BANK_ITEM_CODES = {
+    "equity": "2O",
+    # Net faiz geliri; bankanin ana gelir kalemi olarak buyume icin kullanilir.
+    "revenue": "3C",
+    "net_income": "3Z",
+    "total_assets": "1Z",
+}
+# Sigortada 3C yalniz hayat disi teknik bolum dengesidir; gelir okunmaz.
+INSURANCE_ITEM_CODES = {
+    "equity": "2O",
+    "net_income": "3Z",
+    "total_assets": "1Z",
+}
+STATEMENT_ITEM_CODES = {
+    "industrial": ITEM_CODES,
+    "bank": BANK_ITEM_CODES,
+    "insurance": INSURANCE_ITEM_CODES,
+}
+_TR_UPPER = str.maketrans({"i": "İ", "ı": "I"})
+
+
+def detect_statement_format(financial_group: str, facts: list[dict] | None = None) -> str:
+    """Tablo bicimini (sanayi / banka / sigorta) grup ve kalem adlarindan cikarir.
+
+    Banka ve sigorta ayni UFRS grubundadir; ayirt edici kalem bankada 3C
+    "NET FAIZ GELIRI"dir. Kalem adi bilinmiyorsa en tutucu bicim olan
+    sigorta (gelir okunmaz) secilir.
+    """
+    if financial_group == "XI_29":
+        return "industrial"
+    for fact in facts or []:
+        if fact.get("item_code") == "3C":
+            name = str(fact.get("item_name_tr") or "").translate(_TR_UPPER).upper()
+            return "bank" if "FAİZ" in name else "insurance"
+    return "insurance"
+
 
 class NoFinancialsError(CollectorError):
     """Bu kod icin desteklenen hicbir finansal tablo grubu yok (gecici hata degil)."""
@@ -161,9 +201,13 @@ def calculate_fundamental_snapshot(
     period: int,
     current: dict[str, Decimal],
     previous: dict[str, Decimal],
+    statement_format: str = "industrial",
 ) -> dict:
-    values = {name: current.get(code) for name, code in ITEM_CODES.items()}
-    previous_values = {name: previous.get(code) for name, code in ITEM_CODES.items()}
+    codes = STATEMENT_ITEM_CODES[statement_format]
+    values = {name: current.get(codes[name]) if name in codes else None for name in ITEM_CODES}
+    previous_values = {
+        name: previous.get(codes[name]) if name in codes else None for name in ITEM_CODES
+    }
     ebitda_proxy = None
     if values["operating_profit"] is not None and values["depreciation"] is not None:
         ebitda_proxy = values["operating_profit"] + values["depreciation"]
@@ -189,6 +233,20 @@ def calculate_fundamental_snapshot(
         "operating_cash_flow_margin": _safe_div(values["operating_cash_flow"], values["revenue"]),
         "free_cash_flow_margin": _safe_div(values["free_cash_flow"], values["revenue"]),
     }
+    if statement_format != "industrial":
+        # Net kar / net faiz geliri bir "marj" degildir; finansallarda gosterilmez.
+        ratios["net_margin"] = None
+        return _financial_snapshot(
+            ticker=ticker,
+            financial_group=financial_group,
+            exchange=exchange,
+            year=year,
+            period=period,
+            values=values,
+            ratios=ratios,
+            total_assets=current.get(codes["total_assets"]),
+            statement_format=statement_format,
+        )
     components = {
         "growth": _average(
             [
@@ -225,6 +283,90 @@ def calculate_fundamental_snapshot(
         if completeness >= 6 and len(available_components) >= 3
         else None
     )
+    return _snapshot_row(
+        ticker=ticker,
+        financial_group=financial_group,
+        exchange=exchange,
+        year=year,
+        period=period,
+        values=values,
+        ebitda_proxy=ebitda_proxy,
+        ratios=ratios,
+        score=score,
+        components=components,
+        completeness=completeness,
+    )
+
+
+def _financial_snapshot(
+    *,
+    ticker: str,
+    financial_group: str,
+    exchange: str,
+    year: int,
+    period: int,
+    values: dict[str, Decimal | None],
+    ratios: dict[str, Decimal | None],
+    total_assets: Decimal | None,
+    statement_format: str,
+) -> dict:
+    """Banka/sigorta skoru: buyume, ozsermaye karliligi ve (bankada) sermaye yeterliligi.
+
+    Sanayi bilesenleri (brut marj, cari oran, nakit akisi) bu tablolarda yoktur.
+    Bankada ozsermaye / aktif kaldirac gostergesidir (%5 zayif, %15 guclu);
+    hayat sigortasinda aktiflerin cogu sigortaliya ait oldugundan kullanilmaz.
+    """
+    components = {
+        "growth": _average(
+            [
+                _linear_score(ratios["revenue_yoy"], "-0.30", "0.30"),
+                _linear_score(ratios["net_income_yoy"], "-0.50", "0.50"),
+            ]
+        ),
+        "profitability": _linear_score(ratios["annualized_roe"], "-0.10", "0.40"),
+        "balance_sheet": (
+            _linear_score(_safe_div(values["equity"], total_assets), "0.05", "0.15")
+            if statement_format == "bank"
+            else None
+        ),
+        "cash_flow": None,
+    }
+    available_components = [value for value in components.values() if value is not None]
+    completeness = sum(value is not None for value in ratios.values())
+    score = (
+        Decimal(str(round(sum(available_components) / len(available_components), 2)))
+        if len(available_components) >= 2
+        else None
+    )
+    return _snapshot_row(
+        ticker=ticker,
+        financial_group=financial_group,
+        exchange=exchange,
+        year=year,
+        period=period,
+        values=values,
+        ebitda_proxy=None,
+        ratios=ratios,
+        score=score,
+        components=components,
+        completeness=completeness,
+    )
+
+
+def _snapshot_row(
+    *,
+    ticker: str,
+    financial_group: str,
+    exchange: str,
+    year: int,
+    period: int,
+    values: dict[str, Decimal | None],
+    ebitda_proxy: Decimal | None,
+    ratios: dict[str, Decimal | None],
+    score: Decimal | None,
+    components: dict[str, float | None],
+    completeness: int,
+) -> dict:
     return {
         "ticker": ticker,
         "financial_group": financial_group,
@@ -253,7 +395,14 @@ def calculate_fundamental_snapshot(
     }
 
 
-def build_snapshots(facts: list[FinancialFact | dict[str, Any]]) -> list[dict]:
+def build_snapshots(
+    facts: list[FinancialFact | dict[str, Any]], *, statement_format: str | None = None
+) -> list[dict]:
+    """Donem bazinda snapshot uretir.
+
+    `statement_format` verilmezse kalem adlari olan sozluklerden cikarilir
+    (bkz. detect_statement_format); collector bunu ham yanittan hesaplayip verir.
+    """
     by_period: dict[tuple[str, str, str, int, int], dict[str, Decimal]] = {}
     for fact in facts:
         if isinstance(fact, dict):
@@ -263,9 +412,16 @@ def build_snapshots(facts: list[FinancialFact | dict[str, Any]]) -> list[dict]:
         key = (get("ticker"), get("financial_group"), get("exchange"), get("year"), get("period"))
         by_period.setdefault(key, {})[get("item_code")] = get("value")
 
+    named = [fact for fact in facts if isinstance(fact, dict)]
+    formats: dict[str, str] = {}
     snapshots: list[dict] = []
     for (ticker, group, exchange, year, period), current in sorted(by_period.items()):
-        if not any(code in current for code in ITEM_CODES.values()):
+        if group not in formats:
+            formats[group] = statement_format or detect_statement_format(
+                group, [fact for fact in named if fact.get("financial_group") == group]
+            )
+        codes = STATEMENT_ITEM_CODES[formats[group]]
+        if not any(code in current for code in codes.values()):
             continue
         previous = by_period.get((ticker, group, exchange, year - 1, period), {})
         snapshots.append(
@@ -277,6 +433,7 @@ def build_snapshots(facts: list[FinancialFact | dict[str, Any]]) -> list[dict]:
                 period=period,
                 current=current,
                 previous=previous,
+                statement_format=formats[group],
             )
         )
     return snapshots
@@ -493,7 +650,9 @@ class FundamentalsCollector(BaseCollector):
                         )
                     )
                 ).all()
-                snapshots = build_snapshots(list(facts))
+                snapshots = build_snapshots(
+                    list(facts), statement_format=detect_statement_format(group, mapped)
+                )
                 if snapshots:
                     stmt = pg_insert(FundamentalSnapshot).values(snapshots)
                     update_fields = {

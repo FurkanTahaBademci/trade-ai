@@ -9,7 +9,7 @@ const feeds = {
   },
   analyses: {
     path: "/api/evaluations",
-    parameters: ["ticker", "source_type", "before", "before_id"],
+    parameters: ["ticker", "source_type", "min_impact", "before", "before_id"],
   },
   signals: {
     path: "/api/signals",

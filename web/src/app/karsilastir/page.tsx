@@ -34,7 +34,7 @@ export default async function ComparePage({ searchParams }: PageProps) {
   return (
     <>
       <PageHeader
-        eyebrow="Şirket Analizi & Kıyaslama"
+        eyebrow="Şirket Analizi ve Kıyaslama"
         title="Şirket Karşılaştırma"
         description="Aynı sektör veya farklı pazarlardaki BIST şirketlerini F/K, PD/DD, ROE, konsensüs hedef fiyatları ve AI kompozit sinyalleriyle 5 eksende kıyaslayın."
         actions={

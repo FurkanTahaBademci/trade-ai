@@ -1,0 +1,139 @@
+{
+ "request": {
+  "companyCode": "GARAN",
+  "exchange": "TRY",
+  "financialGroup": "UFRS",
+  "year1": 2025,
+  "period1": 3,
+  "year2": 2025,
+  "period2": 6,
+  "year3": 2025,
+  "period3": 9,
+  "year4": 2025,
+  "period4": 12
+ },
+ "response_metadata": {
+  "ok": true,
+  "errorCode": null,
+  "errorDescription": null
+ },
+ "value": [
+  {
+   "itemCode": "1A",
+   "itemDescTr": "I. NAKİT DEĞERLER VE MERKEZ BANKASI",
+   "itemDescEng": "I. CASH AND BALANCES WITH THE CENTRAL BANK OF TURKEY",
+   "value1": "547811877000",
+   "value2": "529760307000",
+   "value3": "569655583000",
+   "value4": "632437890000"
+  },
+  {
+   "itemCode": "1AA",
+   "itemDescTr": "II. GERÇEĞE UYGUN DEĞ./ZAR. YANS.(Net)",
+   "itemDescEng": "II.FINANCIAL ASSETS WHERE FAIR VAL. Chng. (Net)",
+   "value1": "6044243000",
+   "value2": "6961032000",
+   "value3": "9028439000",
+   "value4": "10142204000"
+  },
+  {
+   "itemCode": "1Z",
+   "itemDescTr": "AKTİF TOPLAMI",
+   "itemDescEng": "TOTAL ASSETS",
+   "value1": "3035025457000",
+   "value2": "3246037748000",
+   "value3": "3498971972000",
+   "value4": "3820941956000"
+  },
+  {
+   "itemCode": "2A",
+   "itemDescTr": "I. MEVDUAT",
+   "itemDescEng": "I. DEPOSITS",
+   "value1": "2198631482000",
+   "value2": "2216545928000",
+   "value3": "2340162121000",
+   "value4": "2563505600000"
+  },
+  {
+   "itemCode": "2AA",
+   "itemDescTr": "1.1 Bankanın Dahil Olduğu Risk Grubunun Mevduatı",
+   "itemDescEng": "1.1 Deposits Held By The Bank's Risk Group",
+   "value1": "0",
+   "value2": "0",
+   "value3": "0",
+   "value4": "0"
+  },
+  {
+   "itemCode": "2N",
+   "itemDescTr": "XIV. SATIŞ AMAÇLI ELDE TUTULAN  DUV  BORÇ.",
+   "itemDescEng": null,
+   "value1": "0",
+   "value2": "0",
+   "value3": "0",
+   "value4": "0"
+  },
+  {
+   "itemCode": "2O",
+   "itemDescTr": "XVI. ÖZKAYNAKLAR",
+   "itemDescEng": "XVI. SHAREHOLDERS' EQUITY",
+   "value1": "339526876000",
+   "value2": "377603837000",
+   "value3": "410433117000",
+   "value4": "444369537000"
+  },
+  {
+   "itemCode": "2Z",
+   "itemDescTr": "PASİF TOPLAMI",
+   "itemDescEng": "TOTAL LIABILITIES",
+   "value1": "3035025457000",
+   "value2": "3246037748000",
+   "value3": "3498971972000",
+   "value4": "3820941956000"
+  },
+  {
+   "itemCode": "3A",
+   "itemDescTr": "I. FAİZ GELİRLERİ",
+   "itemDescEng": "I. INTEREST INCOME",
+   "value1": "160638310000",
+   "value2": "328767000000",
+   "value3": "518776806000",
+   "value4": "710853580000"
+  },
+  {
+   "itemCode": "3B",
+   "itemDescTr": "II. FAİZ GİDERLERİ",
+   "itemDescEng": "II. INTEREST EXPENSE",
+   "value1": "130210960000",
+   "value2": "265580000000",
+   "value3": "410177593000",
+   "value4": "545541986000"
+  },
+  {
+   "itemCode": "3C",
+   "itemDescTr": "III. NET FAİZ GELİRİ/GİDERİ (I - II)",
+   "itemDescEng": "III. NET INTEREST INCOME/EXPENSES (I - II)",
+   "value1": "30427350000",
+   "value2": "63187000000",
+   "value3": "108599213000",
+   "value4": "165311594000"
+  },
+  {
+   "itemCode": "3D",
+   "itemDescTr": "DİĞER KAR/ZARAR",
+   "itemDescEng": "OTHER PROFIT/LOSS",
+   "value1": "0",
+   "value2": "0",
+   "value3": "0",
+   "value4": "0"
+  },
+  {
+   "itemCode": "3Z",
+   "itemDescTr": "XXIII. NET DÖNEM KARI/ZARARI (XVII+XXII)",
+   "itemDescEng": "XXIII. NET PROFIT/LOSSES (XVII+XXII)",
+   "value1": "25284346000",
+   "value2": "53610000000",
+   "value3": "84042047000",
+   "value4": "110604633000"
+  }
+ ]
+}

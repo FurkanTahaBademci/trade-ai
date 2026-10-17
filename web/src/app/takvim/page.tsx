@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Fragment } from "react";
 import { apiGet } from "@/lib/api";
 import type { CalendarEvent } from "@/lib/types";
-import { EVENT_TYPES, groupByDate, monthRange, parseMonth, parseTypes, shiftMonth } from "@/lib/calendar";
+import { EVENT_TYPES, groupByDate, istanbulToday, monthRange, parseMonth, parseTypes, shiftMonth, todayAnchor } from "@/lib/calendar";
 import { formatDate } from "@/lib/format";
 import { normalizeTicker } from "@/lib/turkish";
 import { EmptyState, PageHeader, ServiceNotice } from "@/components/ui";
 import { Icon } from "@/components/icon";
+import { ScrollToToday } from "@/components/scroll-to-today";
 
 export const metadata: Metadata = { title: "Takvim" };
 
@@ -23,7 +25,9 @@ function href(month: string, types: string[], ticker: string) {
 
 export default async function CalendarPage({ searchParams }: { searchParams: Promise<Params> }) {
   const params = await searchParams;
-  const month = parseMonth(params.month, new Date().toISOString().slice(0, 7));
+  const today = istanbulToday();
+  const currentMonth = today.slice(0, 7);
+  const month = parseMonth(params.month, currentMonth);
   const types = parseTypes(params.types);
   const rawTicker = normalizeTicker(params.ticker ?? "");
   const ticker = /^[A-Z0-9]{1,16}$/.test(rawTicker) ? rawTicker : "";
@@ -34,12 +38,16 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const result = await apiGet<CalendarEvent[]>(`/api/calendar?${query}`, [], { revalidate: 300 });
   const groups = groupByDate(result.data);
   const [year, mon] = month.split("-").map(Number);
-  const today = new Date().toISOString().slice(0, 10);
+  const anchor = month === currentMonth ? todayAnchor(groups.map(([date]) => date), today) : null;
+  // İlk grup zaten bugünse kaydırmaya gerek yok; işaret yine gösterilir.
+  const shouldScroll = month === currentMonth && groups.length > 0 && groups[0][0] !== anchor?.date;
+  const todayMarker = <div id="bugun" className="flex scroll-mt-20 items-center gap-2 text-[11px] font-semibold text-[var(--primary)]"><span className="h-px flex-1 bg-[var(--primary)]"/>Bugün · {formatDate(today)} · olay yok<span className="h-px flex-1 bg-[var(--primary)]"/></div>;
 
   return <><PageHeader eyebrow="Türkiye · Olay takvimi" title="Piyasa Takvimi" description="TCMB PPK toplantıları ile KAP bildirimlerinden türetilen finansal rapor, temettü, genel kurul ve sermaye artırımı olayları. Genel kurullar toplantı gününe, temettüler hak kullanım (paysuz işlem) gününe yerleşir; tarihi çıkarılamayan bildirimler yayın tarihinde görünür." actions={<div className="flex flex-wrap items-center gap-2">
     <Link href={href(shiftMonth(month, -1), types, ticker)} className="pill" aria-label="Önceki ay">←</Link>
     <span className="pill pill-primary"><Icon name="calendar" size={12}/>{MONTHS[mon - 1]} {year}</span>
     <Link href={href(shiftMonth(month, 1), types, ticker)} className="pill" aria-label="Sonraki ay">→</Link>
+    <Link href={`${href(currentMonth, types, ticker)}#bugun`} className={`pill transition ${month === currentMonth ? "" : "pill-primary"} hover:text-[var(--text)]`}>Bugün</Link>
     <span className="mx-1 h-4 w-px bg-[var(--border)]"/>
     <Link href={href(month, [], ticker)} className={`pill transition ${types.length === 0 ? "pill-primary" : "hover:text-[var(--text)]"}`}>Tümü</Link>
     {EVENT_TYPES.map((item) => { const active = types.includes(item.value); const next = active ? types.filter((t) => t !== item.value) : [...types, item.value]; return <Link key={item.value} href={href(month, next, ticker)} aria-pressed={active} className={`pill transition ${active ? "pill-primary" : "hover:text-[var(--text)]"}`}>{item.label}</Link>; })}
@@ -51,14 +59,15 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
       {ticker && <Link href={href(month, types, "")} className="text-xs text-[var(--text-muted)]">Hisse filtresini temizle</Link>}
     </form>
     <ServiceNotice show={!result.ok}/>
-    {groups.length ? <div className="space-y-4">{groups.map(([date, events]) => <section key={date} className="panel-flat overflow-hidden">
+    {shouldScroll && <ScrollToToday targetId="bugun"/>}
+    {groups.length ? <div className="space-y-4">{groups.map(([date, events]) => <Fragment key={date}>{anchor && !anchor.exact && anchor.date === date && todayMarker}<section id={anchor?.exact && date === today ? "bugun" : undefined} className={`panel-flat scroll-mt-20 overflow-hidden ${date === today ? "ring-1 ring-[var(--primary)]" : date < today && month === currentMonth ? "opacity-70" : ""}`}>
       <div className="flex items-center gap-2 border-b px-4 py-2.5" style={{ borderColor: "var(--border)", background: "var(--surface-raised)" }}><span className="terminal-mono text-xs font-semibold">{formatDate(date)}</span>{date === today && <span className="pill pill-primary">Bugün</span>}<span className="ml-auto text-[10px] text-[var(--text-muted)]">{events.length} olay</span></div>
       {events.map((event, index) => { const tone = EVENT_TYPES.find((t) => t.value === event.type)?.tone ?? ""; return <div key={event.id} className={`flex flex-wrap items-center gap-3 px-4 py-3 ${index ? "border-t" : ""}`} style={{ borderColor: "var(--border)" }}>
         <span className={`pill ${tone}`}>{event.type_label}</span>
-        <div className="min-w-0 flex-1"><p className="line-clamp-2 text-sm font-medium">{event.title}</p>{event.detail && <p className="mt-0.5 text-[11px] text-[var(--text-muted)]">{event.detail}{event.upcoming ? " · Yaklaşan" : ""}</p>}{!event.detail && event.upcoming && <p className="mt-0.5 text-[11px] text-[var(--text-muted)]">Yaklaşan</p>}</div>
+        <div className="min-w-[10rem] flex-1"><p className="line-clamp-2 break-words text-sm font-medium">{event.title}</p>{event.detail && <p className="mt-0.5 text-[11px] text-[var(--text-muted)]">{event.detail}{event.upcoming ? " · Yaklaşan" : ""}</p>}{!event.detail && event.upcoming && <p className="mt-0.5 text-[11px] text-[var(--text-muted)]">Yaklaşan</p>}</div>
         <div className="flex flex-wrap items-center gap-2">{event.tickers.map((code) => <Link key={code} href={`/piyasalar/${code}`} className="terminal-mono text-xs font-semibold text-[var(--primary)]">{code}</Link>)}{event.disclosure_index != null && <Link href={`/kap/${event.disclosure_index}`} className="flex items-center gap-1 text-[11px] text-[var(--text-muted)] hover:text-[var(--primary)]">KAP #{event.disclosure_index} <Icon name="arrow" size={12}/></Link>}</div>
       </div>; })}
-    </section>)}</div> : <div className="panel-flat"><EmptyState title="Bu ay için olay bulunamadı" description="Filtreleri temizleyin veya başka bir ay seçin."/></div>}
+    </section></Fragment>)}{month === currentMonth && !anchor && todayMarker}</div> : <div className="panel-flat"><EmptyState title="Bu ay için olay bulunamadı" description="Filtreleri temizleyin veya başka bir ay seçin."/></div>}
     <p className="mt-5 text-[11px] leading-5 text-[var(--text-muted)]">Olay türleri KAP başlık/konu alanlarındaki kurallarla belirlenir; kesin tarih ve koşullar için bildirimin kendisine bakın. Yatırım tavsiyesi değildir.</p>
   </>;
 }

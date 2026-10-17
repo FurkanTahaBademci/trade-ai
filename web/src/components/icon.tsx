@@ -1,6 +1,6 @@
 import type { SVGProps } from "react";
 
-export type IconName = "home" | "markets" | "news" | "kap" | "ai" | "funds" | "search" | "bell" | "menu" | "close" | "arrow" | "trend" | "spark" | "building" | "file" | "clock" | "check" | "external" | "chevron" | "activity" | "star" | "sun" | "moon" | "calendar" | "download";
+export type IconName = "home" | "markets" | "news" | "kap" | "ai" | "funds" | "search" | "bell" | "menu" | "close" | "arrow" | "trend" | "spark" | "building" | "file" | "clock" | "check" | "external" | "chevron" | "activity" | "star" | "sun" | "moon" | "calendar" | "download" | "lock";
 
 const paths: Record<IconName, React.ReactNode> = {
   home: <><path d="m3 10 9-7 9 7"/><path d="M5 9v11h14V9M9 20v-6h6v6"/></>,
@@ -23,6 +23,7 @@ const paths: Record<IconName, React.ReactNode> = {
   moon: <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>,
   calendar: <><path d="M4 6h16v14H4zM4 10h16M8 3v4m8-4v4"/></>,
   download: <><path d="M12 4v11m0 0-4-4m4 4 4-4M5 20h14"/></>,
+  lock: <><rect x="5" y="11" width="14" height="10" rx="1.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></>,
 };
 
 

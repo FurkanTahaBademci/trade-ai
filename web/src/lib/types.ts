@@ -119,8 +119,14 @@ export type CompanyCompareMultiples = {
   pb_ratio: number | null;
   revenue_try: number | null;
   net_income_try: number | null;
+  ttm_net_income_try?: number | null;
+  ttm_revenue_try?: number | null;
   net_margin_pct: number | null;
   roe_pct: number | null;
+  /** F/K, ROE ve net marjın hesap tabanı: "annual" | "ttm" | "annualized". */
+  ttm_basis?: "annual" | "ttm" | "annualized" | null;
+  /** Son bilanço dönemi, örn. "2026/6". */
+  fundamental_period?: string | null;
   debt_to_equity: number | null;
   current_ratio: number | null;
   fundamental_score: number | null;

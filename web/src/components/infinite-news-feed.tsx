@@ -48,7 +48,7 @@ export function InfiniteNewsFeed({
           title={mode === "smart" ? "Öne çıkan önemli haber bulunamadı" : "Haber bulunamadı"}
           description={
             mode === "smart"
-              ? "Önem puanı pozitif olan yeni haberler değerlendirildiğinde burada görünecek. 'Tüm Haber Akışı' sekmesinden kronolojik akışı inceleyebilirsiniz."
+              ? "Önem puanı pozitif olan yeni haberler değerlendirildiğinde burada görünecek. 'Kronolojik' sekmesinden tüm akışı inceleyebilirsiniz."
               : "Bu kaynak veya filtreye ait henüz haber girişi yok."
           }
         />
@@ -58,12 +58,12 @@ export function InfiniteNewsFeed({
 
   return (
     <section aria-busy={loading} aria-live="polite">
-      <div className="mb-3 flex items-center justify-between text-xs text-[var(--text-muted)]">
+      <div className="mb-3 flex items-center justify-between gap-3 text-xs text-[var(--text-muted)]">
         <span>
           {items.length} haber listeleniyor
-          {mode === "smart" && " · Önem ve güncellik kombinasyonuyla sıralandı"}
+          {mode === "smart" && <span className="hidden sm:inline"> · Önem ve güncellik kombinasyonuyla sıralandı</span>}
         </span>
-        <span>Kaydırdıkça yüklenir</span>
+        <span className="hidden sm:inline">Kaydırdıkça yüklenir</span>
       </div>
       <div className="panel-flat overflow-hidden">
         {items.map((item) => (
