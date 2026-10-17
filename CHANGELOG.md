@@ -9,6 +9,8 @@ bu bölümü yeni sürüm numarasıyla kapatır.
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-10-17
+
 ### Değişti
 
 - **Canlı kapasite.**
