@@ -25,7 +25,7 @@ COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
 # WEB_WORKERS kadar Node sureci acar (varsayilan 2); 1 ise server.js'i dogrudan calistirir.
-COPY --from=builder /app/server-cluster.cjs ./server-cluster.cjs
+COPY --from=builder /app/server-cluster.cjs /app/request-metrics.cjs ./
 
 USER node
 

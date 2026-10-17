@@ -9,6 +9,17 @@ bu bölümü yeni sürüm numarasıyla kapatır.
 
 ## [Unreleased]
 
+### Eklendi
+
+- **Web yük ölçümü.** Yönetici `/sistem` sayfasındaki yeni *Web yükü* bölümü
+  sayfa başına toplam süreyi API bekleme ve render olarak ayırır (p50/p95),
+  apiGet önbellek isabetlerini, web süreçlerinin CPU ve event-loop
+  gecikmesini, host yük ortalamasını, CPU sayısını/kotasını ve container CPU
+  kısılmasını gösterir. Aynı veri yönetici oturumuyla `/sistem/metrikler`
+  adresinden JSON olarak alınabilir. API yanıtları artık
+  `Server-Timing: app;dur=<ms>` başlığı taşır; web bu değeri kendi ölçtüğü API
+  çağrı süresiyle karşılaştırır. Herkese açık `/health` değişmedi.
+
 ## [0.8.2] - 2026-10-17
 
 ### Değişti

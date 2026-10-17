@@ -110,6 +110,35 @@ girişi devrededir.
 
 Önerilen yapılandırma ilk satırdır: ayrı ve güçlü bir `WEB_ADMIN_PASSWORD`.
 
+### Web yük ölçümü (`/sistem` → Web yükü)
+
+`/sistem` sayfasındaki **Web yükü** bölümü, yük altında yavaşlığın nereden
+geldiğini ayırmak içindir:
+
+- **Sayfa başına süreler (p50 / p95):** toplam, *API bekleme* (sayfanın API
+  yanıt başlıklarını beklediği duvar saati süresi) ve *render* (toplam − API
+  bekleme: React render'ı, JSON ayrıştırma, event-loop kuyruğu). API
+  çağrılarının süresi API'nin `Server-Timing: app;dur=` başlığıyla
+  karşılaştırılır; aradaki fark ağ, uvicorn kuyruğu ve event-loop beklemesidir.
+  apiGet önbellek sonuçları (isabet / uçuştakine ortak / ıska) da gösterilir.
+- **Web süreçleri:** süreç başına CPU (%100 = bir çekirdek), event-loop
+  gecikmesi (`perf_hooks.monitorEventLoopDelay`), bellek ve süren istek sayısı.
+- **Host:** yük ortalaması, host / container'ın gördüğü CPU sayısı ve cgroup
+  CPU kotası, host CPU meşguliyeti ve *steal* oranı (`/proc/stat`), web
+  container'ının CPU kullanımı ve kısılması (cgroup `cpu.stat`).
+
+Kaba yorum: API bekleme yüksek ve API işlem süresi de yüksekse darboğaz API /
+veritabanıdır; API işlem süresi düşük ama çağrı süresi yüksekse kuyruk veya
+CPU'dur. Host CPU meşguliyeti %90'ı aşıyor veya yük ortalaması CPU sayısını
+geçiyorsa host doymuştur. Render ve event-loop gecikmesi yüksekse web
+süreçleri CPU'ya doymuştur.
+
+Aynı veri yük testinde `curl` ile okunabilsin diye JSON olarak
+`/sistem/metrikler` adresindedir (yönetici oturum çerezi gerekir). Ölçümler
+süreç belleğindedir (süreç başına son 500 istek, en çok 5 dakika) ve yalnız
+Docker imajı (`server-cluster.cjs`) ile toplanır; `npm run dev` altında
+kapalıdır. Herkese açık `/health` CPU/yük bilgisi içermez.
+
 ### Backend (API yazma uçları)
 
 | `ADMIN_API_TOKEN` | `ENVIRONMENT=production` | `ENVIRONMENT=development` |

@@ -7,6 +7,8 @@ import { signalCoverage } from "@/lib/system-metrics";
 import { EmptyState, PageHeader, ServiceNotice, SectionTitle } from "@/components/ui";
 import { APP_COMMIT, APP_VERSION, versionSkew } from "@/lib/build-info";
 import { LogoutButton } from "@/components/logout-button";
+import { WebLoadPanel } from "@/components/web-load-panel";
+import { collectWebMetrics } from "@/lib/request-metrics";
 import { clearSettingAction, runScheduleAction, testAlertsAction, testGeminiAction, toggleScheduleAction, updateScheduleAction, updateSettingAction, vacuumStorageAction } from "./actions";
 
 export const metadata: Metadata = { title: "Sistem Sağlığı" };
@@ -31,7 +33,7 @@ function ComponentRow({ item }: { item: ComponentHealth }) {
 }
 
 export default async function SystemPage({ searchParams }: { searchParams: Promise<{ result?: string; message?: string }> }) {
-  const [health, schedules, settings, storage, llm, stats] = await Promise.all([apiGet<SystemHealth | null>("/health/detailed", null), apiGet<CollectorSchedule[]>("/api/schedules", []), apiGet<SettingStatus[]>("/api/settings", []), apiGet<StorageReport | null>("/api/system/storage", null), apiGet<LlmOperationsReport | null>("/api/system/llm", null), apiGet<SystemStats | null>("/api/system/stats", null, { revalidate: 60 })]);
+  const [health, schedules, settings, storage, llm, stats, webLoad] = await Promise.all([apiGet<SystemHealth | null>("/health/detailed", null), apiGet<CollectorSchedule[]>("/api/schedules", []), apiGet<SettingStatus[]>("/api/settings", []), apiGet<StorageReport | null>("/api/system/storage", null), apiGet<LlmOperationsReport | null>("/api/system/llm", null), apiGet<SystemStats | null>("/api/system/stats", null, { revalidate: 60 }), collectWebMetrics()]);
   const notice = await searchParams;
   const report = health.data?.monitoring;
   const skew = versionSkew(APP_VERSION, health.data?.version);
@@ -43,6 +45,7 @@ export default async function SystemPage({ searchParams }: { searchParams: Promi
     {notice.message && <div className={`mb-5 rounded border px-4 py-3 text-sm ${notice.result === "ok" ? "text-[var(--positive)]" : "text-[var(--negative)]"}`} style={{ borderColor: notice.result === "ok" ? "var(--positive)" : "var(--negative)", background: notice.result === "ok" ? "var(--positive-soft)" : "var(--negative-soft)" }}>{notice.message}</div>}
     {!report ? <div className="panel-flat"><EmptyState title="Sağlık verisi alınamadı" description="API ve Redis bağlantısı kurulduğunda bileşen durumları burada görünecek."/></div> : <><div className="mb-6 grid gap-3 sm:grid-cols-3"><Metric label="Sağlıklı bileşen" value={`${healthy}/${components.length - disabled}`} meta={disabled ? `${disabled} bileşen devre dışı` : undefined}/><Metric label="Sorun" value={String(report.problem_count)} tone={report.problem_count === 0 ? "positive" : "warning"}/><Metric label="İlk çalışma bekleyen" value={String(report.pending_count)} tone={report.pending_count === 0 ? "positive" : "warning"}/></div>
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(300px,.6fr)]"><section><SectionTitle title="Veri hatları" subtitle="Kaynak bazında tazelik ve hata durumu"/><div className="panel-flat overflow-hidden">{components.map((item) => <ComponentRow key={item.name} item={item}/>)}</div></section><aside><SectionTitle title="Altyapı" subtitle="Bağlantı kontrolleri"/><div className="panel-flat overflow-hidden"><Infrastructure label="PostgreSQL" state={health.data?.db}/><Infrastructure label="Redis" state={health.data?.redis}/><div className="border-t p-4 text-[11px] leading-5 text-[var(--text-muted)]" style={{ borderColor: "var(--border)" }}>Gecikmiş veya hatalı bileşenler, <code>N8N_WEBHOOK_URL</code> tanımlıysa saatlik tekrar sınırıyla webhook'a bildirilir.</div></div></aside></div></>}
+    <section className="mt-8"><SectionTitle title="Web yükü" subtitle="Sayfa başına API bekleme ve render süresi, süreç CPU'su ve host yükü"/><WebLoadPanel metrics={webLoad}/></section>
     <section className="mt-8"><SectionTitle title="Veri kapsamı" subtitle="Aktif enstrüman evreninin güncel bileşik skor kapsamı"/>{stats.data ? <SignalCoveragePanel stats={stats.data}/> : <div className="panel-flat"><EmptyState title="Kapsam bilgisi alınamadı"/></div>}</section>
     <section className="mt-8"><SectionTitle title="AI analiz hattı" subtitle="Günlük token bütçesi, seçili model ve iş kuyruğu"/>{!llm.data ? <div className="panel-flat"><EmptyState title="AI operasyon bilgisi alınamadı"/></div> : <LlmOperations report={llm.data}/>}</section>
     <section className="mt-8"><SectionTitle title="Tarama takvimleri" subtitle="Europe/Istanbul · Ayarlar PostgreSQL'de kalıcıdır"/>{schedules.data.length ? <div className="grid gap-3 lg:grid-cols-2">{[...schedules.data].sort((a, b) => scheduleOrder.indexOf(a.name) - scheduleOrder.indexOf(b.name)).map((item) => <ScheduleCard key={item.name} item={item}/>)}</div> : <div className="panel-flat"><EmptyState title="Takvim bilgisi alınamadı"/></div>}</section>

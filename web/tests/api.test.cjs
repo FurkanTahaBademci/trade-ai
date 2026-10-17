@@ -5,12 +5,27 @@ const path = require("node:path");
 const Module = require("node:module");
 const ts = require("typescript");
 
-const file = path.resolve(__dirname, "../src/lib/api.ts");
-const compiled = ts.transpileModule(readFileSync(file, "utf8"), {
-  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
-});
-const loaded = new Module(file, module);
-loaded._compile(compiled.outputText, file);
+const originalResolve = Module._resolveFilename;
+Module._resolveFilename = function (request, parent, isMain, options) {
+  try {
+    return originalResolve.call(this, request, parent, isMain, options);
+  } catch (err) {
+    if (err.code === "MODULE_NOT_FOUND") {
+      try {
+        return originalResolve.call(this, request + ".ts", parent, isMain, options);
+      } catch {}
+    }
+    throw err;
+  }
+};
+require.extensions[".ts"] = function (mod, filename) {
+  const compiled = ts.transpileModule(readFileSync(filename, "utf8"), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  });
+  mod._compile(compiled.outputText, filename);
+};
+
+const loaded = { exports: require(path.resolve(__dirname, "../src/lib/api.ts")) };
 const { isApiNotFound } = loaded.exports;
 
 test("only an explicit upstream 404 is treated as a missing page", () => {
@@ -44,5 +59,30 @@ test("revalidated requests are served from the in-process cache, failures are no
     assert.equal(calls.length, callsAfterFailure + 2);
   } finally {
     global.fetch = originalFetch;
+  }
+});
+
+test("apiGet reports cache outcomes and in-flight waits to the metrics hook", async () => {
+  const { apiGet } = loaded.exports;
+  const key = Symbol.for("trade-ai.request-metrics");
+  const outcomes = [];
+  let waits = 0;
+  globalThis[key] = { apiStart: () => { waits += 1; return () => {}; }, cacheOutcome: (item) => outcomes.push(item), collect: async () => null };
+  const originalFetch = global.fetch;
+  let release;
+  global.fetch = () => new Promise((resolve) => { release = () => resolve({ ok: true, status: 200, json: async () => ({ ok: 1 }) }); });
+  try {
+    const first = apiGet("/hook-test", null, { revalidate: 60 });
+    const second = apiGet("/hook-test", null, { revalidate: 60 });
+    release();
+    await Promise.all([first, second]);
+    await apiGet("/hook-test", null, { revalidate: 60 });
+    assert.deepEqual(outcomes, ["miss", "shared", "hit"]);
+    // Yalnız uçuştaki isteğe bağlanan bekleme kancadan sayılır; fetch'in kendisi
+    // request-metrics.cjs'deki fetch sarmalayıcısıyla ölçülür.
+    assert.equal(waits, 1);
+  } finally {
+    global.fetch = originalFetch;
+    delete globalThis[key];
   }
 });

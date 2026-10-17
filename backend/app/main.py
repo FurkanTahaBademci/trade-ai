@@ -35,6 +35,7 @@ from app.api.routers import (
 )
 from app.core.config import get_settings
 from app.core.logging import configure_logging
+from app.core.server_timing import ServerTimingMiddleware
 
 configure_logging()
 settings = get_settings()
@@ -67,6 +68,9 @@ app.add_middleware(
     TrustedHostMiddleware,
     allowed_hosts=allowed_hosts,
 )
+
+# En dışta: süre CORS/host denetimleri dahil uygulamanın tamamını kapsar.
+app.add_middleware(ServerTimingMiddleware)
 
 app.include_router(health.router)
 app.include_router(instruments.router)

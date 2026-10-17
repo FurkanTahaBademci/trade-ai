@@ -11,6 +11,7 @@
 const cluster = require("node:cluster");
 const os = require("node:os");
 const path = require("node:path");
+const requestMetrics = require("./request-metrics.cjs");
 
 const DEFAULT_WORKERS = 2;
 const MAX_WORKERS = 16;
@@ -50,6 +51,8 @@ function hasHeapFlag(nodeOptions = process.env.NODE_OPTIONS ?? "", execArgv = pr
 }
 
 function startServer() {
+  // Ölçüm kancaları (istek/API süresi, süreç CPU'su) Next yüklenmeden kurulmalı.
+  requestMetrics.install();
   require(path.join(__dirname, "server.js"));
 }
 
@@ -58,6 +61,7 @@ function runPrimary(workers) {
   if (heapMb) cluster.setupPrimary({ execArgv: [...process.execArgv, `--max-old-space-size=${heapMb}`] });
   console.log(`[web] ${workers} süreç başlatılıyor${heapMb ? ` (süreç başına heap ${heapMb} MB)` : ""}`);
 
+  requestMetrics.attachPrimary(cluster);
   let shuttingDown = false;
   const crashes = [];
   for (let i = 0; i < workers; i += 1) cluster.fork({ WEB_WORKERS: String(workers) });

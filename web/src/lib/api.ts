@@ -1,3 +1,5 @@
+import { recordCacheOutcome, startApiWait } from "./request-metrics";
+
 export type ApiResult<T> =
   | { data: T; ok: true }
   | { data: T; ok: false; error: string; status?: number };
@@ -11,7 +13,7 @@ function apiBase() { return process.env.API_INTERNAL_URL ?? "http://localhost:80
 // Kök layout `force-dynamic` olduğu için Next her fetch'i no-store yapar ve
 // `next.revalidate` etkisiz kalır. Bu yüzden `revalidate` verilen istekler süreç
 // içinde kısa süre saklanır; eşzamanlı aynı istekler tek fetch'e bağlanır.
-type CacheEntry = { expires: number; value: Promise<ApiResult<unknown>> };
+type CacheEntry = { expires: number; settled: boolean; value: Promise<ApiResult<unknown>> };
 const responseCache = new Map<string, CacheEntry>();
 const MAX_CACHE_ENTRIES = 500;
 
@@ -21,17 +23,27 @@ export async function apiGet<T>(
   options?: { revalidate?: number },
 ): Promise<ApiResult<T>> {
   const revalidate = options?.revalidate ?? 0;
-  if (revalidate <= 0) return fetchApi(path, fallback);
+  if (revalidate <= 0) {
+    recordCacheOutcome("none");
+    return fetchApi(path, fallback);
+  }
   const now = Date.now();
   const cached = responseCache.get(path);
   if (cached && cached.expires > now) {
+    recordCacheOutcome(cached.settled ? "hit" : "shared");
+    // Uçuştaki isteğe bağlanmak da API beklemesidir (yük ölçümü için).
+    const endWait = cached.settled ? undefined : startApiWait();
     const result = (await cached.value) as ApiResult<T>;
+    endWait?.();
     return result.ok ? result : { ...result, data: fallback };
   }
+  recordCacheOutcome("miss");
   const value = fetchApi(path, fallback);
-  responseCache.set(path, { expires: now + revalidate * 1000, value });
+  const entry: CacheEntry = { expires: now + revalidate * 1000, settled: false, value };
+  responseCache.set(path, entry);
   pruneCache(now);
   const result = await value;
+  entry.settled = true;
   // Hatalı yanıt saklanmaz; bir sonraki istek yeniden dener.
   if (!result.ok && responseCache.get(path)?.value === value) responseCache.delete(path);
   return result;
