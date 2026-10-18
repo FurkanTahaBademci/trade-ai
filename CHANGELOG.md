@@ -9,6 +9,8 @@ bu bölümü yeni sürüm numarasıyla kapatır.
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-10-18
+
 ### Değişti
 
 - **Arka plan worker'ı siteyle CPU paylaşırken geri çekilir.** Saat başı toplu
