@@ -7,6 +7,8 @@ zamanlanir. Haber ve KAP isleri ayni dakikada baslasa da haber 30 saniye
 gecikmeli calisarak ani istek yukunu dagitir.
 """
 
+import asyncio
+import contextlib
 from datetime import UTC, datetime
 from typing import ClassVar
 
@@ -41,12 +43,40 @@ from app.tasks.jobs import (
 logger = structlog.get_logger(__name__)
 
 
-async def startup(ctx: dict) -> None:
+HEARTBEAT_INTERVAL_SECONDS = 60
+
+
+async def _write_heartbeat() -> None:
     await get_redis().set("worker:last_heartbeat", datetime.now(UTC).isoformat())
-    logger.info("worker_started")
+
+
+async def _heartbeat_loop() -> None:
+    """Is slotlarindan bagimsiz canlilik sinyali.
+
+    `max_jobs` sinirliyken uzun isler (fiyat, temel analiz) tum slotlari
+    doldurabilir; cron `heartbeat` isi o zaman kuyrukta bekler ve izleme
+    worker'i yanlislikla bayat gosterir. Bu dongu event loop'ta calisir.
+    """
+    while True:
+        await asyncio.sleep(HEARTBEAT_INTERVAL_SECONDS)
+        try:
+            await _write_heartbeat()
+        except Exception as exc:  # noqa: BLE001 - Redis kopmasi donguyu bitirmesin
+            logger.warning("worker_heartbeat_failed", error=str(exc))
+
+
+async def startup(ctx: dict) -> None:
+    await _write_heartbeat()
+    ctx["heartbeat_task"] = asyncio.create_task(_heartbeat_loop())
+    logger.info("worker_started", max_jobs=WorkerSettings.max_jobs)
 
 
 async def shutdown(ctx: dict) -> None:
+    task = ctx.get("heartbeat_task")
+    if task is not None:
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
     logger.info("worker_stopped")
 
 
@@ -65,6 +95,10 @@ class WorkerSettings:
     # detect a stalled worker. Keep failure detection below two minutes.
     health_check_interval = 30
     job_timeout = get_settings().worker_job_timeout
+    # Ayni anda calisan is sayisi (ARQ varsayilani 10). Worker web ve API ile
+    # ayni sunucuyu paylasir; cok sayida es zamanli is sayfa render'ini CPU'suz
+    # birakiyordu. Isler kuyrukta sira bekler, kaybolmaz.
+    max_jobs = get_settings().worker_max_jobs
     functions: ClassVar[list] = [
         collect_instruments,
         func(collect_prices, timeout=3600, name="collect_prices"),

@@ -112,6 +112,8 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL}
       REDIS_URL: redis://redis:6379/0
+      # Ayni anda calisan arka plan isi; fazlasi kuyrukta bekler.
+      WORKER_MAX_JOBS: ${WORKER_MAX_JOBS:-3}
     depends_on:
       api:
         condition: service_healthy
@@ -126,7 +128,11 @@ services:
       resources:
         limits:
           memory: ${WORKER_MEMORY_LIMIT:-2G}
-    command: ["arq", "app.tasks.schedule.WorkerSettings"]
+          # Web ve API ayni sunucuda: arka plan isleri en fazla bu kadar
+          # cekirdek kullanir, kalan CPU sayfa render'ina kalir.
+          cpus: "${WORKER_CPUS:-1}"
+    # nice: CPU bostayken tam hiz, web/API istedikce sira onlara gecer.
+    command: ["nice", "-n", "10", "arq", "app.tasks.schedule.WorkerSettings"]
     # Dis dunyaya port acilmiyor - sadece Redis'ten is aliyor.
 
   web:

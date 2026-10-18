@@ -7,6 +7,7 @@ icinde os.environ ile dogrudan okuma yapma.
 
 from functools import lru_cache
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -70,6 +71,7 @@ class Settings(BaseSettings):
     kap_rate_limit_per_sec: float = 2.0
 
     worker_job_timeout: int = 1800
+    worker_max_jobs: int = Field(default=3, ge=1, le=20)
     price_collector_chunk_size: int = 10
     price_collector_timeout: int = 30
 

@@ -9,6 +9,18 @@ bu bölümü yeni sürüm numarasıyla kapatır.
 
 ## [Unreleased]
 
+### Değişti
+
+- **Arka plan worker'ı siteyle CPU paylaşırken geri çekilir.** Saat başı toplu
+  işler başlarken sayfalar 2–7 sn'ye kadar yavaşlıyordu.
+  - Worker container'ına CPU tavanı eklendi (`WORKER_CPUS`, varsayılan 1
+    çekirdek).
+  - Worker `nice -n 10` ile düşük öncelikte çalışır.
+  - Aynı anda en fazla `WORKER_MAX_JOBS` iş çalışır (varsayılan 3; ARQ'nun
+    kendi varsayılanı 10). Fazlası kuyrukta sıra bekler, kaybolmaz.
+  - Worker canlılık sinyali artık iş slotlarından bağımsız yazılır. Böylece
+    uzun işler slotları doldurduğunda `/sistem` worker'ı bayat göstermez.
+
 ## [0.9.0] - 2026-10-17
 
 ### Eklendi
