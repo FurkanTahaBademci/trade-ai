@@ -9,6 +9,8 @@ bu bölümü yeni sürüm numarasıyla kapatır.
 
 ## [Unreleased]
 
+## [0.9.2] - 2026-10-28
+
 ### Düzeltildi
 
 - **KAP bildirimleri ilgili hisseye bağlanır.** Başka bir kurumun bir şirket
