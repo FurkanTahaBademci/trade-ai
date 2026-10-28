@@ -9,6 +9,7 @@ kurallari — `CONTRIBUTING.md`).
 |---|---|---|
 | `kap/disclosure_list_sample.json` | `POST /tr/api/disclosure/members/byCriteria` (ilk 10 kayit) | 2026-09-06 |
 | `kap/disclosure_detail_sample.json` | `GET /tr/api/notification/attachment-detail/{index}` | 2026-09-06 |
+| `kap/list_related_stocks.json` | `POST /tr/api/disclosure/members/byCriteria` (109 kayıttan 4'ü: yalnız `stockCodes`, ikisi birden, yalnız `relatedStocks` — pay alım satım ve devre kesici) | 2026-10-28 |
 | `tefas/dagilim_sample.json` | `POST /api/funds/dagilimSiraliGetirT` (10 satir) | 2026-09-06 |
 | `rss/bloomberght_sample.xml` | `bloomberght.com/rss` (ham XML) | 2026-09-06 |
 | `rss/investing_tr_sample.xml` | `tr.investing.com/rss/news.rss` (ham XML) | 2026-09-06 |

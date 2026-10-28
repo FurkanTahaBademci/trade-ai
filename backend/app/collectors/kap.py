@@ -125,6 +125,21 @@ def parse_ticker_codes(value: object) -> list[str]:
     return codes
 
 
+def list_item_ticker_codes(item: dict) -> list[str]:
+    """Bildirimin yayinci (`stockCodes`) ve ilgili sirket (`relatedStocks`) kodlari.
+
+    Borsa Istanbul (devre kesici, islem sirasi), KAP (pay alim satim, SPK
+    kararlari) ve derecelendirme kuruluslari baska bir sirket hakkinda bildirim
+    yayimlar; o sirketin kodu yalniz `relatedStocks`'ta gelir. Yayincinin kendi
+    kodlari onde kalir.
+    """
+    codes = parse_ticker_codes(item.get("stockCodes"))
+    for code in parse_ticker_codes(item.get("relatedStocks")):
+        if code not in codes:
+            codes.append(code)
+    return codes
+
+
 def map_disclosure_list_item(item: dict) -> dict:
     """KAP liste satirini model alanlarina ceviren saf fonksiyon."""
     index = item.get("disclosureIndex") or item.get("basicDisclosureIndex")
@@ -143,7 +158,7 @@ def map_disclosure_list_item(item: dict) -> dict:
         "disclosure_class": item.get("disclosureClass"),
         "disclosure_type": item.get("disclosureType"),
         "disclosure_category": item.get("disclosureCategory"),
-        "ticker_codes": parse_ticker_codes(item.get("stockCodes")),
+        "ticker_codes": list_item_ticker_codes(item),
         "is_late": _as_bool(item.get("isLate")),
         "has_multi_language_support": _as_bool(item.get("hasMultiLanguageSupport")),
         "attachment_count": int(item.get("attachmentCount") or 0),

@@ -102,3 +102,47 @@ async def test_smart_news_uses_fixed_reference_time_and_recent_window():
     # ...ve yalniz son 30 gunun haberleri puanlanir.
     assert ref - timedelta(days=30) in values
     assert 12 in values
+
+
+async def test_ticker_filter_includes_news_linked_by_llm():
+    db = AsyncMock()
+    result = MagicMock()
+    result.all.return_value = []
+    db.execute.return_value = result
+
+    await list_news(db=db, ticker="thyao", mode="chronological", limit=8)
+
+    compiled = db.execute.await_args.args[0].compile(dialect=postgresql.dialect())
+    sql = str(compiled)
+    # Kaynak etiketi VEYA basarili LLM degerlendirmesinin hisse listesi eslesir.
+    assert "CAST(news_article.ticker_codes AS JSONB) @>" in sql
+    assert "OR news_article.id IN (SELECT llm_evaluation.source_id" in sql
+    assert "CAST(llm_evaluation.ticker_codes AS JSONB) @>" in sql
+    assert ["THYAO"] in compiled.params.values()
+    assert "succeeded" in compiled.params.values()
+
+
+async def test_listed_news_carry_tickers_linked_by_llm():
+    from datetime import UTC, datetime
+    from types import SimpleNamespace
+
+    article = SimpleNamespace(
+        id=7,
+        source="foreks",
+        canonical_url="https://example.com/haber",
+        title="Petrol fiyatlari yukseldi",
+        summary=None,
+        author=None,
+        image_url=None,
+        published_at=datetime(2026, 10, 28, 7, 0, tzinfo=UTC),
+        ticker_codes=["TUPRS"],
+    )
+    db = AsyncMock()
+    result = MagicMock()
+    result.all.return_value = [(article, 60, -0.4, "macro", ["THYAO", "TUPRS", "PGSUS"])]
+    db.execute.return_value = result
+
+    rows = await list_news(db=db, ticker="THYAO", mode="chronological", limit=8)
+
+    # Kaynak etiketi onde kalir, LLM'in ekledikleri tekrarsiz arkaya gelir.
+    assert rows[0].ticker_codes == ["TUPRS", "THYAO", "PGSUS"]

@@ -60,6 +60,29 @@ def test_ticker_codes_are_normalized_and_deduplicated():
     assert parse_ticker_codes(None) == []
 
 
+def test_related_stocks_link_disclosures_published_by_others():
+    own, both, insider, circuit_breaker = (
+        map_disclosure_list_item(item) for item in _load("list_related_stocks.json")
+    )
+
+    # Sirketin kendi bildirimi: yalniz stockCodes.
+    assert own["ticker_codes"] == ["ACA"]
+    # Holding istirak hakkinda yazar: yayinci onde, ilgili sirket arkada.
+    assert both["ticker_codes"] == ["IEYHO", "CEMAS"]
+    # KAP ve Borsa Istanbul yayimlar; kod yalniz relatedStocks'ta gelir.
+    assert insider["ticker_codes"] == ["MNDRS"]
+    assert circuit_breaker["ticker_codes"] == ["EFOR"]
+
+
+def test_related_stocks_do_not_duplicate_publisher_codes():
+    item = {
+        **_load("list_related_stocks.json")[1],
+        "stockCodes": "TSK, TSKB",
+        "relatedStocks": "tskb, KLN ; KLN",
+    }
+    assert map_disclosure_list_item(item)["ticker_codes"] == ["TSK", "TSKB", "KLN"]
+
+
 def test_maps_real_detail_and_extracts_only_visible_language():
     payload = _load("disclosure_detail_sample.json")
 

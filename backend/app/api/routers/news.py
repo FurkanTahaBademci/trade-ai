@@ -18,6 +18,15 @@ router = APIRouter(prefix="/api/news", tags=["news"])
 SMART_WINDOW_DAYS = 30
 
 
+def _merge_ticker_codes(own: list[str] | None, linked: list[str] | None) -> list[str]:
+    """Kaynak etiketleri onde, LLM'in ekledigi hisseler sirasiyla arkada."""
+    codes = list(own or [])
+    for code in linked or []:
+        if code not in codes:
+            codes.append(code)
+    return codes
+
+
 @router.get("", response_model=list[NewsArticleListOut])
 async def list_news(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -64,6 +73,7 @@ async def list_news(
             LlmEvaluation.impact_score.label("impact_score"),
             LlmEvaluation.sentiment_score.label("sentiment_score"),
             LlmEvaluation.event_type.label("event_type"),
+            LlmEvaluation.ticker_codes.label("ticker_codes"),
         )
         .where(
             LlmEvaluation.source_type == "news",
@@ -82,6 +92,7 @@ async def list_news(
         latest_eval.c.impact_score,
         latest_eval.c.sentiment_score,
         latest_eval.c.event_type,
+        latest_eval.c.ticker_codes,
     ).outerjoin(latest_eval, NewsArticle.id == latest_eval.c.source_id)
     # Ham RSS kaydi liste yanitinda yok; satir basina JSON cozumlemesi gereksiz.
     stmt = stmt.options(defer(NewsArticle.raw_entry))
@@ -89,7 +100,20 @@ async def list_news(
     if source:
         stmt = stmt.where(NewsArticle.source == source.lower())
     if ticker:
-        stmt = stmt.where(cast(NewsArticle.ticker_codes, JSONB).contains([ticker.upper()]))
+        code = ticker.upper()
+        # RSS kaynaklarinin cogu hisse etiketi vermez; LLM'in haberle
+        # iliskilendirdigi hisseler de sayilir (skor gerekcesindeki haberler).
+        llm_linked = select(LlmEvaluation.source_id).where(
+            LlmEvaluation.source_type == "news",
+            LlmEvaluation.status == "succeeded",
+            cast(LlmEvaluation.ticker_codes, JSONB).contains([code]),
+        )
+        stmt = stmt.where(
+            or_(
+                cast(NewsArticle.ticker_codes, JSONB).contains([code]),
+                NewsArticle.id.in_(llm_linked),
+            )
+        )
 
     if is_chronological:
         # Kronolojik mod: Tüm haberler normal yayin sirasinda
@@ -143,11 +167,13 @@ async def list_news(
             impact = row[1] if len(row) > 1 else None
             sentiment = row[2] if len(row) > 2 else None
             event = row[3] if len(row) > 3 else None
+            linked = row[4] if len(row) > 4 else None
         else:
             article = row
             impact = getattr(article, "impact_score", None)
             sentiment = getattr(article, "sentiment_score", None)
             event = getattr(article, "event_type", None)
+            linked = None
 
         articles.append(
             NewsArticleListOut(
@@ -159,7 +185,7 @@ async def list_news(
                 author=article.author,
                 image_url=article.image_url,
                 published_at=article.published_at,
-                ticker_codes=article.ticker_codes,
+                ticker_codes=_merge_ticker_codes(article.ticker_codes, linked),
                 impact_score=impact,
                 sentiment_score=float(sentiment) if sentiment is not None else None,
                 event_type=event,

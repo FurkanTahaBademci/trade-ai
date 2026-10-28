@@ -9,6 +9,25 @@ bu bölümü yeni sürüm numarasıyla kapatır.
 
 ## [Unreleased]
 
+### Düzeltildi
+
+- **KAP bildirimleri ilgili hisseye bağlanır.** Başka bir kurumun bir şirket
+  hakkında yayımladığı bildirimler (Borsa İstanbul devre kesici ve işlem
+  sırası, KAP pay alım satım ve SPK kararları, derecelendirme raporları)
+  hisse kodu olmadan "Genel piyasa" görünüyordu; günün bildirimlerinin
+  yaklaşık dörtte biri buydu. Toplayıcı artık KAP'ın `relatedStocks` alanını
+  da okur. Bu bildirimler akışta hisse etiketiyle, hisse sayfasının KAP
+  bölümünde ve hisse filtresinde görünür. Migration kayıtlı bildirimleri ham
+  liste kaydından tamamlar. Etiketi değişen son ~250 bildirim AI tarafından
+  bir kez yeniden değerlendirilir.
+- **Hisse sayfasındaki "Şirket haberleri" AI'ın bağladığı haberleri de
+  gösterir.** Haber kaynaklarının çoğu hisse etiketi vermediği için bölüm
+  neredeyse boştu; örneğin THYAO'da 1 haber varken skor gerekçesinde son
+  haftanın 8+ haberi listeleniyordu. Hisse filtresi artık AI
+  değerlendirmesinin hisseleriyle de eşleşir. Haber listelerindeki hisse
+  etiketleri de AI'ın eklediği hisseleri gösterir; kaynak etiketleri önde
+  kalır.
+
 ## [0.9.1] - 2026-10-18
 
 ### Değişti
