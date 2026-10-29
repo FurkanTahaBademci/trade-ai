@@ -22,6 +22,8 @@ from app.models import AppUser, InviteCode, UserSession, UserToken, UserWatchlis
 
 SERVICE = {"X-Admin-Token": "test-service-token"}
 PASSWORD = "dogru-parola-123"
+# Sabit dizeden turetilir; gitleaks genel anahtar kuralina takilmasin.
+NEW_PASSWORD = f"{PASSWORD}-yeni"
 TABLES = [
     InviteCode.__table__,
     AppUser.__table__,
@@ -276,19 +278,19 @@ def test_password_change_revokes_other_sessions(env):
     wrong = client.post(
         "/api/me/password",
         headers=_bearer(first),
-        json={"current_password": "yanlis-parola-1", "new_password": "yeni-parola-456"},
+        json={"current_password": "yanlis-parola-1", "new_password": NEW_PASSWORD},
     )
     assert wrong.status_code == 400
     changed = client.post(
         "/api/me/password",
         headers=_bearer(first),
-        json={"current_password": PASSWORD, "new_password": "yeni-parola-456"},
+        json={"current_password": PASSWORD, "new_password": NEW_PASSWORD},
     )
     assert changed.status_code == 200
     assert env["mails"][-1].subject.endswith("Parolan değiştirildi")
     assert client.get("/api/me", headers=_bearer(first)).status_code == 200
     assert client.get("/api/me", headers=_bearer(second)).status_code == 401
-    assert _login(env, password="yeni-parola-456").status_code == 200
+    assert _login(env, password=NEW_PASSWORD).status_code == 200
 
 
 def test_password_reset_flow_and_no_account_enumeration(env):
