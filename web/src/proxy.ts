@@ -41,7 +41,8 @@ export async function proxy(request: NextRequest) {
     const fallback = signedIn && !accountIsAdmin ? "/" : "/sistem";
     return respond(NextResponse.redirect(new URL(safeNextPath(request.nextUrl.searchParams.get("next"), fallback), request.url)));
   }
-  if (path === "/hesap" || path.startsWith("/hesap/")) {
+  // /portfoylerim listesi girişsizken tanıtım gösterir; alt sayfaları (yeni, emir, detay) oturum ister.
+  if (path === "/hesap" || path.startsWith("/hesap/") || path.startsWith("/portfoylerim/")) {
     return respond(signedIn ? NextResponse.next() : toLogin(request));
   }
 
@@ -52,5 +53,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/sistem/:path*", "/backtest/:path*", "/giris", "/hesap/:path*"],
+  matcher: ["/sistem/:path*", "/backtest/:path*", "/giris", "/hesap/:path*", "/portfoylerim/:path+"],
 };

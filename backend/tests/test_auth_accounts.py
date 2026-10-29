@@ -18,7 +18,14 @@ from app.auth import security
 from app.core import config
 from app.core.db import Base, get_db
 from app.main import app
-from app.models import AppUser, InviteCode, UserSession, UserToken, UserWatchlistItem
+from app.models import (
+    AppUser,
+    InviteCode,
+    PaperPortfolio,
+    UserSession,
+    UserToken,
+    UserWatchlistItem,
+)
 
 SERVICE = {"X-Admin-Token": "test-service-token"}
 PASSWORD = "dogru-parola-123"
@@ -30,6 +37,7 @@ TABLES = [
     UserSession.__table__,
     UserToken.__table__,
     UserWatchlistItem.__table__,
+    PaperPortfolio.__table__,
 ]
 
 

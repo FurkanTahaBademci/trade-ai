@@ -306,10 +306,10 @@ async def compute_signals(ctx: dict) -> dict:
 
 
 async def run_paper_portfolio(ctx: dict) -> dict:
-    from app.paper.service import run_paper_portfolio as execute_paper_portfolio
+    from app.paper.service import run_paper_portfolios
 
-    async with session_factory() as session:
-        return await execute_paper_portfolio(session)
+    # Model ve kullanici portfoyleri; her portfoy kendi oturumunda islenir.
+    return await run_paper_portfolios()
 
 
 async def collect_evds(ctx: dict) -> dict:

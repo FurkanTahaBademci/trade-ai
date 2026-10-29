@@ -26,9 +26,13 @@ işletir.
 - **Bileşik sinyal:** Haber/KAP duygusu, temel analiz, analist konsensüsü ve
   BIST100'e göre fiyat momentumunu birleştiren sürümlü 0–100 skor, skor
   geçmişi, skor hareketleri, isabet ölçümü ve bileşenlerin tahmin gücü.
-- **Paper portföy ve backtest:** Komisyon ve kayma hesaplı sanal portföy;
-  stop-loss, take-profit, takip eden stop ve ağırlık sınırları. Stratejinin
-  geçmiş veride BIST100'e karşı testi.
+- **Paper portföy ve backtest:** Komisyon ve kayma hesaplı, herkese açık bir
+  model portföy; stop-loss, take-profit, takip eden stop ve ağırlık sınırları.
+  Stratejinin geçmiş veride BIST100'e karşı testi.
+- **Kullanıcı hesapları:** Davetle (kapalı beta) ya da açık kayıt, e-posta
+  doğrulama. Hesap açanlar kendi strateji portföylerini (eşikleri ve risk
+  kurallarını kendileri seçer) ve gün sonu fiyatından işleyen manuel emirli
+  portföylerini kurar.
 - **Dashboard:** Piyasalar, hisse tarayıcı, sinyaller, haberler, KAP, AI
   analizleri, kurumsal görüş, makro/faiz, piyasa takvimi, hisse karşılaştırma,
   izleme listesi, portföy ve CSV dışa aktarma. Açık/koyu tema ve mobil uyumlu

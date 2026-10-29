@@ -1,9 +1,9 @@
 # Yönetim Erişimi ve Parolalar
 
 Herkese açık ekranlar (piyasalar, sinyaller, haberler, KAP, model portföy…)
-giriş istemez. Ziyaretçiler isterse hesap açar; hesap şimdilik izleme listesini
-hesapta saklar, kişisel paper portföy ve backtest sonraki sürümlerde gelir
-(bkz. [Kullanıcı hesapları](#kullanıcı-hesapları)).
+giriş istemez. Ziyaretçiler isterse hesap açar; hesapla izleme listesi hesapta
+saklanır ve kişisel paper portföyler (`/portfoylerim`) kurulur. Kişisel backtest
+sonraki sürümde gelir (bkz. [Kullanıcı hesapları](#kullanıcı-hesapları)).
 
 Yönetici iki yoldan olunur:
 
@@ -176,6 +176,29 @@ kalmaz.
 
 Süresi dolmuş oturum ve token kayıtları worker tarafından her gece 04:20'de
 silinir.
+
+### Kişisel paper portföyler
+
+- Kullanıcı en fazla `PAPER_MAX_PORTFOLIOS_PER_USER` (varsayılan 5) portföy açar.
+  İki tür vardır:
+  - **Strateji:** bileşik sinyali kullanıcının seçtiği eşiklerle (giriş/çıkış
+    skoru, güven, pozisyon sayısı, zarar-kes, sektör tavanı…) otomatik izler.
+    Hazır şablonlar: Model stratejisi, Temkinli, Agresif.
+  - **Manuel:** kullanıcı sanal alış/satış emri verir (portföy sayfasından ya da
+    hisse sayfasındaki "paper emri ver" bağlantısından).
+- Tüm portföyler, model portföyle aynı gün sonu işinde (`paper_portfolio`
+  takvimi, varsayılan 18:46) işlenir. Günün sinyal ve fiyat verisi bir kez
+  yüklenir; her portföy ayrı transaction'da işlenir, biri hata alırsa diğerleri
+  etkilenmez ve hata portföyün kartında görünür.
+- **Geleceğe bakma yoktur:** yeni portföy ve manuel emir, 18:00'den önce
+  verildiyse o günün, sonra verildiyse bir sonraki işlem gününün kapanışından
+  işlem görür. Geçmiş günler oynatılmaz.
+- Komisyon (%0,1), kayma (%0,05), tavan/tabanda işlem yapılmaması ve düşük
+  hacim filtresi herkes için aynıdır. Tavan/tabanda kalan ya da işlem görmeyen
+  hissedeki manuel emir bekler; 7 gün içinde gerçekleşmezse reddedilir.
+- Herkese açık `/api/paper/*` uçları ve `/portfoy` yalnız model portföyü
+  gösterir. Telegram/webhook bildirimleri ve günlük özet de yalnız model
+  portföyü izler.
 
 ## Hangi durumda ne olur?
 

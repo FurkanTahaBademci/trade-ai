@@ -18,7 +18,8 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Hisse Tarayıcı", href: "/tarayici", icon: "search", keywords: "filtre screener tarama" },
   { label: "İzleme Listesi", href: "/izleme-listesi", icon: "star", keywords: "favori takip watchlist" },
   { label: "Bileşik Sinyaller", href: "/sinyaller", icon: "activity", keywords: "skor sıralama sinyal doğruluk" },
-  { label: "Paper Portföy", href: "/portfoy", icon: "trend", keywords: "portföy pozisyon simülasyon" },
+  { label: "Model Portföy", href: "/portfoy", icon: "trend", keywords: "paper portföy pozisyon simülasyon" },
+  { label: "Portföylerim", href: "/portfoylerim", icon: "spark", keywords: "kendi portföy paper emir strateji manuel hesap" },
   { label: "Backtest", href: "/backtest", icon: "activity", locked: true, keywords: "geriye dönük test strateji" },
   { label: "Faiz & Makro", href: "/makro", icon: "building", keywords: "tcmb ppk politika faizi enflasyon" },
   { label: "Takvim", href: "/takvim", icon: "calendar", keywords: "temettü genel kurul bilanço ppk olay" },
@@ -32,7 +33,7 @@ export const NAV_ITEMS: NavItem[] = [
 export const NAV_GROUPS: { label: string; routes: string[] }[] = [
   { label: "01 / PİYASA", routes: ["/", "/piyasalar", "/tarayici", "/izleme-listesi", "/karsilastir"] },
   { label: "02 / ARAŞTIRMA", routes: ["/sinyaller", "/haberler", "/kap", "/analizler", "/makro", "/takvim", "/kurumsal"] },
-  { label: "03 / STRATEJİ", routes: ["/portfoy", "/backtest"] },
+  { label: "03 / STRATEJİ", routes: ["/portfoy", "/portfoylerim", "/backtest"] },
   { label: "04 / OPERASYON", routes: ["/sistem"] },
 ];
 

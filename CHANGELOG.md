@@ -9,6 +9,37 @@ bu bölümü yeni sürüm numarasıyla kapatır.
 
 ## [Unreleased]
 
+### Eklendi
+
+- **Kişisel paper portföyler (`/portfoylerim`).** Hesap açan kullanıcı en fazla
+  5 sanal portföy kurar.
+  - **Strateji portföyü:** bileşik sinyali kullanıcının seçtiği kurallarla her
+    işlem günü kapanışta otomatik izler. Seçilebilen kurallar: giriş/çıkış
+    skoru, en düşük güven, kaynak sayısı, pozisyon sayısı, günlük yeni alım,
+    tek pozisyon ve sektör tavanı, zarar-kes, kâr-al, takip eden stop, yeniden
+    dengeleme. Hazır şablonlar: Model stratejisi, Temkinli, Agresif. Kurallar
+    sonradan değiştirilebilir; değişiklik ertesi işlem gününden geçerlidir.
+  - **Manuel portföy:** kullanıcı sanal alış/satış emri verir (TL tutarla ya da
+    adetle). Emir, 18:00'den önce verildiyse o günün, sonra verildiyse bir
+    sonraki işlem gününün kapanış fiyatından, kayma ve komisyonla gerçekleşir.
+    Tavan/tabanda ya da işlem görmeyen hissede emir bekler, 7 günde
+    gerçekleşmezse sebebiyle reddedilir. Bekleyen emir iptal edilebilir.
+  - Portföy sayfası model portföyle aynı göstergeleri sunar: değer, BIST100'e
+    göre getiri, pozisyonlar, işlemler (CSV), risk metrikleri. Portföy
+    duraklatılabilir, yeniden adlandırılabilir ve silinebilir.
+  - Hisse sayfalarında "paper emri ver" bağlantısı.
+- Menüde "Model Portföy" ve "Portföylerim"; model portföy sayfasında
+  "Kendi portföyünü oluştur".
+
+### Değişti
+
+- Paper motoru, günün sinyal ve fiyat verisini bir kez yükleyip tüm
+  portföylere uygular. Her portföy ayrı transaction'da işlenir; biri hata
+  alırsa diğerleri etkilenmez. Model portföyün kuralları ve sonuçları
+  değişmedi (eski ve yeni motor aynı veride birebir aynı işlemleri üretir).
+- Herkese açık paper uçları, Telegram/webhook bildirimleri ve günlük özet
+  yalnız model portföyü kapsar.
+
 ## [0.10.1] - 2026-10-29
 
 ### Düzeltildi

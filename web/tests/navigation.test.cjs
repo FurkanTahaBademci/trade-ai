@@ -46,7 +46,9 @@ test("girişli sayfalar kilitli işaretlenir", () => {
 test("sayfa araması Türkçe karakterden bağımsız ve anahtar kelimeyle çalışır", () => {
   assert.equal(searchPages("sinyal")[0].href, "/sinyaller");
   assert.equal(searchPages("takvim")[0].href, "/takvim");
-  assert.equal(searchPages("portfoy")[0].href, "/portfoy");
+  // Ad "portföy" ile başlayan kişisel sayfa öne çıkar; model portföy de listededir.
+  assert.deepEqual(searchPages("portfoy").map((item) => item.href).slice(0, 2), ["/portfoylerim", "/portfoy"]);
+  assert.equal(searchPages("model")[0].href, "/portfoy");
   assert.equal(searchPages("TEMETTÜ")[0].href, "/takvim");
   assert.equal(searchPages("tefas")[0].href, "/kurumsal");
   assert.deepEqual(searchPages("   "), []);

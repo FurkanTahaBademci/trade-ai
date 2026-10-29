@@ -123,6 +123,7 @@ class AdminUsersOut(BaseModel):
     total: int
     verified: int
     signups_24h: int
+    paper_portfolios: int = 0
     smtp_configured: bool
     registration_mode: str
     users: list[AdminUserOut]

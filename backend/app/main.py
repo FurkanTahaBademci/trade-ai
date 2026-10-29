@@ -26,6 +26,7 @@ from app.api.routers import (
     macro,
     markets,
     me,
+    my_portfolios,
     news,
     paper,
     schedules,
@@ -97,6 +98,7 @@ app.include_router(calendar.router)
 app.include_router(watchlist.router)
 app.include_router(auth.router)
 app.include_router(me.router)
+app.include_router(my_portfolios.router)
 app.include_router(admin_users.router)
 
 

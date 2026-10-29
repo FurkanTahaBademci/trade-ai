@@ -19,7 +19,13 @@ from app.models.kap import KapAttachment, KapDisclosure
 from app.models.llm_evaluation import LlmEvaluation
 from app.models.macro import MacroSeriesPoint, MonetaryPolicyDecision
 from app.models.news import NewsArticle
-from app.models.paper import PaperPortfolio, PaperPortfolioSnapshot, PaperPosition, PaperTrade
+from app.models.paper import (
+    PaperOrder,
+    PaperPortfolio,
+    PaperPortfolioSnapshot,
+    PaperPosition,
+    PaperTrade,
+)
 from app.models.price import PriceDaily
 from app.models.schedule import CollectorSchedule, ScheduleAuditLog
 from app.models.signal import CompositeSignalSnapshot
@@ -49,6 +55,7 @@ __all__ = [
     "MacroSeriesPoint",
     "MonetaryPolicyDecision",
     "NewsArticle",
+    "PaperOrder",
     "PaperPortfolio",
     "PaperPortfolioSnapshot",
     "PaperPosition",

@@ -257,10 +257,9 @@ async def run_evds(save_fixture: bool) -> dict:
 
 
 async def run_paper() -> dict:
-    from app.paper.service import run_paper_portfolio
+    from app.paper.service import run_paper_portfolios
 
-    async with session_factory() as session:
-        return await run_paper_portfolio(session)
+    return await run_paper_portfolios()
 
 
 async def run_tcmb_policy(years: list[int] | None, refresh: bool) -> dict:

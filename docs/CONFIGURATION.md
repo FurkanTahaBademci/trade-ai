@@ -50,6 +50,8 @@ Ayrıntılar ve kurulum adımları: [ADMIN.md → Kullanıcı hesapları](ADMIN.
 |---|---|---|
 | `REGISTRATION_MODE` | `invite` | `invite`: yalnız davet koduyla kayıt (kapalı beta). `open`: herkes kayıt olabilir. `closed`: yeni kayıt yok. `/sistem` → Ayarlar'dan container yeniden başlatılmadan değişir. |
 | `SESSION_TTL_DAYS` | `30` | Kullanıcı oturumunun ömrü (gün). |
+| `PAPER_MAX_PORTFOLIOS_PER_USER` | `5` | Bir kullanıcının açabileceği en fazla paper portföy (strateji + manuel). |
+| `PAPER_MAX_PENDING_ORDERS` | `20` | Manuel portföy başına aynı anda bekleyebilecek en fazla emir. |
 | `PUBLIC_BASE_URL` | `http://localhost:3000` | E-postalardaki doğrulama ve parola sıfırlama bağlantılarının kökü. Production'da sitenin `https://` adresi olmalıdır; bağlantı adresi gelen isteğin `Host` başlığından türetilmez (sahte bağlantı saldırısına karşı). |
 | `SMTP_HOST`, `SMTP_PORT` | boş, `587` | E-posta sunucusu. `SMTP_HOST` veya `MAIL_FROM` boşsa e-posta gönderilmez: geliştirmede bağlantı worker log'una yazılır, production'da yalnız uyarı loglanır ve kullanıcıların `/sistem`'den elle doğrulanması gerekir. |
 | `SMTP_USERNAME`, `SMTP_PASSWORD` | boş | SMTP kimlik bilgileri (sağlayıcının verdiği kullanıcı / API anahtarı). |

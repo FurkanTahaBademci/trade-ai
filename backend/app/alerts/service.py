@@ -161,12 +161,13 @@ async def _load_scores(session: AsyncSession) -> tuple[date | None, dict[str, di
 
 
 async def _watched_tickers(session: AsyncSession, settings: Settings) -> set[str]:
-    """Aktif paper pozisyonlari + web izleme listesi + ayarlardaki ek hisseler."""
+    """Model portfoyun pozisyonlari + yonetici izleme listesi + ayarlardaki ek hisseler."""
     held = (
         await session.scalars(
             select(PaperPosition.ticker)
             .join(PaperPortfolio, PaperPortfolio.id == PaperPosition.portfolio_id)
-            .where(PaperPortfolio.status == "ACTIVE")
+            # Bildirimler yalniz model portfoyu izler; kullanici portfoyleri dahil degil.
+            .where(PaperPortfolio.status == "ACTIVE", PaperPortfolio.owner_id.is_(None))
         )
     ).all()
     listed = (await session.scalars(select(WatchlistItem.ticker))).all()

@@ -4,7 +4,7 @@ import { formatDate } from "@/lib/format";
 import { DataMetric as Metric, EmptyState } from "./ui";
 
 export type AdminUser = { id: number; email: string; display_name: string; role: "user" | "admin"; status: "ACTIVE" | "DISABLED"; email_verified_at: string | null; created_at: string | null; last_login_at: string | null };
-export type AdminUsers = { total: number; verified: number; signups_24h: number; smtp_configured: boolean; registration_mode: "invite" | "open" | "closed"; users: AdminUser[] };
+export type AdminUsers = { total: number; verified: number; signups_24h: number; paper_portfolios: number; smtp_configured: boolean; registration_mode: "invite" | "open" | "closed"; users: AdminUser[] };
 export type Invite = { id: number; code: string; note: string; max_uses: number; used_count: number; expires_at: string | null; revoked_at: string | null; created_at: string | null; state: "active" | "used" | "expired" | "revoked" };
 
 const MODE_TEXT = { invite: "Davet koduyla", open: "Herkese açık", closed: "Kapalı" };
@@ -23,7 +23,7 @@ export function AdminAccountsPanel({ users, invites }: { users: AccountApiResult
   if (!users.ok) return <div className="panel-flat"><EmptyState title="Kullanıcı bilgisi alınamadı" description={users.message}/></div>;
   const data = users.data;
   return <>
-    <div className="grid gap-3 sm:grid-cols-3"><Metric label="Toplam kullanıcı" value={data.total.toLocaleString("tr-TR")}/><Metric label="E-postası doğrulanmış" value={data.verified.toLocaleString("tr-TR")} tone="positive"/><Metric label="Son 24 saatte kayıt" value={data.signups_24h.toLocaleString("tr-TR")}/></div>
+    <div className="grid grid-cols-2 gap-3 xl:grid-cols-4"><Metric label="Toplam kullanıcı" value={data.total.toLocaleString("tr-TR")}/><Metric label="E-postası doğrulanmış" value={data.verified.toLocaleString("tr-TR")} tone="positive"/><Metric label="Son 24 saatte kayıt" value={data.signups_24h.toLocaleString("tr-TR")}/><Metric label="Kullanıcı portföyü" value={(data.paper_portfolios ?? 0).toLocaleString("tr-TR")} meta="Model portföy hariç"/></div>
     <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-[var(--text-muted)]">
       <span className="pill">Kayıt: {MODE_TEXT[data.registration_mode]}</span>
       <span className={`pill ${data.smtp_configured ? "pill-positive" : "pill-negative"}`}>SMTP {data.smtp_configured ? "yapılandırılmış" : "yapılandırılmamış"}</span>

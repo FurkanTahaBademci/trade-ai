@@ -13,7 +13,7 @@ from app.auth.security import new_invite_code
 from app.auth.service import registration_mode, revoke_sessions, utcnow
 from app.core.db import get_db
 from app.mail.sender import smtp_configured
-from app.models import AppUser, InviteCode
+from app.models import AppUser, InviteCode, PaperPortfolio
 from app.schemas.auth import AdminUserOut, AdminUsersOut, AdminUserUpdate, InviteCreate, InviteOut
 
 router = APIRouter(
@@ -37,10 +37,14 @@ async def list_users(db: DB, limit: Annotated[int, Query(ge=1, le=500)] = 100) -
         )
     ).one()
     users = await db.scalars(select(AppUser).order_by(AppUser.id.desc()).limit(limit))
+    portfolios = await db.scalar(
+        select(func.count(PaperPortfolio.id)).where(PaperPortfolio.owner_id.is_not(None))
+    )
     return AdminUsersOut(
         total=total,
         verified=verified,
         signups_24h=recent,
+        paper_portfolios=portfolios or 0,
         smtp_configured=smtp_configured(),
         registration_mode=await registration_mode(),
         users=[AdminUserOut.model_validate(user) for user in users.all()],

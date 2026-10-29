@@ -53,6 +53,9 @@ class Settings(BaseSettings):
     paper_max_position_weight_pct: int = 10
     paper_max_sector_weight_pct: int = 30
     paper_rebalance_enabled: bool = True
+    # Kullanici portfoyleri: kisi basina portfoy ve portfoy basina bekleyen emir siniri.
+    paper_max_portfolios_per_user: int = Field(default=5, ge=1, le=100)
+    paper_max_pending_orders: int = Field(default=20, ge=1, le=500)
 
     n8n_webhook_url: str = ""
     monitoring_alert_cooldown_seconds: int = 3600

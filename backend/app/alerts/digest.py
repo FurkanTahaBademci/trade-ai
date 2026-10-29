@@ -140,7 +140,12 @@ async def collect_digest_data(session: AsyncSession) -> DigestData | None:
     equity = day_pct = total_pct = None
     buys: list[str] = []
     sells: list[tuple[str, str | None]] = []
-    portfolio = await session.scalar(select(PaperPortfolio).order_by(PaperPortfolio.id).limit(1))
+    portfolio = await session.scalar(
+        select(PaperPortfolio)
+        .where(PaperPortfolio.owner_id.is_(None))
+        .order_by(PaperPortfolio.id)
+        .limit(1)
+    )
     if portfolio is not None:
         snapshots = (
             await session.scalars(
