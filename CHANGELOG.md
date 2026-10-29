@@ -9,6 +9,12 @@ bu bölümü yeni sürüm numarasıyla kapatır.
 
 ## [Unreleased]
 
+### Düzeltildi
+
+- v0.10.0 sürüm iş akışı, hesap testlerindeki örnek bir parola dizesini sır
+  sandığı için GitHub Release'i oluşturmamıştı. Test sabiti düzeltildi;
+  kullanıcıya görünen bir değişiklik yok, 0.10.0'ın içeriği bu sürümdedir.
+
 ## [0.10.0] - 2026-10-29
 
 ### Eklendi
