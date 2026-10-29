@@ -9,6 +9,8 @@ bu bölümü yeni sürüm numarasıyla kapatır.
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-10-29
+
 ### Düzeltildi
 
 - v0.10.0 sürüm iş akışı, hesap testlerindeki örnek bir parola dizesini sır
