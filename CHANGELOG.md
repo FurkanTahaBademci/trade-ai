@@ -9,6 +9,8 @@ bu bölümü yeni sürüm numarasıyla kapatır.
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-10-29
+
 ### Eklendi
 
 - **Kişisel backtest.** `/backtest` artık her hesaba açık. Kullanıcı kendi
