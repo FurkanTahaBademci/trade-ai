@@ -9,6 +9,8 @@ bu bölümü yeni sürüm numarasıyla kapatır.
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-10-29
+
 ### Eklendi
 
 - **Kullanıcı hesapları (kapalı beta).** Ziyaretçiler hesap açabilir. Piyasa,
