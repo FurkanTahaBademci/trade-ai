@@ -40,10 +40,12 @@ from app.tasks.jobs import (
     collect_tcmb_policy,
     compute_signals,
     evaluate_sources,
+    poll_telegram_updates,
     purge_auth_records,
     run_backtest,
     run_paper_portfolio,
     send_email,
+    send_user_digests,
 )
 
 logger = structlog.get_logger(__name__)
@@ -123,6 +125,7 @@ class WorkerSettings:
         monitor_system,
         evaluate_alerts,
         send_daily_digest,
+        send_user_digests,
         # Hesap e-postalari; kuyrukta beklemesin diye kisa zaman asimi.
         func(send_email, timeout=60, max_tries=MAIL_MAX_TRIES, name="send_email"),
         purge_auth_records,
@@ -138,6 +141,8 @@ class WorkerSettings:
         cron(heartbeat, minute=set(range(0, 60, 5))),  # her 5 dakikada bir
         cron(monitor_system, minute=set(range(1, 60, 5))),
         cron(evaluate_alerts, minute=set(range(3, 60, 10))),
+        # Kullanicilarin Telegram bot'una yazdigi baglama komutlari; kisa surer.
+        cron(poll_telegram_updates, minute=set(range(60)), second={10}, timeout=60),
         # Collector'larin araliklari PostgreSQL'deki collector_schedule
         # tablosundan okunur. Bu tick vadesi gelenleri Redis kuyruguna ekler.
         cron(dispatch_due_schedules, minute=set(range(60)), second={30}),

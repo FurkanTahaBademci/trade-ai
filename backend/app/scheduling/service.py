@@ -39,14 +39,15 @@ SCHEDULE_DEFINITIONS: tuple[ScheduleDefinition, ...] = (
         "institutional_reports", "Kurum raporları", "collect_institutional_reports", 1440, 60, 7, 45
     ),
     ScheduleDefinition("prices", "EOD fiyatları", "collect_prices", 1440, 60, 18, 30),
-    ScheduleDefinition(
-        "index_prices", "BIST100 endeksi", "collect_index_prices", 1440, 60, 18, 35
-    ),
+    ScheduleDefinition("index_prices", "BIST100 endeksi", "collect_index_prices", 1440, 60, 18, 35),
     ScheduleDefinition("paper_portfolio", "Paper portföy", "run_paper_portfolio", 1440, 60, 18, 46),
     ScheduleDefinition("fund_flows", "TEFAS fon akımı", "collect_fund_flows", 1440, 60, 20),
     # Fiyat (18:30), endeks (18:35) ve paper portfoy (18:46) islerinden sonra.
     ScheduleDefinition(
         "daily_digest", "Günlük özet bildirimi", "send_daily_digest", 1440, 60, 19, 15
+    ),
+    ScheduleDefinition(
+        "user_digests", "Kullanıcı günlük özetleri", "send_user_digests", 1440, 60, 19, 20
     ),
     # TCMB gosterge kurlari 15:30 civari yayimlanir.
     ScheduleDefinition("evds", "TCMB makro serileri", "collect_evds", 1440, 60, 16, 45),

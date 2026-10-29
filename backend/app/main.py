@@ -26,6 +26,7 @@ from app.api.routers import (
     macro,
     markets,
     me,
+    my_alerts,
     my_backtests,
     my_portfolios,
     news,
@@ -101,6 +102,7 @@ app.include_router(auth.router)
 app.include_router(me.router)
 app.include_router(my_portfolios.router)
 app.include_router(my_backtests.router)
+app.include_router(my_alerts.router)
 app.include_router(admin_users.router)
 
 

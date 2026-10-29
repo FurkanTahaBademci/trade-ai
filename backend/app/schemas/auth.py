@@ -50,6 +50,34 @@ class AuthConfigOut(BaseModel):
     registration_mode: Literal["invite", "open", "closed"]
     terms_version: str
     password_min_length: int
+    google_enabled: bool = False
+
+
+class GoogleStartOut(BaseModel):
+    url: str
+    state: str
+    code_verifier: str
+    nonce: str
+
+
+class GoogleCodeIn(BaseModel):
+    code: str = Field(min_length=1, max_length=2048)
+    code_verifier: str = Field(min_length=43, max_length=128)
+    nonce: str = Field(min_length=8, max_length=128)
+
+
+class GoogleSignInIn(ClientInfo, GoogleCodeIn):
+    invite_code: str = Field(default="", max_length=64)
+    accept_terms: bool = False
+
+
+class IdentityOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    provider: str
+    email: str
+    created_at: datetime | None
+    last_used_at: datetime | None
 
 
 class UserOut(BaseModel):
@@ -58,6 +86,7 @@ class UserOut(BaseModel):
     display_name: str
     role: str
     email_verified: bool
+    has_password: bool = True
     created_at: datetime | None
     last_login_at: datetime | None
 
@@ -69,6 +98,7 @@ class UserOut(BaseModel):
             display_name=user.display_name,
             role=user.role,
             email_verified=user.email_verified_at is not None,
+            has_password=bool(user.password_hash),
             created_at=user.created_at,
             last_login_at=user.last_login_at,
         )
@@ -90,7 +120,9 @@ class PasswordChangeIn(BaseModel):
 
 
 class PasswordConfirmIn(BaseModel):
-    password: str = Field(max_length=256)
+    password: str = Field(default="", max_length=256)
+    # Parolasi olmayan (yalniz Google ile giren) hesapta silme onayi e-postayla verilir.
+    email: str = Field(default="", max_length=320)
 
 
 class SessionOut(BaseModel):

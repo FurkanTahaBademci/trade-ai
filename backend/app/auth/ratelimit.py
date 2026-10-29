@@ -31,6 +31,10 @@ REGISTER_PER_IP = Limit("register_ip", 5, 60 * 60)
 MAIL_PER_IP = Limit("mail_ip", 10, 60 * 60)
 MAIL_PER_EMAIL = Limit("mail_email", 5, 60 * 60)
 TOKEN_FAILURES_PER_IP = Limit("token_ip", 20, 15 * 60)
+# Kisisel bildirim uclari (anahtar: kullanici id'si).
+TELEGRAM_LINK_PER_USER = Limit("tg_link_user", 10, 60 * 60)
+TELEGRAM_CHECK_PER_USER = Limit("tg_check_user", 30, 15 * 60)
+ALERT_TEST_PER_USER = Limit("alert_test_user", 5, 60 * 60)
 
 
 def _key(limit: Limit, subject: str) -> str:

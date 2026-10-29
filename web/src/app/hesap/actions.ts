@@ -47,8 +47,14 @@ export async function revokeOtherSessionsAction() {
 export async function deleteAccountAction(formData: FormData) {
   const token = await requireToken();
   if (formData.get("confirm") !== "on") finish({ ok: false, message: "Silmeyi onaylamak için kutuyu işaretle." });
-  const result = await accountRequest("/api/me/delete", token, { body: { password: String(formData.get("password") ?? "") } });
+  const result = await accountRequest("/api/me/delete", token, { body: { password: String(formData.get("password") ?? ""), email: String(formData.get("email") ?? "") } });
   if (!result.ok) finish(result);
   await clearSessionCookie();
   redirect("/giris?silindi=1");
+}
+
+export async function unlinkGoogleAction() {
+  const token = await requireToken();
+  const result = await accountRequest("/api/me/identities/google", token, { method: "DELETE" });
+  finish(result.ok ? { ok: true, message: "Google bağlantısı kaldırıldı." } : result);
 }

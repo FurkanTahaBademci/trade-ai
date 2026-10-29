@@ -201,9 +201,7 @@ MANAGED_SETTINGS: tuple[SettingSpec, ...] = (
         "secret",
         "alerts_telegram_bot_token",
     ),
-    SettingSpec(
-        "alerts_telegram_chat_id", "Telegram Chat ID", "secret", "alerts_telegram_chat_id"
-    ),
+    SettingSpec("alerts_telegram_chat_id", "Telegram Chat ID", "secret", "alerts_telegram_chat_id"),
     SettingSpec("alerts_webhook_url", "Bildirim Webhook URL", "url", "alerts_webhook_url"),
     SettingSpec(
         "alerts_watch_tickers",
@@ -223,6 +221,12 @@ MANAGED_SETTINGS: tuple[SettingSpec, ...] = (
         "choice",
         "alerts_high_score_threshold",
         ALERT_SCORE_CHOICES,
+    ),
+    SettingSpec(
+        "user_alerts_enabled",
+        "Kullanıcı Bildirimleri (Telegram ve e-posta özeti)",
+        "boolean",
+        "user_alerts_enabled",
     ),
 )
 SPEC_BY_KEY = {spec.key: spec for spec in MANAGED_SETTINGS}

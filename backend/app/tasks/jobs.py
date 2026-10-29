@@ -348,6 +348,32 @@ async def send_email(ctx: dict, to: str, subject: str, text: str) -> dict:
     return {"status": status}
 
 
+async def poll_telegram_updates(ctx: dict) -> dict:
+    """Kullanicilarin bot'a yazdigi /start <kod> ve /stop komutlarini isler."""
+    import httpx
+
+    from app.alerts.personal import poll_telegram
+    from app.core.dynamic_settings import resolve_settings
+
+    settings = await resolve_settings()
+    async with httpx.AsyncClient(timeout=10) as client:
+        return await poll_telegram(
+            session_factory, settings=settings, redis=get_redis(), client=client
+        )
+
+
+async def send_user_digests(ctx: dict) -> dict:
+    """Kullanicilarin kendi gunluk ozetleri (paper portfoy isinden sonra)."""
+    import httpx
+
+    from app.alerts.personal import send_user_digests as send_digests
+    from app.core.dynamic_settings import resolve_settings
+
+    settings = await resolve_settings()
+    async with httpx.AsyncClient(timeout=10) as client:
+        return await send_digests(session_factory, settings=settings, client=client)
+
+
 async def purge_auth_records(ctx: dict) -> dict:
     from app.auth.service import purge_expired
 

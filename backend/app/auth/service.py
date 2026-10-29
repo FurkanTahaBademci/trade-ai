@@ -78,7 +78,7 @@ def _check_password(password: str) -> None:
         raise AuthError("weak_password", problem, 422)
 
 
-async def _claim_invite(db: AsyncSession, raw_code: str) -> InviteCode:
+async def claim_invite(db: AsyncSession, raw_code: str) -> InviteCode:
     code = normalize_invite_code(raw_code)
     invite = await db.scalar(select(InviteCode).where(InviteCode.code == code)) if code else None
     now = utcnow()
@@ -105,7 +105,7 @@ async def _claim_invite(db: AsyncSession, raw_code: str) -> InviteCode:
     return invite
 
 
-async def _issue_token(db: AsyncSession, user: AppUser, purpose: str, ttl: timedelta) -> str:
+async def issue_token(db: AsyncSession, user: AppUser, purpose: str, ttl: timedelta) -> str:
     # Ayni amacla verilmis eski, kullanilmamis baglantilar gecersiz olur.
     await db.execute(
         delete(UserToken).where(
@@ -128,7 +128,7 @@ async def _issue_token(db: AsyncSession, user: AppUser, purpose: str, ttl: timed
     return raw
 
 
-async def _consume_token(db: AsyncSession, raw: str, purpose: str) -> AppUser | None:
+async def consume_token(db: AsyncSession, raw: str, purpose: str) -> AppUser | None:
     row = await db.scalar(
         select(UserToken).where(
             UserToken.token_hash == hash_token(raw), UserToken.purpose == purpose
@@ -163,7 +163,7 @@ async def register(
     _check_password(password)
     # Davet kodu hesap varligindan once denetlenir; kodu olmayan biri kayitli
     # e-postalari yoklayamasin.
-    invite = await _claim_invite(db, invite_code) if mode == "invite" else None
+    invite = await claim_invite(db, invite_code) if mode == "invite" else None
     # Ozet, kayitli e-postada da hesaplanir; yanit suresi hesap varligini ele vermesin.
     password_hash = await hash_password(password)
     if await find_user_by_email(db, email) is not None:
@@ -187,13 +187,13 @@ async def register(
     except IntegrityError:
         await db.rollback()  # ayni e-postayla es zamanli kayit
         return RegisterOutcome(email=email, created=False)
-    token = await _issue_token(db, user, "EMAIL_VERIFY", VERIFY_TOKEN_TTL)
+    token = await issue_token(db, user, "EMAIL_VERIFY", VERIFY_TOKEN_TTL)
     await db.commit()
     return RegisterOutcome(email=email, created=True, verify_token=token)
 
 
 async def verify_email(db: AsyncSession, raw: str) -> AppUser | None:
-    user = await _consume_token(db, raw, "EMAIL_VERIFY")
+    user = await consume_token(db, raw, "EMAIL_VERIFY")
     if user is None:
         return None
     if user.email_verified_at is None:
@@ -206,7 +206,7 @@ async def resend_verification(db: AsyncSession, email: str) -> str | None:
     user = await find_user_by_email(db, email)
     if user is None or user.status != "ACTIVE" or user.email_verified_at is not None:
         return None
-    token = await _issue_token(db, user, "EMAIL_VERIFY", VERIFY_TOKEN_TTL)
+    token = await issue_token(db, user, "EMAIL_VERIFY", VERIFY_TOKEN_TTL)
     await db.commit()
     return token
 
@@ -284,14 +284,14 @@ async def request_password_reset(db: AsyncSession, email: str) -> str | None:
     user = await find_user_by_email(db, email)
     if user is None or user.status != "ACTIVE":
         return None
-    token = await _issue_token(db, user, "PASSWORD_RESET", RESET_TOKEN_TTL)
+    token = await issue_token(db, user, "PASSWORD_RESET", RESET_TOKEN_TTL)
     await db.commit()
     return token
 
 
 async def reset_password(db: AsyncSession, raw: str, new_password: str) -> AppUser | None:
     _check_password(new_password)
-    user = await _consume_token(db, raw, "PASSWORD_RESET")
+    user = await consume_token(db, raw, "PASSWORD_RESET")
     if user is None:
         return None
     user.password_hash = await hash_password(new_password)
@@ -306,7 +306,8 @@ async def reset_password(db: AsyncSession, raw: str, new_password: str) -> AppUs
 async def change_password(
     db: AsyncSession, user: AppUser, *, current: str, new: str, keep_session_id: int
 ) -> None:
-    if not await verify_password(user.password_hash, current):
+    # Yalniz Google ile acilmis hesap ilk parolasini mevcut parola olmadan belirler.
+    if user.password_hash and not await verify_password(user.password_hash, current):
         raise AuthError("invalid_credentials", "Mevcut parola hatalı.", 400)
     _check_password(new)
     user.password_hash = await hash_password(new)
@@ -314,8 +315,14 @@ async def change_password(
     await db.commit()
 
 
-async def delete_account(db: AsyncSession, user: AppUser, *, password: str) -> None:
-    if not await verify_password(user.password_hash, password):
+async def delete_account(
+    db: AsyncSession, user: AppUser, *, password: str, confirm_email: str = ""
+) -> None:
+    if not user.password_hash:
+        # Parolasiz (Google) hesap: onay olarak e-posta adresi yazilir.
+        if (confirm_email or "").strip().lower() != user.email:
+            raise AuthError("confirmation_mismatch", "Onay için e-posta adresini doğru yaz.", 400)
+    elif not await verify_password(user.password_hash, password):
         raise AuthError("invalid_credentials", "Parola hatalı.", 400)
     await db.delete(user)
     await db.commit()

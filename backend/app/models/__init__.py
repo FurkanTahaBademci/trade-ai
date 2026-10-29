@@ -29,7 +29,15 @@ from app.models.paper import (
 from app.models.price import PriceDaily
 from app.models.schedule import CollectorSchedule, ScheduleAuditLog
 from app.models.signal import CompositeSignalSnapshot
-from app.models.user import AppUser, InviteCode, UserSession, UserToken, UserWatchlistItem
+from app.models.user import (
+    AppUser,
+    InviteCode,
+    UserAlertPref,
+    UserIdentity,
+    UserSession,
+    UserToken,
+    UserWatchlistItem,
+)
 from app.models.watchlist import WatchlistItem
 
 __all__ = [
@@ -62,6 +70,8 @@ __all__ = [
     "PaperTrade",
     "PriceDaily",
     "ScheduleAuditLog",
+    "UserAlertPref",
+    "UserIdentity",
     "UserSession",
     "UserToken",
     "UserWatchlistItem",

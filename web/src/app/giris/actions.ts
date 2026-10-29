@@ -12,7 +12,8 @@ import {
   verifyCredentials,
 } from "@/lib/admin-auth";
 import { type Account, SESSION_COOKIE } from "@/lib/account";
-import { accountRequest, requestContext, serviceRequest, setSessionCookie } from "@/lib/account-server";
+import { accountRequest, requestContext, serviceRequest, sessionToken, setSessionCookie } from "@/lib/account-server";
+import { encodeOAuthState, googleErrorPath, OAUTH_COOKIE, OAUTH_COOKIE_MAX_AGE, OAUTH_COOKIE_PATH, type OAuthState, parseGoogleMode } from "@/lib/oauth";
 import { clearFailures, lockoutRemainingMs, recordFailure, type FailureStore } from "@/lib/login-rate-limit";
 
 /** Hesap formlarının ortak durumu (useActionState). */
@@ -128,4 +129,33 @@ export async function resendVerificationAction(_previous: FormState, formData: F
   const result = await serviceRequest<{ message: string }>("/api/auth/resend-verification", { body: { email, client_ip: clientIp } });
   if (!result.ok) return { message: result.message, code: result.code, values: { email } };
   return { ok: true, message: result.data.message };
+}
+
+/** Google yetki sayfasına gönderir; dönüşü `/giris/google/callback` karşılar. */
+export async function startGoogleAction(formData: FormData): Promise<void> {
+  const mode = parseGoogleMode(formData.get("mode"));
+  const terms = formData.get("accept_terms") === "on";
+  if (mode === "signup" && !terms) redirect(googleErrorPath(mode, "terms_required"));
+  if (mode === "link" && !(await sessionToken())) redirect("/giris?next=/hesap");
+  const started = await serviceRequest<{ url: string; state: string; code_verifier: string; nonce: string }>("/api/auth/google/start", { method: "POST" });
+  if (!started.ok) redirect(googleErrorPath(mode, started.code ?? "unavailable"));
+  const { secure } = await requestContext();
+  const state: OAuthState = {
+    state: started.data.state,
+    verifier: started.data.code_verifier,
+    nonce: started.data.nonce,
+    mode,
+    next: safeNextPath(formData.get("next"), ""),
+    invite: text(formData, "invite_code").trim().slice(0, 64),
+    terms,
+  };
+  (await cookies()).set(OAUTH_COOKIE, encodeOAuthState(state), {
+    httpOnly: true,
+    secure,
+    // Google'dan dönüş üst düzey GET gezinmesi; Lax çerez gönderilir.
+    sameSite: "lax",
+    path: OAUTH_COOKIE_PATH,
+    maxAge: OAUTH_COOKIE_MAX_AGE,
+  });
+  redirect(started.data.url);
 }

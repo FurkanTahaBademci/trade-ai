@@ -42,6 +42,7 @@ export function AccountMenu({ account }: { account: AccountSummary | null }) {
       </div>
       <div className="py-1">
         <Link role="menuitem" prefetch={false} href="/hesap" className={itemClass}>Hesabım</Link>
+        <Link role="menuitem" prefetch={false} href="/hesap/bildirimler" className={itemClass}>Bildirimler</Link>
         <Link role="menuitem" prefetch={false} href="/portfoylerim" className={itemClass}>Portföylerim</Link>
         <Link role="menuitem" prefetch={false} href="/izleme-listesi" className={itemClass}>İzleme listem</Link>
         {account.role === "admin" && <Link role="menuitem" prefetch={false} href="/sistem" className={itemClass}>Sistem sağlığı</Link>}

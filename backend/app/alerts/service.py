@@ -180,9 +180,10 @@ async def evaluate_signal_alerts(
     settings: Settings,
     redis: Redis,
     client: httpx.AsyncClient,
+    loaded: tuple[date | None, dict[str, dict[str, Any]]] | None = None,
 ) -> dict[str, int]:
     watched = await _watched_tickers(session, settings)
-    as_of, scores = await _load_scores(session)
+    as_of, scores = loaded if loaded is not None else await _load_scores(session)
     stats = {"label_changes": 0, "high_scores": 0}
     if as_of is None:
         return stats
@@ -255,21 +256,42 @@ async def evaluate_health_alerts(
 
 
 async def evaluate_alerts(ctx: dict) -> dict[str, Any]:
-    """ARQ cron girisi: tum olay turlerini degerlendirir, hicbir hatayi disari sizdirmaz."""
+    """ARQ cron girisi: tum olay turlerini degerlendirir, hicbir hatayi disari sizdirmaz.
+
+    Yonetici bildirimleri (`alerts_enabled`) ve kullanici bildirimleri
+    (`user_alerts_enabled`, app/alerts/personal.py) birbirinden bagimsiz acilir.
+    """
+    from app.alerts.personal import evaluate_user_label_alerts, telegram_ready
     from app.core.db import session_factory
 
     redis = get_redis()
     try:
         settings = await resolve_settings(redis=redis)
-        if not settings.alerts_enabled or not configured_channels(settings):
+        admin = settings.alerts_enabled and bool(configured_channels(settings))
+        personal = telegram_ready(settings)
+        if not admin and not personal:
             return {"enabled": False}
+        result: dict[str, Any] = {"enabled": True}
         async with httpx.AsyncClient(timeout=10) as client:
-            health = await evaluate_health_alerts(settings=settings, redis=redis, client=client)
-            async with session_factory() as session:
-                signals = await evaluate_signal_alerts(
-                    session, settings=settings, redis=redis, client=client
+            if admin:
+                result["health"] = await evaluate_health_alerts(
+                    settings=settings, redis=redis, client=client
                 )
-        return {"enabled": True, "health": health, **signals}
+            async with session_factory() as session:
+                scores = await _load_scores(session)
+                if admin:
+                    result.update(
+                        await evaluate_signal_alerts(
+                            session, settings=settings, redis=redis, client=client, loaded=scores
+                        )
+                    )
+                if personal:
+                    result.update(
+                        await evaluate_user_label_alerts(
+                            session, settings=settings, redis=redis, client=client, loaded=scores
+                        )
+                    )
+        return result
     except Exception as exc:  # noqa: BLE001 - alarm degerlendirmesi worker'i cokertmemeli
         logger.error("alert_evaluation_failed", error=str(exc))
         return {"enabled": True, "error": str(exc)[:200]}

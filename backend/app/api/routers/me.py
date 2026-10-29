@@ -13,14 +13,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.routers.auth import from_auth_error
 from app.api.routers.watchlist import WatchlistIn, WatchlistOut, normalize_tickers
+from app.auth import google
 from app.auth.deps import CurrentAuth
 from app.auth.service import AuthError, change_password, delete_account
+from app.core.config import get_settings
 from app.core.db import get_db
 from app.mail.messages import password_changed_mail
 from app.mail.sender import enqueue_mail
-from app.models import UserSession, UserWatchlistItem
+from app.models import UserIdentity, UserSession, UserWatchlistItem
 from app.schemas.auth import (
     AcceptedOut,
+    GoogleCodeIn,
+    IdentityOut,
     PasswordChangeIn,
     PasswordConfirmIn,
     ProfileUpdate,
@@ -108,7 +112,7 @@ async def revoke_other_sessions(auth: CurrentAuth, db: DB) -> AcceptedOut:
 @router.post("/delete", response_model=AcceptedOut)
 async def delete_me(body: PasswordConfirmIn, auth: CurrentAuth, db: DB) -> AcceptedOut:
     try:
-        await delete_account(db, auth.user, password=body.password)
+        await delete_account(db, auth.user, password=body.password, confirm_email=body.email)
     except AuthError as exc:
         raise from_auth_error(exc) from exc
     return AcceptedOut(status="deleted", message="Hesabın ve tüm verilerin silindi.")
@@ -149,3 +153,44 @@ async def replace_watchlist(body: WatchlistIn, auth: CurrentAuth, db: DB) -> Wat
     except IntegrityError:
         await db.rollback()  # es zamanli ayni istek; mevcut liste doner
     return WatchlistOut(tickers=await _watchlist(db, user_id))
+
+
+async def _identities(db: AsyncSession, user_id: int) -> list[UserIdentity]:
+    rows = await db.scalars(
+        select(UserIdentity).where(UserIdentity.user_id == user_id).order_by(UserIdentity.id)
+    )
+    return list(rows.all())
+
+
+@router.get("/identities", response_model=list[IdentityOut])
+async def list_identities(auth: CurrentAuth, db: DB) -> list[UserIdentity]:
+    return await _identities(db, auth.user.id)
+
+
+@router.post("/identities/google", response_model=list[IdentityOut])
+async def link_google(body: GoogleCodeIn, auth: CurrentAuth, db: DB) -> list[UserIdentity]:
+    settings = get_settings()
+    if not google.google_enabled(settings):
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "google_disabled", "message": "Google ile giriş etkin değil."},
+        )
+    try:
+        profile = await google.exchange_code(
+            settings, code=body.code, code_verifier=body.code_verifier, nonce=body.nonce
+        )
+        await google.link(db, auth.user, profile)
+    except AuthError as exc:
+        raise from_auth_error(exc) from exc
+    return await _identities(db, auth.user.id)
+
+
+@router.delete("/identities/google", status_code=status.HTTP_204_NO_CONTENT)
+async def unlink_google(auth: CurrentAuth, db: DB) -> Response:
+    try:
+        removed = await google.unlink(db, auth.user)
+    except AuthError as exc:
+        raise from_auth_error(exc) from exc
+    if not removed:
+        raise HTTPException(status_code=404, detail="Bağlı Google hesabı yok")
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

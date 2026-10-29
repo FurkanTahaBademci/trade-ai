@@ -18,6 +18,6 @@ export function AuthCard({ eyebrow, title, notice, children, footer }: { eyebrow
   </div>;
 }
 
-export function AuthNotice({ children }: { children: React.ReactNode }) {
-  return <p role="status" className="mb-4 rounded border px-3 py-2 text-xs leading-5 text-[var(--positive)]" style={{ borderColor: "var(--positive)", background: "var(--positive-soft)" }}>{children}</p>;
+export function AuthNotice({ children, tone = "positive" }: { children: React.ReactNode; tone?: "positive" | "negative" }) {
+  return <p role={tone === "negative" ? "alert" : "status"} className="mb-4 rounded border px-3 py-2 text-xs leading-5" style={{ color: `var(--${tone})`, borderColor: `var(--${tone})`, background: `var(--${tone}-soft)` }}>{children}</p>;
 }

@@ -9,6 +9,22 @@ bu bölümü yeni sürüm numarasıyla kapatır.
 
 ## [Unreleased]
 
+### Eklendi
+
+- **Kişisel bildirimler** (Hesabım → Bildirimler).
+  - Telegram bağlama: siteden alınan tek kullanımlık bağlantıyla bot'ta
+    "Başlat"a basmak yeterli; `/stop` bağlantıyı kaldırır.
+  - Anlık bildirim: izleme listendeki ya da paper portföylerinde tuttuğun
+    hisselerin skor etiketi değişince Telegram'a tek mesaj.
+  - Günlük özet: işlem günü sonunda portföy değeri ve getirisi, günün işlemleri
+    (zarar-kes dahil), reddedilen emirler ve izlenen hisselerdeki etiket
+    değişimleri; Telegram ve/veya e-posta. Aynı gün için bir kez gider.
+  - Yönetici `/sistem` → Ayarlar → "Kullanıcı Bildirimleri" ile (ya da
+    `USER_ALERTS_ENABLED`) tümünü kapatabilir.
+- **Google ile giriş ve kayıt** (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`).
+  Var olan hesap Hesabım'dan Google'a bağlanabilir; Google ile açılan hesap
+  istediğinde parola belirleyebilir.
+
 ## [0.12.0] - 2026-10-29
 
 ### Eklendi

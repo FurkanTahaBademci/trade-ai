@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.routers.schedules import require_admin_token
-from app.auth import ratelimit
+from app.auth import google, ratelimit
 from app.auth.security import PASSWORD_MIN_LENGTH, normalize_email
 from app.auth.service import (
     TERMS_VERSION,
@@ -25,6 +25,7 @@ from app.auth.service import (
     reset_password,
     verify_email,
 )
+from app.core.config import get_settings
 from app.core.db import get_db
 from app.mail.messages import (
     account_exists_mail,
@@ -37,6 +38,8 @@ from app.schemas.auth import (
     AcceptedOut,
     AuthConfigOut,
     EmailIn,
+    GoogleSignInIn,
+    GoogleStartOut,
     LoginIn,
     LoginOut,
     PasswordResetConfirmIn,
@@ -78,7 +81,53 @@ async def auth_config() -> AuthConfigOut:
         registration_mode=await registration_mode(),
         terms_version=TERMS_VERSION,
         password_min_length=PASSWORD_MIN_LENGTH,
+        google_enabled=google.google_enabled(get_settings()),
     )
+
+
+def _google_settings():
+    settings = get_settings()
+    if not google.google_enabled(settings):
+        raise http_error(404, "google_disabled", "Google ile giriş etkin değil.")
+    return settings
+
+
+@router.post("/google/start", response_model=GoogleStartOut)
+async def google_start() -> GoogleStartOut:
+    """Yetki adresi ve tek kullanimlik degerler; web bunlari kisa omurlu cerezde saklar."""
+    started = google.start(_google_settings())
+    return GoogleStartOut(
+        url=started.url,
+        state=started.state,
+        code_verifier=started.code_verifier,
+        nonce=started.nonce,
+    )
+
+
+@router.post("/google", response_model=LoginOut)
+async def google_sign_in(body: GoogleSignInIn, db: DB) -> LoginOut:
+    settings = _google_settings()
+    if await ratelimit.is_limited(ratelimit.LOGIN_FAILURES_PER_IP, body.client_ip) or (
+        body.accept_terms and await ratelimit.is_limited(ratelimit.REGISTER_PER_IP, body.client_ip)
+    ):
+        raise http_error(429, *TOO_MANY_ATTEMPTS)
+    try:
+        profile = await google.exchange_code(
+            settings, code=body.code, code_verifier=body.code_verifier, nonce=body.nonce
+        )
+        user, created = await google.sign_in(
+            db, profile, invite_code=body.invite_code, accept_terms=body.accept_terms
+        )
+    except AuthError as exc:
+        if exc.code in {"google_failed", "invalid_invite"}:
+            await ratelimit.hit(ratelimit.LOGIN_FAILURES_PER_IP, body.client_ip)
+        raise from_auth_error(exc) from exc
+    if created:
+        await ratelimit.hit(ratelimit.REGISTER_PER_IP, body.client_ip)
+    token, session = await create_session(
+        db, user, user_agent=body.user_agent, ip_address=body.client_ip
+    )
+    return LoginOut(token=token, expires_at=session.expires_at, user=UserOut.from_user(user))
 
 
 @router.post("/register", response_model=AcceptedOut, status_code=status.HTTP_202_ACCEPTED)

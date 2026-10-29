@@ -223,6 +223,54 @@ silinir.
   portföyüne aktarılır. Komisyon, kayma, tavan/taban ve hacim kuralları paper'da
   herkes için sabittir; kâr-al, takip eden stop ve sektör tavanı kapalı başlar.
 
+### Kişisel bildirimler
+
+- Kullanıcı **Hesabım → Bildirimler** sayfasından Telegram'ı bağlar: tek
+  kullanımlık (30 dakika) bir `t.me/<bot>?start=<kod>` bağlantısı alır, bot'ta
+  **Başlat**'a basar. Worker bot'a gelen mesajları dakikada bir okur
+  (`getUpdates`); sayfadaki "Kontrol et" beklemeden işletir. Bot'a `/stop`
+  yazmak bağlantıyı kaldırır; bot'u engelleyen kullanıcının bağlantısı ilk
+  gönderimde kendiliğinden silinir.
+- Bot, `/sistem` → Ayarlar'daki **Telegram Bot Token** ile aynıdır (yönetici
+  bildirimleri kendi Chat ID'sine gitmeye devam eder). Bot'ta **webhook
+  tanımlı olmamalı**: Telegram webhook varken `getUpdates`'e 409 döner ve
+  worker 15 dakika ara verir. Webhook'u kaldırmak için bot token'iyla
+  `deleteWebhook` çağrılır.
+- **Anlık bildirim:** izleme listesindeki ya da kendi aktif portföylerinde
+  tutulan hisselerin skor etiketi değişince (10 dakikada bir değerlendirme)
+  kullanıcıya tek mesaj gider. İlk gözlem bildirim değildir; Telegram'a hiç
+  ulaşılamazsa durum ilerletilmez ve sonraki turda yeniden denenir.
+- **Günlük özet:** "Kullanıcı günlük özetleri" işi (takvimde, varsayılan
+  19:20) her işlem günü portföy değeri ve getirisi, günün işlemleri (zarar-kes
+  vb. sebebiyle), son 24 saatte reddedilen manuel emirler ve izlenen
+  hisselerdeki etiket değişimlerini Telegram'a ve/veya e-postaya gönderir.
+  Portföyü ve etiket değişimi olmayan kullanıcıya gönderilmez; aynı işlem günü
+  için ikinci kez gönderilmez. E-posta seçeneği SMTP tanımlıyken açılır.
+- `/sistem` → Ayarlar → **Kullanıcı Bildirimleri** (ya da
+  `USER_ALERTS_ENABLED=false`) tümünü kapatır; kullanıcı tercihleri saklanır.
+
+### Google ile giriş
+
+- `GOOGLE_CLIENT_ID` ve `GOOGLE_CLIENT_SECRET` API servisine verilince giriş ve
+  kayıt sayfalarında Google düğmesi görünür. Google Cloud Console'da OAuth
+  istemcisi "Web uygulaması" türünde açılır; yetkili yönlendirme adresi
+  `<PUBLIC_BASE_URL>/giris/google/callback`'tir. Kapsamlar: `openid email
+  profile`.
+- Akış yetki kodu + PKCE'dir; `state` ve `nonce` 10 dakikalık HttpOnly çerezde
+  tutulur. Kod API'de istemci sırrıyla token'a çevrilir; istemci sırrı web'e
+  hiç gitmez.
+- **Yeni hesap:** kayıt sayfasında koşullar onaylanıp (kapalı betada davet
+  koduyla) "Google ile kayıt ol"a basılır. Kayıt modu `closed` ise Google ile
+  de hesap açılmaz. Google ile açılan hesabın e-postası doğrulanmış sayılır ve
+  parolası yoktur; kullanıcı Hesabım'dan parola belirleyebilir.
+- **Var olan hesap:** Google kimliği önce bağlı hesaba bakar. Bağlı değilse
+  aynı e-postalı hesaba yalnız Google o adres için yetkiliyse (gmail.com ya da
+  Workspace alanı) otomatik bağlanır; doğrulanmamış böyle bir hesapta önceden
+  konmuş parola geçersiz olur. Diğer adreslerde kullanıcı parolasıyla girip
+  Hesabım → "Google hesabını bağla" ile bağlar.
+- Parolası olmayan hesap Google bağlantısını kaldıramaz; hesabı silerken
+  parola yerine e-posta adresini yazar.
+
 ## Hangi durumda ne olur?
 
 ### Web (`/sistem`, `/backtest`)

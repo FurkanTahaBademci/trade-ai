@@ -72,6 +72,10 @@ class Settings(BaseSettings):
     alerts_high_score_threshold: int = 85
     # Islem gunu sonunda tek mesajlik ozet (app/alerts/digest.py); /sistem'den acilir.
     alerts_daily_digest_enabled: bool = False
+    # Kullanicilarin kendi bildirimleri (app/alerts/personal.py): Telegram baglama,
+    # anlik etiket degisimi ve gunluk ozet. Telegram icin yukaridaki bot token'i
+    # kullanilir. /sistem'den kapatilabilir.
+    user_alerts_enabled: bool = True
 
     # Kullanici hesaplari (app/auth/). "invite": yalniz davet koduyla kayit,
     # "open": herkes kayit olabilir, "closed": yeni kayit yok. /sistem'den degisir.
@@ -87,6 +91,10 @@ class Settings(BaseSettings):
     # "starttls" (587), "ssl" (465) veya "none" (yalniz yerel test sunucusu).
     smtp_security: str = "starttls"
     mail_from: str = ""
+    # Google ile giris (OAuth istemcisi). Ikisi de bos ise Google dugmesi gizlenir.
+    # Yonlendirme adresi: <PUBLIC_BASE_URL>/giris/google/callback
+    google_client_id: str = ""
+    google_client_secret: str = ""
 
     collector_user_agent: str = "trade-ai (acik kaynak arastirma araci)"
     kap_rate_limit_per_sec: float = 2.0

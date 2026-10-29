@@ -6,11 +6,13 @@ E-posta adresi her zaman kucuk harfe cevrilip yazilir; tekillik bu bicim
 uzerinden saglanir.
 """
 
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     ForeignKey,
     Index,
@@ -27,7 +29,8 @@ ID_TYPE = BigInteger().with_variant(Integer, "sqlite")
 
 USER_ROLES = ("user", "admin")
 USER_STATUSES = ("ACTIVE", "DISABLED")
-TOKEN_PURPOSES = ("EMAIL_VERIFY", "PASSWORD_RESET")
+TOKEN_PURPOSES = ("EMAIL_VERIFY", "PASSWORD_RESET", "TELEGRAM_LINK")
+IDENTITY_PROVIDERS = ("google",)
 
 
 class InviteCode(Base):
@@ -96,7 +99,8 @@ class UserToken(Base):
     __tablename__ = "user_token"
     __table_args__ = (
         CheckConstraint(
-            "purpose IN ('EMAIL_VERIFY', 'PASSWORD_RESET')", name="ck_user_token_purpose"
+            "purpose IN ('EMAIL_VERIFY', 'PASSWORD_RESET', 'TELEGRAM_LINK')",
+            name="ck_user_token_purpose",
         ),
         Index("ix_user_token_user_purpose", "user_id", "purpose"),
     )
@@ -124,3 +128,47 @@ class UserWatchlistItem(Base):
     )
     ticker: Mapped[str] = mapped_column(String(16), primary_key=True)
     added_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class UserIdentity(Base):
+    """Harici kimlik saglayicisi baglantisi (Google). `subject` saglayicinin kalici kimligidir."""
+
+    __tablename__ = "user_identity"
+    __table_args__ = (
+        CheckConstraint("provider IN ('google')", name="ck_user_identity_provider"),
+        Index("uq_user_identity_subject", "provider", "subject", unique=True),
+        Index("uq_user_identity_user_provider", "user_id", "provider", unique=True),
+    )
+
+    id: Mapped[int] = mapped_column(ID_TYPE, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ID_TYPE, ForeignKey("app_user.id", ondelete="CASCADE"))
+    provider: Mapped[str] = mapped_column(String(16))
+    subject: Mapped[str] = mapped_column(String(255))
+    email: Mapped[str] = mapped_column(String(254), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class UserAlertPref(Base):
+    """Kisisel bildirim tercihleri: Telegram baglantisi ve gunluk ozet kanallari.
+
+    `last_digest_on`, ayni islem gunu icin ozetin ikinci kez gitmesini engeller.
+    """
+
+    __tablename__ = "user_alert_pref"
+
+    user_id: Mapped[int] = mapped_column(
+        ID_TYPE, ForeignKey("app_user.id", ondelete="CASCADE"), primary_key=True
+    )
+    telegram_chat_id: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
+    telegram_username: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    telegram_linked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    telegram_instant: Mapped[bool] = mapped_column(Boolean, default=True)
+    telegram_digest: Mapped[bool] = mapped_column(Boolean, default=True)
+    email_digest: Mapped[bool] = mapped_column(Boolean, default=False)
+    last_digest_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )

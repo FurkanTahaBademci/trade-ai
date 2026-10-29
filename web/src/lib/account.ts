@@ -13,6 +13,8 @@ export type Account = {
   display_name: string;
   role: "user" | "admin";
   email_verified: boolean;
+  /** Yalnız Google ile açılmış hesapta false: parola belirlenene kadar parola girişi yok. */
+  has_password?: boolean;
   created_at: string | null;
   last_login_at: string | null;
 };

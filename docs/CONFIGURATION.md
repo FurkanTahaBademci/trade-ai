@@ -59,6 +59,8 @@ Ayrıntılar ve kurulum adımları: [ADMIN.md → Kullanıcı hesapları](ADMIN.
 | `SMTP_USERNAME`, `SMTP_PASSWORD` | boş | SMTP kimlik bilgileri (sağlayıcının verdiği kullanıcı / API anahtarı). |
 | `SMTP_SECURITY` | `starttls` | `starttls` (587), `ssl` (465) veya `none` (yalnız yerel test sunucusu). |
 | `MAIL_FROM` | boş | Gönderen adresi, ör. `TradeAI <no-reply@example.com>`. Alan adında SPF/DKIM kayıtları olmayan adresten giden e-postalar çoğunlukla gereksiz klasörüne düşer. |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | boş | Google ile giriş için OAuth istemcisi (Google Cloud Console → Kimlik bilgileri → OAuth istemci kimliği, tür: Web uygulaması). Yetkili yönlendirme adresi `<PUBLIC_BASE_URL>/giris/google/callback` olmalıdır. İkisi de doluysa giriş ve kayıt sayfalarında Google düğmesi görünür; yalnız API servisine verilir. |
+| `USER_ALERTS_ENABLED` | `true` | Kullanıcıların kendi bildirimleri: Telegram bağlama, izleme listesi/portföy hisselerinde anlık etiket değişimi ve günlük özet. `/sistem` → Ayarlar'dan da kapatılabilir. Ayrıntı: [ADMIN.md → Kişisel bildirimler](ADMIN.md#kişisel-bildirimler). |
 | `CONTACT_EMAIL` | boş | `/gizlilik` sayfasında KVKK talepleri için gösterilen iletişim adresi (web servisine verilir). Boşsa kullanıcıya kayıtlı adresinden yazması söylenir. |
 
 Davranış tabloları ve parola değiştirme adımları: [ADMIN.md](ADMIN.md).
@@ -140,6 +142,8 @@ Aşağıdaki ayarlar yönetim girişinden sonra `/sistem` ekranından değiştir
   işlem günü 19:15'te (takvimden değiştirilebilir) BIST100, paper portföy,
   günün işlemleri ve skor hareketleri tek mesajla gönderilir; aynı gün için
   ikinci kez gönderilmez.
+- **Kullanıcı bildirimleri:** açık/kapalı. Kullanıcılar Telegram'ı Hesabım →
+  Bildirimler'den kendileri bağlar; yukarıdaki bot token'i kullanılır.
 - **Sistem uyarıları:** N8N webhook URL.
 - **Kullanıcı kaydı:** davet koduyla / herkese açık / kapalı. Davet kodları,
   kullanıcı listesi, elle e-posta doğrulama, devre dışı bırakma ve yönetici
@@ -157,4 +161,4 @@ PostgreSQL'de kalıcıdır.
 |---|---|
 | KAP bildirimleri, haber akışı | 5 dakika |
 | AI değerlendirmeleri, bileşik sinyaller | 10 dakika |
-| Hisse evreni, temel analiz, analist görüşleri, EOD fiyatlar, paper portföy, TEFAS fon akımı, günlük özet bildirimi ve diğer günlük işler | Günde bir (belirli saatte) |
+| Hisse evreni, temel analiz, analist görüşleri, EOD fiyatlar, paper portföy, TEFAS fon akımı, günlük özet bildirimi, kullanıcı günlük özetleri (19:20) ve diğer günlük işler | Günde bir (belirli saatte) |
