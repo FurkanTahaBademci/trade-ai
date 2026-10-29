@@ -9,6 +9,8 @@ bu bölümü yeni sürüm numarasıyla kapatır.
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-10-29
+
 ### Eklendi
 
 - **Kişisel paper portföyler (`/portfoylerim`).** Hesap açan kullanıcı en fazla
