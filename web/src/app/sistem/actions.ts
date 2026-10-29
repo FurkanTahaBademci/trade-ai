@@ -8,7 +8,7 @@ function apiBase() {
   return process.env.API_INTERNAL_URL ?? "http://localhost:8000";
 }
 
-async function mutate(path: string, init: RequestInit): Promise<{ ok: boolean; message: string }> {
+async function mutate(path: string, init: RequestInit): Promise<{ ok: boolean; message: string; payload?: Record<string, unknown> | null }> {
   await requireAdminRequest();
   try {
     const response = await fetch(`${apiBase()}${path}`, {
@@ -21,7 +21,7 @@ async function mutate(path: string, init: RequestInit): Promise<{ ok: boolean; m
       },
     });
     const payload = (await response.json().catch(() => null)) as { detail?: string; message?: string } | null;
-    if (response.ok) return { ok: true, message: payload?.message ?? "İşlem tamamlandı" };
+    if (response.ok) return { ok: true, message: payload?.message ?? "İşlem tamamlandı", payload };
     return { ok: false, message: payload?.detail ?? `İşlem başarısız (HTTP ${response.status})` };
   } catch {
     return { ok: false, message: "API servisine ulaşılamadı" };
@@ -108,4 +108,39 @@ export async function vacuumStorageAction() {
     ...result,
     message: result.ok ? (result.message || "Depolama vakumlandı ve disk alanı temizlendi") : result.message,
   });
+}
+
+export async function createInviteAction(formData: FormData) {
+  const days = Number(formData.get("expires_in_days"));
+  const result = await mutate("/api/admin/invites", {
+    method: "POST",
+    body: JSON.stringify({
+      note: String(formData.get("note") ?? "").trim(),
+      max_uses: Number(formData.get("max_uses")) || 1,
+      expires_in_days: days > 0 ? days : null,
+    }),
+  });
+  finish({ ...result, message: result.ok ? `Davet kodu oluşturuldu: ${String(result.payload?.code ?? "")}` : result.message });
+}
+
+export async function revokeInviteAction(formData: FormData) {
+  const id = Number(formData.get("invite_id"));
+  const result = await mutate(`/api/admin/invites/${id}`, { method: "DELETE" });
+  finish({ ...result, message: result.ok ? "Davet kodu iptal edildi" : result.message });
+}
+
+const USER_CHANGES: Record<string, { body: Record<string, unknown>; message: string }> = {
+  verify: { body: { verify_email: true }, message: "E-posta doğrulandı olarak işaretlendi" },
+  disable: { body: { status: "DISABLED" }, message: "Kullanıcı devre dışı bırakıldı ve oturumları kapatıldı" },
+  enable: { body: { status: "ACTIVE" }, message: "Kullanıcı etkinleştirildi" },
+  make_admin: { body: { role: "admin" }, message: "Kullanıcı yönetici yapıldı" },
+  make_user: { body: { role: "user" }, message: "Yöneticilik kaldırıldı" },
+};
+
+export async function updateUserAction(formData: FormData) {
+  const id = Number(formData.get("user_id"));
+  const change = USER_CHANGES[String(formData.get("change") ?? "")];
+  if (!change || !Number.isInteger(id)) finish({ ok: false, message: "Geçersiz kullanıcı işlemi" });
+  const result = await mutate(`/api/admin/users/${id}`, { method: "PATCH", body: JSON.stringify(change.body) });
+  finish({ ...result, message: result.ok ? change.message : result.message });
 }

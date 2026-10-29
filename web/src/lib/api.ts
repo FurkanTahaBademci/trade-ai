@@ -1,3 +1,4 @@
+import { isPrivateApiPath } from "./account";
 import { recordCacheOutcome, startApiWait } from "./request-metrics";
 
 export type ApiResult<T> =
@@ -22,6 +23,9 @@ export async function apiGet<T>(
   fallback: T,
   options?: { revalidate?: number },
 ): Promise<ApiResult<T>> {
+  // Önbellek anahtarı yalnız yoldur; kişisel yanıt burada saklanırsa başka
+  // kullanıcıya gösterilir. Bu uçlar account-server.ts ile çağrılır.
+  if (isPrivateApiPath(path)) throw new Error(`apiGet kişisel/yönetim ucu için kullanılamaz: ${path}`);
   const revalidate = options?.revalidate ?? 0;
   if (revalidate <= 0) {
     recordCacheOutcome("none");

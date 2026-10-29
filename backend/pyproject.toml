@@ -20,6 +20,8 @@ dependencies = [
     "structlog>=24.4",
     "isyatirimhisse>=1.0",
     "pandas>=2.2",
+    # Kullanici parolalari (argon2id).
+    "argon2-cffi>=23.1",
 ]
 
 [project.optional-dependencies]

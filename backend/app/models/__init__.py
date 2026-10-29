@@ -23,11 +23,13 @@ from app.models.paper import PaperPortfolio, PaperPortfolioSnapshot, PaperPositi
 from app.models.price import PriceDaily
 from app.models.schedule import CollectorSchedule, ScheduleAuditLog
 from app.models.signal import CompositeSignalSnapshot
+from app.models.user import AppUser, InviteCode, UserSession, UserToken, UserWatchlistItem
 from app.models.watchlist import WatchlistItem
 
 __all__ = [
     "AnalystConsensus",
     "AnalystRecommendation",
+    "AppUser",
     "BacktestRun",
     "BacktestRunPoint",
     "BacktestRunTrade",
@@ -40,6 +42,7 @@ __all__ = [
     "FundamentalSnapshot",
     "IndexDaily",
     "Instrument",
+    "InviteCode",
     "KapAttachment",
     "KapDisclosure",
     "LlmEvaluation",
@@ -52,5 +55,8 @@ __all__ = [
     "PaperTrade",
     "PriceDaily",
     "ScheduleAuditLog",
+    "UserSession",
+    "UserToken",
+    "UserWatchlistItem",
     "WatchlistItem",
 ]

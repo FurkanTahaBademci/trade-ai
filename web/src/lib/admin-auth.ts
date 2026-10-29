@@ -90,15 +90,15 @@ export function adminAuthState(sessionToken: string | undefined, env: AuthEnviro
 }
 
 /** Girişten sonra yalnız site içi bir yola dön (açık yönlendirmeyi engeller). */
-export function safeNextPath(value: unknown): string {
+export function safeNextPath(value: unknown, fallback: string = DEFAULT_ADMIN_REDIRECT): string {
   if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//") || value.includes("\\")) {
-    return DEFAULT_ADMIN_REDIRECT;
+    return fallback;
   }
   try {
     const url = new URL(value, "http://local");
-    if (url.origin !== "http://local" || url.pathname.startsWith("/giris")) return DEFAULT_ADMIN_REDIRECT;
+    if (url.origin !== "http://local" || url.pathname.startsWith("/giris")) return fallback;
     return `${url.pathname}${url.search}`;
   } catch {
-    return DEFAULT_ADMIN_REDIRECT;
+    return fallback;
   }
 }

@@ -1,4 +1,4 @@
-.PHONY: init dev down logs migrate smoke fmt config backup restore preflight production-smoke release leak-check
+.PHONY: init dev down logs migrate create-admin smoke fmt config backup restore preflight production-smoke release leak-check
 
 init:
 	./ops/init-env.sh
@@ -14,6 +14,10 @@ logs:
 
 migrate:
 	docker compose exec api alembic upgrade head
+
+# Kullanim: make create-admin EMAIL=yonetici@example.com (parola sorulur)
+create-admin:
+	docker compose exec api python -m scripts.create_admin --email "$(EMAIL)"
 
 smoke:
 	docker compose exec api python -m scripts.smoke_sources

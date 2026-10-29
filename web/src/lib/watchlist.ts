@@ -6,9 +6,9 @@ import { normalizeWatchlist, WATCHLIST_STORAGE_KEY } from "./watchlist-data";
 const listeners = new Set<() => void>();
 const SYNCED_FLAG_KEY = "trade-ai:watchlist-synced";
 
-// "local": ziyaretçi, liste yalnız tarayıcıda. "synced": yönetici girişli,
-// liste sunucuyla senkron ve bildirimlere dahil.
-type SyncState = "unknown" | "local" | "synced";
+// "local": ziyaretçi, liste yalnız tarayıcıda. "account": kullanıcı hesabına
+// kayıtlı. "admin": ortam değişkenli yönetici girişi; liste bildirimlere dahil.
+type SyncState = "unknown" | "local" | "account" | "admin";
 let syncState: SyncState = "unknown";
 let syncStarted = false;
 const syncListeners = new Set<() => void>();
@@ -48,19 +48,22 @@ async function startSync() {
   try {
     const response = await fetch("/api/watchlist", { cache: "no-store" });
     if (!response.ok) { setSyncState("local"); return; }
-    const server = normalizeWatchlist(((await response.json()) as { tickers?: unknown }).tickers);
+    const payload = (await response.json()) as { tickers?: unknown; owner?: unknown };
+    const server = normalizeWatchlist(payload.tickers);
+    const owner = typeof payload.owner === "string" ? payload.owner : "admin";
     let firstSync = true;
-    try { firstSync = window.localStorage.getItem(SYNCED_FLAG_KEY) !== "1"; } catch { /* yok say */ }
+    try { firstSync = window.localStorage.getItem(SYNCED_FLAG_KEY) !== owner; } catch { /* yok say */ }
     if (firstSync) {
-      // İlk senkronda bu tarayıcıdaki liste kaybolmasın: birleştir ve sunucuya yaz.
+      // Bu hesapla bu tarayıcıdaki ilk senkron: ziyaretçiyken eklenenler
+      // kaybolmasın, birleştir ve sunucuya yaz.
       const merged = normalizeWatchlist([...server, ...readRaw()]);
       writeRaw(merged, false);
       pushToServer(merged);
-      try { window.localStorage.setItem(SYNCED_FLAG_KEY, "1"); } catch { /* yok say */ }
+      try { window.localStorage.setItem(SYNCED_FLAG_KEY, owner); } catch { /* yok say */ }
     } else {
       writeRaw(server, false);
     }
-    setSyncState("synced");
+    setSyncState(owner === "admin" ? "admin" : "account");
   } catch {
     setSyncState("local");
   }
@@ -83,7 +86,7 @@ function writeRaw(tickers: string[], sync = true) {
     // localStorage kullanılamıyor (gizli sekme/devre dışı) — sessizce yok say.
   }
   for (const listener of listeners) listener();
-  if (sync && syncState === "synced") pushToServer(tickers);
+  if (sync && (syncState === "account" || syncState === "admin")) pushToServer(tickers);
 }
 
 function subscribe(listener: () => void) {
@@ -109,7 +112,7 @@ function getServerSnapshot() {
 
 /**
  * Kişisel izleme listesi. Ziyaretçide yalnız bu tarayıcıda (localStorage) kalır;
- * yönetici girişliyken sunucuyla senkronlanır ve bildirimlere dahil edilir.
+ * hesapla girişliyken hesaba kaydedilir (yöneticinin listesi bildirimlere de dahildir).
  */
 export function useWatchlist() {
   const serialized = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
@@ -138,4 +141,14 @@ function subscribeSync(listener: () => void) {
 /** İzleme listesinin sunucuyla senkron olup olmadığı ("unknown" ilk yüklemede). */
 export function useWatchlistSyncState(): SyncState {
   return useSyncExternalStore(subscribeSync, () => syncState, () => "unknown" as SyncState);
+}
+
+/** Çıkışta çağrılır: hesaba ait liste ortak bilgisayarda bir sonraki kişiye kalmasın. */
+export function clearLocalWatchlist() {
+  try {
+    window.localStorage.removeItem(WATCHLIST_STORAGE_KEY);
+    window.localStorage.removeItem(SYNCED_FLAG_KEY);
+  } catch {
+    // localStorage kullanılamıyor — yok say.
+  }
 }

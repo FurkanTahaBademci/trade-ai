@@ -6,6 +6,8 @@ import { useEffect, useRef, useState } from "react";
 import { Icon } from "./icon";
 import { CommandPalette } from "./command-palette";
 import { ThemeToggle } from "./theme-toggle";
+import { AccountMenu } from "./account-menu";
+import type { AccountSummary } from "@/lib/account";
 import { APP_COMMIT, fullVersion, versionLabel } from "@/lib/build-info";
 import { NAV_GROUPS, NAV_ITEMS, isActiveRoute } from "@/lib/navigation";
 
@@ -15,10 +17,10 @@ function Brand() {
 }
 
 function BuildInfo() {
-  return <div className="text-[10px] leading-5 text-[var(--text-muted)]"><p className="terminal-mono text-[var(--text-secondary)]">BIST / TRY / EOD</p><p>Paper işlem · Simülasyon</p><p className="terminal-mono mt-1.5 flex items-center gap-1.5" title={`Sürüm ${fullVersion()}`}><span className="rounded border border-[var(--border)] px-1.5 text-[var(--text-secondary)]">{versionLabel()}</span>{APP_COMMIT && <span>{APP_COMMIT}</span>}</p></div>;
+  return <div className="text-[10px] leading-5 text-[var(--text-muted)]"><p className="terminal-mono text-[var(--text-secondary)]">BIST / TRY / EOD</p><p>Paper işlem · Simülasyon · <HoverPrefetchLink href="/gizlilik" className="hover:text-[var(--text)]">Gizlilik</HoverPrefetchLink></p><p className="terminal-mono mt-1.5 flex items-center gap-1.5" title={`Sürüm ${fullVersion()}`}><span className="rounded border border-[var(--border)] px-1.5 text-[var(--text-secondary)]">{versionLabel()}</span>{APP_COMMIT && <span>{APP_COMMIT}</span>}</p></div>;
 }
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({ children, account }: { children: React.ReactNode; account: AccountSummary | null }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const menuButton = useRef<HTMLButtonElement>(null);
@@ -65,7 +67,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-[var(--border)] bg-[var(--background)] px-4 lg:px-5">
         <button ref={menuButton} className="icon-button lg:hidden" onClick={() => setOpen(true)} aria-label="Menüyü aç" aria-expanded={open} aria-controls="terminal-navigation"><Icon name="menu"/></button>
         <div className="min-w-0"><p className="truncate text-xs font-semibold">{title}</p><p className="terminal-mono hidden text-[10px] text-[var(--text-muted)] sm:block">PİYASA ARAŞTIRMA TERMİNALİ</p></div>
-        <div className="ml-auto flex shrink-0 items-center gap-2"><CommandPalette/><ThemeToggle/></div>
+        <div className="ml-auto flex shrink-0 items-center gap-2"><CommandPalette/><ThemeToggle/><AccountMenu account={account}/></div>
       </header>
       <main id="workspace" tabIndex={-1} className="mx-auto min-w-0 max-w-[1760px] p-3 sm:p-4 lg:p-5">{children}</main>
     </div>

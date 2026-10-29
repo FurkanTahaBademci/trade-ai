@@ -8,6 +8,8 @@ import { EmptyState, PageHeader, ServiceNotice, SectionTitle } from "@/component
 import { APP_COMMIT, APP_VERSION, versionSkew } from "@/lib/build-info";
 import { LogoutButton } from "@/components/logout-button";
 import { WebLoadPanel } from "@/components/web-load-panel";
+import { AdminAccountsPanel, type AdminUsers, type Invite } from "@/components/admin-accounts-panel";
+import { serviceRequest } from "@/lib/account-server";
 import { collectWebMetrics } from "@/lib/request-metrics";
 import { clearSettingAction, runScheduleAction, testAlertsAction, testGeminiAction, toggleScheduleAction, updateScheduleAction, updateSettingAction, vacuumStorageAction } from "./actions";
 
@@ -34,6 +36,8 @@ function ComponentRow({ item }: { item: ComponentHealth }) {
 
 export default async function SystemPage({ searchParams }: { searchParams: Promise<{ result?: string; message?: string }> }) {
   const [health, schedules, settings, storage, llm, stats, webLoad] = await Promise.all([apiGet<SystemHealth | null>("/health/detailed", null), apiGet<CollectorSchedule[]>("/api/schedules", []), apiGet<SettingStatus[]>("/api/settings", []), apiGet<StorageReport | null>("/api/system/storage", null), apiGet<LlmOperationsReport | null>("/api/system/llm", null), apiGet<SystemStats | null>("/api/system/stats", null, { revalidate: 60 }), collectWebMetrics()]);
+  // Kullanıcı verisi kişiseldir: paylaşılan apiGet önbelleğinden değil, servis anahtarıyla ve önbelleksiz okunur.
+  const [users, invites] = await Promise.all([serviceRequest<AdminUsers>("/api/admin/users"), serviceRequest<Invite[]>("/api/admin/invites")]);
   const notice = await searchParams;
   const report = health.data?.monitoring;
   const skew = versionSkew(APP_VERSION, health.data?.version);
@@ -49,6 +53,7 @@ export default async function SystemPage({ searchParams }: { searchParams: Promi
     <section className="mt-8"><SectionTitle title="Veri kapsamı" subtitle="Aktif enstrüman evreninin güncel bileşik skor kapsamı"/>{stats.data ? <SignalCoveragePanel stats={stats.data}/> : <div className="panel-flat"><EmptyState title="Kapsam bilgisi alınamadı"/></div>}</section>
     <section className="mt-8"><SectionTitle title="AI analiz hattı" subtitle="Günlük token bütçesi, seçili model ve iş kuyruğu"/>{!llm.data ? <div className="panel-flat"><EmptyState title="AI operasyon bilgisi alınamadı"/></div> : <LlmOperations report={llm.data}/>}</section>
     <section className="mt-8"><SectionTitle title="Tarama takvimleri" subtitle="Europe/Istanbul · Ayarlar PostgreSQL'de kalıcıdır"/>{schedules.data.length ? <div className="grid gap-3 lg:grid-cols-2">{[...schedules.data].sort((a, b) => scheduleOrder.indexOf(a.name) - scheduleOrder.indexOf(b.name)).map((item) => <ScheduleCard key={item.name} item={item}/>)}</div> : <div className="panel-flat"><EmptyState title="Takvim bilgisi alınamadı"/></div>}</section>
+    <section className="mt-8"><SectionTitle title="Kullanıcılar ve davetler" subtitle="Hesaplar, kayıt modu ve kapalı beta davet kodları"/><AdminAccountsPanel users={users} invites={invites}/></section>
     <section className="mt-8"><SectionTitle title="Ayarlar" subtitle="Gemini API, model ve N8N seçenekleri container yeniden başlatılmadan Redis'te saklanır"/>{settings.data.length ? <div className="grid gap-3 lg:grid-cols-2">{settings.data.map((item) => <SettingCard key={item.key} item={item}/>)}</div> : <div className="panel-flat"><EmptyState title="Ayar bilgisi alınamadı"/></div>}<p className="mt-3 text-[11px] leading-5 text-[var(--text-muted)]">Interactions API yapılandırılmış yanıtı SSE akışıyla alır ve önerilen varsayılandır. GenerateContent mevcut entegrasyonlarla uyumluluk için korunur. Model/API değişimi yalnız yeni değerlendirmelere uygulanır.</p><GeminiTestPanel settings={settings.data}/><AlertsTestPanel settings={settings.data}/></section>
     <section className="mt-8"><SectionTitle title="Depolama" subtitle="PostgreSQL tablo boyutları — en büyükler önce"/>{!storage.data ? <div className="panel-flat"><EmptyState title="Depolama bilgisi alınamadı"/></div> : <div className="panel-flat p-4"><div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-sm"><span className="text-[var(--text-muted)]">Toplam veritabanı boyutu: </span><span className="font-semibold">{formatBytes(storage.data.database_size_bytes)}</span></p><p className="mt-0.5 text-[11px] text-[var(--text-muted)]">Eski binary ekler (kap_attachment) silindiğinde disk alanını geri kazanmak için vakumlama yapın.</p></div><form action={vacuumStorageAction}><button className="rounded border px-3 py-2 text-xs font-semibold transition hover:bg-[var(--surface-hover)]" style={{ borderColor: "var(--border)" }}>Depolamayı Temizle (VACUUM)</button></form></div><div className="space-y-2">{storage.data.tables.map((item) => <StorageRow key={item.table} item={item} max={storage.data!.tables[0]?.size_bytes || 1}/>)}</div></div>}</section>
   </>;

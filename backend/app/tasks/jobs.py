@@ -324,3 +324,32 @@ async def collect_tcmb_policy(ctx: dict) -> dict:
 
     async with session_factory() as session, TcmbPolicyCollector(session) as collector:
         return await collector.run_tracked()
+
+
+# SMTP gecici hatalarinda (baglanti, 4xx) is bu kadar kez yeniden denenir.
+MAIL_MAX_TRIES = 4
+
+
+async def send_email(ctx: dict, to: str, subject: str, text: str) -> dict:
+    import smtplib
+
+    from arq import Retry
+
+    from app.mail.sender import OutgoingMail, mask_email, send_mail
+
+    try:
+        status = await send_mail(OutgoingMail(to=to, subject=subject, text=text))
+    except (OSError, smtplib.SMTPException) as exc:
+        attempt = ctx.get("job_try", 1)
+        logger.warning("mail_send_failed", to=mask_email(to), attempt=attempt, error=str(exc))
+        if attempt < MAIL_MAX_TRIES and not isinstance(exc, smtplib.SMTPRecipientsRefused):
+            raise Retry(defer=60 * attempt) from exc
+        return {"status": "failed", "error": str(exc)[:200]}
+    return {"status": status}
+
+
+async def purge_auth_records(ctx: dict) -> dict:
+    from app.auth.service import purge_expired
+
+    async with session_factory() as session:
+        return await purge_expired(session)

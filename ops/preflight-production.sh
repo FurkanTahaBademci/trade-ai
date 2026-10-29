@@ -92,6 +92,39 @@ case "$allowed_hosts" in
     ;;
 esac
 
+registration_mode=$(setting REGISTRATION_MODE)
+case "${registration_mode:-invite}" in
+  invite|open|closed) pass "REGISTRATION_MODE=${registration_mode:-invite}" ;;
+  *) fail "REGISTRATION_MODE invite, open veya closed olmali" ;;
+esac
+
+# E-posta baglantilari PUBLIC_BASE_URL'den uretilir; SMTP varken yanlis adres
+# kullaniciya calismayan baglanti gonderir.
+public_base_url=$(setting PUBLIC_BASE_URL)
+smtp_host=$(setting SMTP_HOST)
+mail_from=$(setting MAIL_FROM)
+case "$public_base_url" in
+  https://*)
+    case "$public_base_url" in
+      *localhost*|*127.0.0.1*|*example.com*) fail "PUBLIC_BASE_URL gercek production adresi olmali" ;;
+      *) pass "PUBLIC_BASE_URL HTTPS kullaniyor" ;;
+    esac
+    ;;
+  "")
+    if [ -n "$smtp_host" ]; then
+      fail "SMTP tanimliyken PUBLIC_BASE_URL bos olamaz (e-posta baglantilari localhost'a gider)"
+    else
+      printf 'WARN  PUBLIC_BASE_URL bos; SMTP acilmadan once sitenin https:// adresini yazin\n'
+    fi
+    ;;
+  *) fail "PUBLIC_BASE_URL https:// ile baslamali" ;;
+esac
+if [ -n "$smtp_host" ] && [ -n "$mail_from" ]; then
+  pass "SMTP yapilandirildi (dogrulama ve parola sifirlama e-postalari gider)"
+else
+  printf 'WARN  SMTP_HOST/MAIL_FROM bos; dogrulama e-postasi gitmez, kullanicilari /sistem uzerinden elle dogrulayin\n'
+fi
+
 if docker compose config --quiet; then
   pass "Docker Compose yapilandirmasi gecerli"
 else

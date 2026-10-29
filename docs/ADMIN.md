@@ -1,12 +1,22 @@
 # Yönetim Erişimi ve Parolalar
 
-trade-ai'de tek bir yönetici hesabı vardır; kullanıcı kaydı veya çoklu kullanıcı
-yoktur. Herkese açık ekranlar (piyasalar, sinyaller, haberler, KAP, portföy…)
-giriş istemez. Sistemi değiştirebilen kısımlar iki katmanla korunur:
+Herkese açık ekranlar (piyasalar, sinyaller, haberler, KAP, model portföy…)
+giriş istemez. Ziyaretçiler isterse hesap açar; hesap şimdilik izleme listesini
+hesapta saklar, kişisel paper portföy ve backtest sonraki sürümlerde gelir
+(bkz. [Kullanıcı hesapları](#kullanıcı-hesapları)).
+
+Yönetici iki yoldan olunur:
+
+- **Yerleşik yönetici:** `.env`'deki `WEB_ADMIN_USERNAME` / `WEB_ADMIN_PASSWORD`.
+  `/giris` formuna e-posta yerine kullanıcı adı yazılır.
+- **Yönetici hesabı:** rolü `admin` olan kullanıcı hesabı
+  (`make create-admin EMAIL=...` ya da `/sistem` → Kullanıcılar).
+
+Sistemi değiştirebilen kısımlar iki katmanla korunur:
 
 | Katman | Neyi korur | Nasıl çalışır | Ayar |
 |---|---|---|---|
-| **Web yönetim girişi** | `/sistem` ve `/backtest` sayfaları ile bu sayfalardaki tüm form gönderimleri | `/giris` sayfası; başarılı girişte 12 saatlik imzalı oturum çerezi | `WEB_ADMIN_USERNAME`, `WEB_ADMIN_PASSWORD` |
+| **Web yönetim girişi** | `/sistem` ve `/backtest` sayfaları ile bu sayfalardaki tüm form gönderimleri | `/giris` sayfası. Yerleşik yönetici 12 saatlik imzalı çerez alır; yönetici hesabı normal kullanıcı oturumuyla girer, rolü her istekte API'den doğrulanır | `WEB_ADMIN_USERNAME`, `WEB_ADMIN_PASSWORD`, kullanıcı rolü |
 | **Backend yönetim anahtarı** | API'nin veri değiştiren tüm uçları | `X-Admin-Token` HTTP başlığı | `ADMIN_API_TOKEN` |
 
 Web sunucusu, yönetim ekranındaki bir işlemi backend'e iletirken
@@ -61,13 +71,17 @@ kullanılamaz. `@`, `/` ve `#` ise `DATABASE_URL` içinde kaçış gerektirir.
 
 1. Menüden **Sistem Sağlığı** veya **Backtest** ekranını açın (ya da doğrudan
    `https://<alan-adınız>/giris` adresine gidin).
-2. Oturum yoksa **Yönetici girişi** sayfasına yönlendirilirsiniz.
-   `WEB_ADMIN_USERNAME` (varsayılan `admin`) ve `WEB_ADMIN_PASSWORD`
-   değerlerini girin.
-3. Giriş sonrası açmak istediğiniz sayfaya geri dönersiniz. Oturum 12 saat
-   geçerlidir; süre dolunca giriş sayfası yeniden gelir.
-4. Çıkmak için `/sistem` veya `/backtest` başlığındaki **Çıkış yap** düğmesine
-   basın.
+2. Oturum yoksa **Giriş yap** sayfasına yönlendirilirsiniz.
+   - Yerleşik yönetici: "E-posta" alanına `WEB_ADMIN_USERNAME` değerini
+     (varsayılan `admin`; `@` içermez), parola alanına `WEB_ADMIN_PASSWORD`
+     değerini girin.
+   - Yönetici hesabı: e-posta adresinizi ve hesap parolanızı girin.
+3. Giriş sonrası açmak istediğiniz sayfaya geri dönersiniz. Yerleşik yönetici
+   oturumu 12 saat, hesap oturumu 30 gün geçerlidir.
+4. Çıkmak için `/sistem` başlığındaki ya da sağ üstteki hesap menüsündeki
+   **Çıkış yap** düğmesine basın.
+5. Girişli ama yönetici olmayan bir kullanıcı `/sistem` veya `/backtest`
+   açarsa "Bu sayfa yöneticilere açık" sayfası (HTTP 403) görür.
 
 Oturum ayrıntıları:
 
@@ -87,12 +101,81 @@ Oturum ayrıntıları:
 
 ### İzleme listesi ve bildirimler
 
-Ziyaretçilerin izleme listesi yalnızca kendi tarayıcılarında kalır. Yönetici
-girişliyken liste sunucuya senkronlanır (`/api/watchlist`). Telegram ve webhook
-bildirimleri şu hisselerin etiket değişimlerini izler: paper portföydeki
-pozisyonlar, bu liste ve `/sistem` ekranındaki "izlenen hisseler" ayarı. İlk
-girişte o tarayıcıdaki liste sunucudakiyle birleştirilir. Sonraki açılışlarda
-sunucudaki liste esas alınır.
+Ziyaretçilerin izleme listesi yalnızca kendi tarayıcılarında kalır. Hesapla
+girişli kullanıcının listesi hesabına kaydedilir (`/api/me/watchlist`); bu
+listeler bildirimlere dahil değildir. Yerleşik yönetici girişliyken liste
+bildirimlerin izlediği ortak listeye senkronlanır (`/api/watchlist`).
+Telegram ve webhook bildirimleri şu hisselerin etiket değişimlerini izler:
+paper portföydeki pozisyonlar, bu ortak liste ve `/sistem` ekranındaki
+"izlenen hisseler" ayarı.
+
+Bir hesapla o tarayıcıdaki ilk girişte, ziyaretçiyken eklenen hisseler hesaptaki
+listeyle birleştirilir. Sonraki açılışlarda hesaptaki liste esas alınır.
+Çıkışta tarayıcıdaki liste silinir; ortak bir bilgisayarda sonraki kişiye
+kalmaz.
+
+## Kullanıcı hesapları
+
+### Nasıl çalışır
+
+- Kayıt: e-posta + parola (en az 10 karakter) + kullanım koşulları onayı.
+  Kayıt modu `invite` ise davet kodu da gerekir.
+- **E-posta doğrulanmadan giriş yapılamaz.** Doğrulama bağlantısı 48 saat,
+  parola sıfırlama bağlantısı 1 saat geçerlidir ve tek kullanımlıktır.
+- Parolalar argon2id ile özetlenir. Oturum token'ı yalnız `tradeai_session`
+  çerezinde (HttpOnly, SameSite=Lax, HTTPS'te Secure) durur; veritabanında
+  yalnız sha256 özeti saklanır. Oturum varsayılan 30 gün geçerlidir
+  (`SESSION_TTL_DAYS`).
+- Parola değişince diğer cihazlardaki oturumlar, parola sıfırlanınca tüm
+  oturumlar kapanır ve kullanıcıya bilgi e-postası gider.
+- Kayıt ve parola sıfırlama, e-posta kayıtlı olsun olmasın aynı yanıtı verir;
+  zaten kayıtlı adrese "zaten hesabın var" e-postası gider. Böylece formdan
+  hangi adreslerin kayıtlı olduğu öğrenilemez.
+- Hız sınırları Redis'te tutulur (tüm web süreçleri ortak sayar): aynı IP'den
+  15 dakikada 20, aynı e-postaya 8 hatalı giriş; IP başına saatte 5 kayıt;
+  adres başına saatte 5 e-posta.
+- Kullanıcı `/hesap` sayfasından adını ve parolasını değiştirir, açık
+  oturumlarını görüp kapatır ve hesabını kalıcı olarak siler (KVKK).
+- `/api/me/*` uçları `Authorization: Bearer <oturum>` ister. `/api/auth/*` ve
+  `/api/admin/*` uçlarını yalnız web sunucusu `X-Admin-Token` ile çağırır.
+
+### Production kurulumu
+
+1. **Adresi ayarlayın:** `PUBLIC_BASE_URL=https://<alan-adınız>`. E-postadaki
+   bağlantılar buradan üretilir.
+2. **SMTP'yi ayarlayın** (Resend, Brevo, Amazon SES ya da kendi sunucunuz):
+   `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`,
+   `SMTP_SECURITY`, `MAIL_FROM`. Gönderen alan adına sağlayıcının verdiği SPF
+   ve DKIM kayıtlarını ekleyin; yoksa e-postalar gereksiz klasörüne düşer.
+   SMTP yokken kayıt yine çalışır, ama doğrulama e-postası gitmez. O durumda
+   kullanıcıyı `/sistem` → Kullanıcılar → **Doğrula** ile elle etkinleştirin.
+3. **Yönetici hesabı açın** (isteğe bağlı; yerleşik yönetici çalışmaya devam
+   eder):
+
+   ```bash
+   make create-admin EMAIL=yonetici@example.com
+   # Coolify'da api container'ının terminalinde:
+   python -m scripts.create_admin --email yonetici@example.com
+   ```
+
+   Kullanıcı yoksa parola sorulur ve doğrulanmış bir yönetici oluşturulur.
+   Kullanıcı zaten varsa yalnız rolü `admin` yapılır.
+4. **Kayıt modunu seçin:** varsayılan `invite` (kapalı beta). `/sistem` →
+   "Kullanıcılar ve davetler" bölümünde davet kodu üretin (kullanım hakkı ve
+   geçerlilik süresiyle) ve kodu kişiye iletin. Herkese açmak için `/sistem`
+   → Ayarlar → **Kullanıcı Kaydı** → "Herkese açık".
+
+### Yönetici işlemleri (`/sistem` → Kullanıcılar ve davetler)
+
+| İşlem | Etkisi |
+|---|---|
+| Davet kodu oluştur / iptal et | `XXXX-XXXX-XXXX` biçiminde kod; kullanım hakkı dolunca, süresi geçince ya da iptal edilince kayıtta reddedilir. |
+| Doğrula | E-postayı doğrulanmış sayar (SMTP yokken ya da e-posta ulaşmadığında). |
+| Devre dışı bırak / etkinleştir | Devre dışı hesap giriş yapamaz; açık oturumları anında kapanır. |
+| Yönetici yap / yöneticiliği al | Rolü `admin` olan hesap `/sistem` ve `/backtest`'e girer. |
+
+Süresi dolmuş oturum ve token kayıtları worker tarafından her gece 04:20'de
+silinir.
 
 ## Hangi durumda ne olur?
 
@@ -158,8 +241,10 @@ Korunan uçlar:
 | `POST /api/settings/alerts/test` | Test bildirimi gönderme |
 | `POST /api/backtests` | Backtest başlatma |
 | `POST /api/system/storage/vacuum` | Veritabanı bakım işlemi |
+| `/api/auth/*` | Kayıt, giriş, e-posta doğrulama, parola sıfırlama (yalnız web sunucusu çağırır; okuma uçları dahil anahtar ister) |
+| `/api/admin/*` | Kullanıcı listesi, kullanıcı durumu/rolü, davet kodları (okuma uçları dahil) |
 
-Okuma (`GET`) uçları anahtar istemez. `GET /api/settings`, gizli değerleri
+`/api/auth/*` ve `/api/admin/*` dışındaki okuma (`GET`) uçları anahtar istemez. `GET /api/settings`, gizli değerleri
 yalnızca maskeli önizlemeyle (`••••abcd`) döndürür. Varsayılan Coolify
 kurulumunda API internete açılmaz; web ona Docker'ın iç ağından ulaşır. API'yi
 dışarıya açmanız gerekmiyorsa açmayın.

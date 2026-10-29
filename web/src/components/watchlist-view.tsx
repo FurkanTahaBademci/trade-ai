@@ -61,7 +61,7 @@ export function WatchlistView() {
 
 function SyncBadge({ state }: { state: ReturnType<typeof useWatchlistSyncState> }) {
   if (state === "unknown") return null;
-  return state === "synced"
-    ? <span className="pill pill-positive">Sunucuyla senkron · bildirimlere dahil</span>
-    : <span className="pill">Yalnız bu tarayıcıda · bildirimler için yönetici girişi gerekir</span>;
+  if (state === "admin") return <span className="pill pill-positive">Sunucuyla senkron · bildirimlere dahil</span>;
+  if (state === "account") return <span className="pill pill-positive">Hesabına kayıtlı · tüm cihazlarında</span>;
+  return <Link prefetch={false} href="/giris?next=/izleme-listesi" className="pill hover:text-[var(--text)]">Yalnız bu tarayıcıda · hesabına kaydetmek için giriş yap</Link>;
 }

@@ -67,6 +67,21 @@ class Settings(BaseSettings):
     # Islem gunu sonunda tek mesajlik ozet (app/alerts/digest.py); /sistem'den acilir.
     alerts_daily_digest_enabled: bool = False
 
+    # Kullanici hesaplari (app/auth/). "invite": yalniz davet koduyla kayit,
+    # "open": herkes kayit olabilir, "closed": yeni kayit yok. /sistem'den degisir.
+    registration_mode: str = "invite"
+    session_ttl_days: int = Field(default=30, ge=1, le=365)
+    # E-posta baglantilarinin (dogrulama, parola sifirlama) kok adresi.
+    public_base_url: str = "http://localhost:3000"
+    # SMTP bos ise e-posta gonderilmez; gelistirmede baglanti log'a yazilir.
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: str = ""
+    # "starttls" (587), "ssl" (465) veya "none" (yalniz yerel test sunucusu).
+    smtp_security: str = "starttls"
+    mail_from: str = ""
+
     collector_user_agent: str = "trade-ai (acik kaynak arastirma araci)"
     kap_rate_limit_per_sec: float = 2.0
 

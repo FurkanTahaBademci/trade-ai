@@ -155,6 +155,8 @@ services:
       ADMIN_API_TOKEN: ${ADMIN_API_TOKEN:-}
       WEB_ADMIN_USERNAME: ${WEB_ADMIN_USERNAME:-admin}
       WEB_ADMIN_PASSWORD: ${WEB_ADMIN_PASSWORD:-}
+      # /gizlilik sayfasindaki KVKK iletisim adresi (opsiyonel).
+      CONTACT_EMAIL: ${CONTACT_EMAIL:-}
       # Next SSR surec sayisi (web/server-cluster.cjs); "auto" = CPU sayisi.
       # Surec basina ~150-250 MB: WEB_WORKERS artarsa WEB_MEMORY_LIMIT da artmali.
       WEB_WORKERS: ${WEB_WORKERS:-2}

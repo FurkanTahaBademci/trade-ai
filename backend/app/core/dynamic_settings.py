@@ -74,6 +74,13 @@ ALERT_SCORE_CHOICES: tuple[tuple[str, str], ...] = (
 )
 
 
+REGISTRATION_MODE_CHOICES: tuple[tuple[str, str], ...] = (
+    ("invite", "Davet koduyla · önerilen"),
+    ("open", "Herkese açık"),
+    ("closed", "Kapalı · yeni kayıt yok"),
+)
+
+
 def _pct_choices(
     values: tuple[int, ...], off_label: str, recommended: int | None = None
 ) -> tuple[tuple[str, str], ...]:
@@ -177,6 +184,13 @@ MANAGED_SETTINGS: tuple[SettingSpec, ...] = (
         "Paper Rebalance (tavanı aşanı kırp)",
         "boolean",
         "paper_rebalance_enabled",
+    ),
+    SettingSpec(
+        "registration_mode",
+        "Kullanıcı Kaydı",
+        "choice",
+        "registration_mode",
+        REGISTRATION_MODE_CHOICES,
     ),
     SettingSpec("llm_enabled", "LLM Degerlendirmesi Etkin", "boolean", "llm_enabled"),
     SettingSpec("n8n_webhook_url", "N8N Webhook URL", "url", "n8n_webhook_url"),

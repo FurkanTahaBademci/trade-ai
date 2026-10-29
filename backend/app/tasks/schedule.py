@@ -24,6 +24,7 @@ from app.core.redis import get_redis
 from app.monitoring.service import monitor_system
 from app.scheduling.service import dispatch_due_schedules
 from app.tasks.jobs import (
+    MAIL_MAX_TRIES,
     collect_analysts,
     collect_evds,
     collect_fund_flows,
@@ -37,7 +38,9 @@ from app.tasks.jobs import (
     collect_tcmb_policy,
     compute_signals,
     evaluate_sources,
+    purge_auth_records,
     run_paper_portfolio,
+    send_email,
 )
 
 logger = structlog.get_logger(__name__)
@@ -117,6 +120,9 @@ class WorkerSettings:
         monitor_system,
         evaluate_alerts,
         send_daily_digest,
+        # Hesap e-postalari; kuyrukta beklemesin diye kisa zaman asimi.
+        func(send_email, timeout=60, max_tries=MAIL_MAX_TRIES, name="send_email"),
+        purge_auth_records,
     ]
     cron_jobs: ClassVar[list] = [
         cron(heartbeat, minute=set(range(0, 60, 5))),  # her 5 dakikada bir
@@ -125,6 +131,7 @@ class WorkerSettings:
         # Collector'larin araliklari PostgreSQL'deki collector_schedule
         # tablosundan okunur. Bu tick vadesi gelenleri Redis kuyruguna ekler.
         cron(dispatch_due_schedules, minute=set(range(60)), second={30}),
+        cron(purge_auth_records, hour={4}, minute={20}),
     ]
     on_startup = startup
     on_shutdown = shutdown

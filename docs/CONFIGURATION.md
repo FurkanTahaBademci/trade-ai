@@ -40,7 +40,22 @@ trade-ai iki katmanlı yapılandırma kullanır:
 |---|---|
 | `ADMIN_API_TOKEN` | Backend yazma uçlarının anahtarı (en az 32 karakter). |
 | `WEB_ADMIN_USERNAME` | `/giris` sayfasındaki yönetici kullanıcı adı (varsayılan `admin`). |
-| `WEB_ADMIN_PASSWORD` | `/giris` sayfasındaki yönetici parolası (en az 16 karakter). Değiştirmek açık oturumları kapatır. |
+| `WEB_ADMIN_PASSWORD` | `/giris` sayfasında kullanıcı adıyla girilen yerleşik yöneticinin parolası (en az 16 karakter). Değiştirmek açık oturumları kapatır. |
+
+### Kullanıcı hesapları
+
+Ayrıntılar ve kurulum adımları: [ADMIN.md → Kullanıcı hesapları](ADMIN.md#kullanıcı-hesapları).
+
+| Değişken | Varsayılan | Açıklama |
+|---|---|---|
+| `REGISTRATION_MODE` | `invite` | `invite`: yalnız davet koduyla kayıt (kapalı beta). `open`: herkes kayıt olabilir. `closed`: yeni kayıt yok. `/sistem` → Ayarlar'dan container yeniden başlatılmadan değişir. |
+| `SESSION_TTL_DAYS` | `30` | Kullanıcı oturumunun ömrü (gün). |
+| `PUBLIC_BASE_URL` | `http://localhost:3000` | E-postalardaki doğrulama ve parola sıfırlama bağlantılarının kökü. Production'da sitenin `https://` adresi olmalıdır; bağlantı adresi gelen isteğin `Host` başlığından türetilmez (sahte bağlantı saldırısına karşı). |
+| `SMTP_HOST`, `SMTP_PORT` | boş, `587` | E-posta sunucusu. `SMTP_HOST` veya `MAIL_FROM` boşsa e-posta gönderilmez: geliştirmede bağlantı worker log'una yazılır, production'da yalnız uyarı loglanır ve kullanıcıların `/sistem`'den elle doğrulanması gerekir. |
+| `SMTP_USERNAME`, `SMTP_PASSWORD` | boş | SMTP kimlik bilgileri (sağlayıcının verdiği kullanıcı / API anahtarı). |
+| `SMTP_SECURITY` | `starttls` | `starttls` (587), `ssl` (465) veya `none` (yalnız yerel test sunucusu). |
+| `MAIL_FROM` | boş | Gönderen adresi, ör. `TradeAI <no-reply@example.com>`. Alan adında SPF/DKIM kayıtları olmayan adresten giden e-postalar çoğunlukla gereksiz klasörüne düşer. |
+| `CONTACT_EMAIL` | boş | `/gizlilik` sayfasında KVKK talepleri için gösterilen iletişim adresi (web servisine verilir). Boşsa kullanıcıya kayıtlı adresinden yazması söylenir. |
 
 Davranış tabloları ve parola değiştirme adımları: [ADMIN.md](ADMIN.md).
 
@@ -122,6 +137,9 @@ Aşağıdaki ayarlar yönetim girişinden sonra `/sistem` ekranından değiştir
   günün işlemleri ve skor hareketleri tek mesajla gönderilir; aynı gün için
   ikinci kez gönderilmez.
 - **Sistem uyarıları:** N8N webhook URL.
+- **Kullanıcı kaydı:** davet koduyla / herkese açık / kapalı. Davet kodları,
+  kullanıcı listesi, elle e-posta doğrulama, devre dışı bırakma ve yönetici
+  rolü aynı ekrandaki "Kullanıcılar ve davetler" bölümündedir.
 
 Gizli değerler ekranda yalnızca son dört karakteriyle gösterilir.
 

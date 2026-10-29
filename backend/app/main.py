@@ -11,6 +11,8 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
 from app import __version__
 from app.api.routers import (
+    admin_users,
+    auth,
     backtests,
     briefing,
     calendar,
@@ -23,6 +25,7 @@ from app.api.routers import (
     kap,
     macro,
     markets,
+    me,
     news,
     paper,
     schedules,
@@ -92,6 +95,9 @@ app.include_router(markets.router)
 app.include_router(briefing.router)
 app.include_router(calendar.router)
 app.include_router(watchlist.router)
+app.include_router(auth.router)
+app.include_router(me.router)
+app.include_router(admin_users.router)
 
 
 @app.get("/")

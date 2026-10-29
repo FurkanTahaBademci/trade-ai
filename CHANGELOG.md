@@ -9,6 +9,46 @@ bu bölümü yeni sürüm numarasıyla kapatır.
 
 ## [Unreleased]
 
+### Eklendi
+
+- **Kullanıcı hesapları (kapalı beta).** Ziyaretçiler hesap açabilir. Piyasa,
+  sinyal ve haber ekranları girişsiz açık kalır.
+  - Kayıt, giriş, e-posta doğrulama, parola sıfırlama ve "Parolamı unuttum"
+    sayfaları (`/kayit`, `/giris`, `/eposta-dogrula`, `/sifremi-unuttum`,
+    `/sifre-sifirla`). E-posta doğrulanmadan giriş yapılamaz.
+  - `/hesap`: görünen ad, parola değiştirme, açık oturumları görme ve kapatma,
+    hesabı kalıcı olarak silme.
+  - Sağ üstte hesap menüsü; girişsizken "Giriş yap / Kayıt ol".
+  - İzleme listesi hesaba kaydedilir ve her cihazda aynı görünür. Ziyaretçiyken
+    eklenenler ilk girişte hesaptaki listeyle birleşir; çıkışta tarayıcıdaki
+    liste silinir.
+  - `/gizlilik`: KVKK aydınlatma metni ve kullanım koşulları; kayıtta onay
+    istenir.
+- **Kayıt modu ve davet kodları.** Varsayılan mod davet koduyla kayıt
+  (`REGISTRATION_MODE=invite`); `/sistem` → Ayarlar'dan "Herkese açık" ya da
+  "Kapalı" yapılabilir. `/sistem` → "Kullanıcılar ve davetler" bölümünde davet
+  kodu üretme/iptal etme, kullanıcıyı elle doğrulama, devre dışı bırakma ve
+  yönetici yapma.
+- **Hesap tabanlı yönetici.** Rolü `admin` olan hesap `/sistem` ve
+  `/backtest`'e girer: `make create-admin EMAIL=...`. `.env`'deki yerleşik
+  yönetici girişi (kullanıcı adıyla) aynen çalışır.
+- Doğrulama, parola sıfırlama ve "parolan değişti" e-postaları worker
+  kuyruğundan SMTP ile gönderilir (`SMTP_*`, `MAIL_FROM`, `PUBLIC_BASE_URL`;
+  ayrıntı `docs/ADMIN.md`). SMTP yoksa kullanıcılar `/sistem`'den elle
+  doğrulanır.
+
+### Güvenlik
+
+- Parolalar argon2id ile özetlenir. Oturum ve e-posta token'ları veritabanında
+  yalnız sha256 özetiyle saklanır; oturum çerezi HttpOnly'dir.
+- Kayıt ve parola sıfırlama, e-posta kayıtlı olsun olmasın aynı yanıtı verir.
+- Giriş, kayıt ve e-posta gönderimi için Redis'te ortak hız sınırı (tüm web
+  süreçleri aynı sayacı kullanır).
+- Kişisel ve yönetim uçları (`/api/me`, `/api/auth`, `/api/admin`) web'in
+  paylaşılan yanıt önbelleğinden geçemez; denenirse istek reddedilir.
+- Parola değişince diğer oturumlar, parola sıfırlanınca tüm oturumlar kapanır.
+  Devre dışı bırakılan hesabın oturumları anında düşer.
+
 ## [0.9.2] - 2026-10-28
 
 ### Düzeltildi

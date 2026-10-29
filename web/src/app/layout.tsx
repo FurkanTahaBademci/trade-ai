@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { AppShell } from "@/components/app-shell";
+import { currentAccount } from "@/lib/account-server";
 import "./globals.css";
 
 export const dynamic = "force-dynamic";
@@ -11,13 +12,16 @@ export const metadata: Metadata = {
 
 const themeScript = `(function(){try{var t=localStorage.getItem("trade-ai:theme");var d=t==="light"?"light":(t==="dark"?"dark":(window.matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"));document.documentElement.setAttribute("data-theme",d);}catch(e){}})();`;
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  // İstemciye yalnız menüde gösterilen alanlar gider.
+  const account = await currentAccount();
+  const summary = account && { display_name: account.display_name, email: account.email, role: account.role };
   return (
     <html lang="tr" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body className="min-h-screen antialiased"><AppShell>{children}</AppShell></body>
+      <body className="min-h-screen antialiased"><AppShell account={summary}>{children}</AppShell></body>
     </html>
   );
 }
