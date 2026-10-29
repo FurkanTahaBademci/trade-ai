@@ -52,6 +52,8 @@ Ayrıntılar ve kurulum adımları: [ADMIN.md → Kullanıcı hesapları](ADMIN.
 | `SESSION_TTL_DAYS` | `30` | Kullanıcı oturumunun ömrü (gün). |
 | `PAPER_MAX_PORTFOLIOS_PER_USER` | `5` | Bir kullanıcının açabileceği en fazla paper portföy (strateji + manuel). |
 | `PAPER_MAX_PENDING_ORDERS` | `20` | Manuel portföy başına aynı anda bekleyebilecek en fazla emir. |
+| `BACKTEST_DAILY_LIMIT_PER_USER` | `10` | Kullanıcı başına günlük backtest koşusu (İstanbul saatiyle gün). Yönetici rolü muaftır. |
+| `BACKTEST_MAX_ACTIVE_PER_USER` | `1` | Kullanıcı başına aynı anda sırada bekleyen ya da çalışan koşu. Worker zaten koşuları tek tek hesaplar. |
 | `PUBLIC_BASE_URL` | `http://localhost:3000` | E-postalardaki doğrulama ve parola sıfırlama bağlantılarının kökü. Production'da sitenin `https://` adresi olmalıdır; bağlantı adresi gelen isteğin `Host` başlığından türetilmez (sahte bağlantı saldırısına karşı). |
 | `SMTP_HOST`, `SMTP_PORT` | boş, `587` | E-posta sunucusu. `SMTP_HOST` veya `MAIL_FROM` boşsa e-posta gönderilmez: geliştirmede bağlantı worker log'una yazılır, production'da yalnız uyarı loglanır ve kullanıcıların `/sistem`'den elle doğrulanması gerekir. |
 | `SMTP_USERNAME`, `SMTP_PASSWORD` | boş | SMTP kimlik bilgileri (sağlayıcının verdiği kullanıcı / API anahtarı). |

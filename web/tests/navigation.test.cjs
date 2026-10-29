@@ -41,6 +41,8 @@ test("her menü grubu rotası bir menü öğesine karşılık gelir ve her öğe
 test("girişli sayfalar kilitli işaretlenir", () => {
   const locked = NAV_ITEMS.filter((item) => item.locked).map((item) => item.href).sort();
   assert.deepEqual(locked, ["/backtest", "/sistem"]);
+  // Backtest her hesaba, sistem yalnız yöneticiye açık.
+  assert.deepEqual(Object.fromEntries(NAV_ITEMS.filter((item) => item.locked).map((item) => [item.href, item.locked])), { "/backtest": "account", "/sistem": "admin" });
 });
 
 test("sayfa araması Türkçe karakterden bağımsız ve anahtar kelimeyle çalışır", () => {

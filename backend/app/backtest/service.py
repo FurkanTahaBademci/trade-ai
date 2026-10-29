@@ -1,12 +1,15 @@
-"""Veritabanindan tarihsel girdileri okuyup backtest sonucunu kalicilastirir."""
+"""Backtest kosularini kuyruga yazar; worker'da tarihsel girdileri okuyup sonucu kalicilastirir."""
 
 import asyncio
 import statistics
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import select
+import structlog
+from arq import create_pool
+from arq.connections import RedisSettings
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import noload, selectinload
 
@@ -17,6 +20,7 @@ from app.backtest.engine import (
     BacktestSignal,
     run_backtest,
 )
+from app.core.config import get_settings
 from app.models import (
     BacktestRun,
     BacktestRunPoint,
@@ -40,6 +44,10 @@ WARMUP_DAYS = 45
 ROBUSTNESS_SHIFTS = (2, 4, 6, 8)
 # Daha uzun araliklarda ek kosular istegi gereksiz uzatir; hassasiyet atlanir.
 ROBUSTNESS_MAX_DAYS = 3 * 365
+# Bu sureden uzun QUEUED/RUNNING kalan kosu (worker yeniden baslatildi vb.) hatayla kapanir.
+STALE_AFTER = timedelta(hours=2)
+
+logger = structlog.get_logger(__name__)
 
 
 def _decimal(value: float | Decimal) -> Decimal:
@@ -123,7 +131,8 @@ def run_with_robustness(
     }
 
 
-async def create_backtest_run(session: AsyncSession, request: BacktestCreate) -> BacktestRun:
+async def _compute(session: AsyncSession, run: BacktestRun, request: BacktestCreate) -> None:
+    """Girdileri okur, motoru ayri thread'de kosar ve sonucu `run` satirina yazar."""
     weights = (
         {name: _decimal(value) for name, value in request.component_weights.items()}
         if request.component_weights
@@ -260,52 +269,48 @@ async def create_backtest_run(session: AsyncSession, request: BacktestCreate) ->
         point_count=len(result.points),
         skipped_signal_count=result.skipped_signals,
     )
-    run = BacktestRun(
-        strategy_version=STRATEGY_VERSION,
-        signal_model_version=SIGNAL_MODEL_VERSION,
-        status=status,
-        start_date=request.start_date,
-        end_date=request.end_date,
-        initial_cash=metrics.initial_cash,
-        final_equity=metrics.final_equity,
-        total_return_pct=metrics.total_return_pct,
-        max_drawdown_pct=metrics.max_drawdown_pct,
-        annualized_volatility_pct=metrics.annualized_volatility_pct,
-        sharpe_ratio=metrics.sharpe_ratio,
-        closed_trades=metrics.closed_trades,
-        winning_trades=metrics.winning_trades,
-        win_rate_pct=metrics.win_rate_pct,
-        total_fees=metrics.total_fees,
-        signal_count=len(signals),
-        price_count=in_range_prices,
-        skipped_signal_count=result.skipped_signals,
-        config={
-            "entry_score": float(config.entry_score),
-            "exit_score": float(config.exit_score),
-            "min_confidence": float(config.min_confidence),
-            "min_coverage": config.min_coverage,
-            "max_positions": config.max_positions,
-            "max_position_weight": float(config.max_position_weight),
-            "fee_rate": float(config.fee_rate),
-            "slippage_rate": float(config.slippage_rate),
-            "stop_loss_pct": float(config.stop_loss_pct),
-            "max_new_entries_per_day": config.max_new_entries_per_day,
-            "price_limit_pct": float(config.price_limit_pct),
-            "min_avg_volume": float(config.min_avg_volume),
-            "regime_ma_days": config.regime_ma_days,
-            "max_volatility_pct": float(config.max_volatility_pct),
-            "strategy": config.strategy,
-            "basket_size": config.basket_size,
-            "basket_keep": config.basket_keep,
-            "rebalance_days": config.rebalance_days,
-            "component_weights": (
-                {name: float(value) for name, value in weights.items()} if weights else None
-            ),
-            "execution_price": "NEXT_AVAILABLE_CLOSE",
-            "risk_free_rate": 0,
-        },
-        robustness=robustness,
-    )
+    run.status = status
+    run.strategy_version = STRATEGY_VERSION
+    run.signal_model_version = SIGNAL_MODEL_VERSION
+    run.initial_cash = metrics.initial_cash
+    run.final_equity = metrics.final_equity
+    run.total_return_pct = metrics.total_return_pct
+    run.max_drawdown_pct = metrics.max_drawdown_pct
+    run.annualized_volatility_pct = metrics.annualized_volatility_pct
+    run.sharpe_ratio = metrics.sharpe_ratio
+    run.closed_trades = metrics.closed_trades
+    run.winning_trades = metrics.winning_trades
+    run.win_rate_pct = metrics.win_rate_pct
+    run.total_fees = metrics.total_fees
+    run.signal_count = len(signals)
+    run.price_count = in_range_prices
+    run.skipped_signal_count = result.skipped_signals
+    run.robustness = robustness
+    run.config = {
+        "entry_score": float(config.entry_score),
+        "exit_score": float(config.exit_score),
+        "min_confidence": float(config.min_confidence),
+        "min_coverage": config.min_coverage,
+        "max_positions": config.max_positions,
+        "max_position_weight": float(config.max_position_weight),
+        "fee_rate": float(config.fee_rate),
+        "slippage_rate": float(config.slippage_rate),
+        "stop_loss_pct": float(config.stop_loss_pct),
+        "max_new_entries_per_day": config.max_new_entries_per_day,
+        "price_limit_pct": float(config.price_limit_pct),
+        "min_avg_volume": float(config.min_avg_volume),
+        "regime_ma_days": config.regime_ma_days,
+        "max_volatility_pct": float(config.max_volatility_pct),
+        "strategy": config.strategy,
+        "basket_size": config.basket_size,
+        "basket_keep": config.basket_keep,
+        "rebalance_days": config.rebalance_days,
+        "component_weights": (
+            {name: float(value) for name, value in weights.items()} if weights else None
+        ),
+        "execution_price": "NEXT_AVAILABLE_CLOSE",
+        "risk_free_rate": 0,
+    }
     run.points = [
         BacktestRunPoint(
             point_date=point.point_date,
@@ -330,9 +335,104 @@ async def create_backtest_run(session: AsyncSession, request: BacktestCreate) ->
         )
         for trade in result.trades
     ]
+
+
+def request_config(request: BacktestCreate) -> dict[str, Any]:
+    """Kuyruktaki kosunun ayarlari; worker bunlardan `BacktestCreate`'i yeniden kurar."""
+    return request.model_dump(mode="json", exclude={"start_date", "end_date", "initial_cash"})
+
+
+def stored_request(run: BacktestRun) -> BacktestCreate:
+    return BacktestCreate.model_validate(
+        {
+            **(run.config or {}),
+            "start_date": run.start_date,
+            "end_date": run.end_date,
+            "initial_cash": float(run.initial_cash),
+        }
+    )
+
+
+async def fail_stale_runs(session: AsyncSession) -> int:
+    """Worker yeniden baslatildiginda vb. takili kalan kosulari hatayla kapatir."""
+    cutoff = datetime.now(UTC) - STALE_AFTER
+    result = await session.execute(
+        update(BacktestRun)
+        .where(BacktestRun.status.in_(("QUEUED", "RUNNING")), BacktestRun.created_at < cutoff)
+        .values(status="FAILED", error="Koşu zaman aşımına uğradı; yeniden başlatın.")
+    )
+    return result.rowcount or 0
+
+
+async def _enqueue(run_id: int) -> bool:
+    try:
+        pool = await create_pool(RedisSettings.from_dsn(get_settings().redis_url))
+    except Exception as exc:  # noqa: BLE001 - kosu FAILED isaretlenir
+        logger.error("backtest_enqueue_failed", run_id=run_id, error=str(exc))
+        return False
+    try:
+        await pool.enqueue_job("run_backtest", run_id, _job_id=f"backtest:{run_id}")
+        return True
+    except Exception as exc:  # noqa: BLE001
+        logger.error("backtest_enqueue_failed", run_id=run_id, error=str(exc))
+        return False
+    finally:
+        await pool.aclose()
+
+
+async def queue_backtest_run(
+    session: AsyncSession, request: BacktestCreate, *, owner_id: int | None
+) -> BacktestRun:
+    """Kosuyu QUEUED yazar ve worker kuyruguna ekler; hesap worker'da yapilir."""
+    await fail_stale_runs(session)
+    run = BacktestRun(
+        owner_id=owner_id,
+        strategy_version=STRATEGY_VERSION,
+        signal_model_version=SIGNAL_MODEL_VERSION,
+        status="QUEUED",
+        start_date=request.start_date,
+        end_date=request.end_date,
+        initial_cash=_decimal(request.initial_cash),
+        config=request_config(request),
+    )
     session.add(run)
     await session.commit()
+    if not await _enqueue(run.id):
+        run.status = "FAILED"
+        run.error = "Koşu kuyruğa eklenemedi; biraz sonra yeniden deneyin."
+        await session.commit()
     return await get_backtest_run(session, run.id)
+
+
+async def execute_backtest_run(session: AsyncSession, run_id: int) -> dict[str, Any]:
+    """Worker isi: kuyruktaki kosuyu hesaplar. Bitmis ya da silinmis kosuyu atlar."""
+    # Nokta/islem koleksiyonlari yuklu olmali: atama async oturumda tembel yukleme yapamaz.
+    run = await get_backtest_run(session, run_id)
+    if run is None or run.status not in ("QUEUED", "RUNNING"):
+        return {"run_id": run_id, "status": run.status if run else "missing"}
+    run.status = "RUNNING"
+    run.started_at = datetime.now(UTC)
+    run.error = None
+    await session.commit()
+    try:
+        await _compute(session, run, stored_request(run))
+        run.finished_at = datetime.now(UTC)
+        await session.commit()
+        return {"run_id": run_id, "status": run.status, "trades": len(run.trades)}
+    except Exception as exc:  # kosu hata mesajiyla kapanir
+        await session.rollback()
+        logger.exception("backtest_failed", run_id=run_id)
+        await session.execute(
+            update(BacktestRun)
+            .where(BacktestRun.id == run_id)
+            .values(
+                status="FAILED",
+                error=f"Koşu hesaplanamadı: {exc}"[:500],
+                finished_at=datetime.now(UTC),
+            )
+        )
+        await session.commit()
+        return {"run_id": run_id, "status": "FAILED"}
 
 
 async def get_backtest_run(

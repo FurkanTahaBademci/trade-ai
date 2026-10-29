@@ -353,3 +353,40 @@ async def purge_auth_records(ctx: dict) -> dict:
 
     async with session_factory() as session:
         return await purge_expired(session)
+
+
+# Ayni anda tek backtest: CPU yogun; collector'lara ve sayfalara yer kalsin.
+BACKTEST_LOCK_KEY = "backtest:running"
+BACKTEST_LOCK_SECONDS = 30 * 60
+BACKTEST_RETRY_SECONDS = 15
+# Kilit bekleme dahil en fazla deneme (~1 saat sira); sonra kosu hatayla kapanir.
+BACKTEST_MAX_TRIES = 240
+
+
+async def run_backtest(ctx: dict, run_id: int) -> dict:
+    from arq import Retry
+    from sqlalchemy import update
+
+    from app.backtest.service import execute_backtest_run
+    from app.models import BacktestRun
+
+    redis = get_redis()
+    if not await redis.set(BACKTEST_LOCK_KEY, str(run_id), nx=True, ex=BACKTEST_LOCK_SECONDS):
+        if ctx.get("job_try", 1) < BACKTEST_MAX_TRIES:
+            raise Retry(defer=BACKTEST_RETRY_SECONDS)
+        async with session_factory() as session:
+            await session.execute(
+                update(BacktestRun)
+                .where(BacktestRun.id == run_id, BacktestRun.status == "QUEUED")
+                .values(status="FAILED", error="Sıra çok uzun sürdü; koşuyu yeniden başlatın.")
+            )
+            await session.commit()
+        return {"run_id": run_id, "status": "FAILED"}
+    try:
+        async with session_factory() as session:
+            return await execute_backtest_run(session, run_id)
+    finally:
+        # Kilidi yalniz kendi aldiysa birak (zaman asimindan sonra baskasi almis olabilir).
+        with contextlib.suppress(RedisError):
+            if await redis.get(BACKTEST_LOCK_KEY) == str(run_id):
+                await redis.delete(BACKTEST_LOCK_KEY)

@@ -46,6 +46,11 @@ export async function proxy(request: NextRequest) {
     return respond(signedIn ? NextResponse.next() : toLogin(request));
   }
 
+  // Backtest her hesaba açık (kişisel koşular); yönetim yalnız yöneticiye.
+  if (path === "/backtest" || path.startsWith("/backtest/")) {
+    if (signedIn || adminState === "authorized" || adminState === "disabled") return respond(NextResponse.next());
+    return respond(toLogin(request));
+  }
   if (adminState === "authorized" || adminState === "disabled" || accountIsAdmin) return respond(NextResponse.next());
   // Girişli ama yönetici olmayan kullanıcı girişe yönlendirilmez (döngü olur).
   if (signedIn) return noStore(NextResponse.rewrite(new URL("/yetkisiz", request.url), { status: 403 }));

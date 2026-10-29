@@ -24,6 +24,8 @@ from app.core.redis import get_redis
 from app.monitoring.service import monitor_system
 from app.scheduling.service import dispatch_due_schedules
 from app.tasks.jobs import (
+    BACKTEST_LOCK_SECONDS,
+    BACKTEST_MAX_TRIES,
     MAIL_MAX_TRIES,
     collect_analysts,
     collect_evds,
@@ -39,6 +41,7 @@ from app.tasks.jobs import (
     compute_signals,
     evaluate_sources,
     purge_auth_records,
+    run_backtest,
     run_paper_portfolio,
     send_email,
 )
@@ -123,6 +126,13 @@ class WorkerSettings:
         # Hesap e-postalari; kuyrukta beklemesin diye kisa zaman asimi.
         func(send_email, timeout=60, max_tries=MAIL_MAX_TRIES, name="send_email"),
         purge_auth_records,
+        # Kullanici/yonetici backtest'leri; kilit beklerken Retry ile sira tutar.
+        func(
+            run_backtest,
+            timeout=BACKTEST_LOCK_SECONDS,
+            max_tries=BACKTEST_MAX_TRIES,
+            name="run_backtest",
+        ),
     ]
     cron_jobs: ClassVar[list] = [
         cron(heartbeat, minute=set(range(0, 60, 5))),  # her 5 dakikada bir

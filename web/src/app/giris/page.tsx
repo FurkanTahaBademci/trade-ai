@@ -30,7 +30,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
     footer={<>
       <p>Hesabın yok mu? <Link href="/kayit" className="font-medium text-[var(--primary)]">Kayıt ol</Link></p>
       <p><Link href="/sifremi-unuttum" className="font-medium text-[var(--primary)]">Parolamı unuttum</Link></p>
-      <p className="pt-1 text-[11px] leading-5">Piyasa, sinyal ve haber ekranları giriş gerektirmez. Hesap; izleme listeni hesabında saklar, ilerleyen sürümlerde kendi paper portföylerini ve backtestlerini açar.</p>
+      <p className="pt-1 text-[11px] leading-5">Piyasa, sinyal ve haber ekranları giriş gerektirmez. Hesapla izleme listeni saklar, kendi paper portföylerini ve backtest koşularını kurarsın.</p>
     </>}
   >
     <LoginForm next={next}/>

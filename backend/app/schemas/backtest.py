@@ -91,27 +91,46 @@ class BacktestRunSummaryOut(BaseModel):
     id: int
     strategy_version: str
     signal_model_version: str
+    # QUEUED / RUNNING / COMPLETED / INSUFFICIENT_DATA / FAILED; sonuc alanlari
+    # kosu bitene kadar bostur.
     status: str
     start_date: date
     end_date: date
     initial_cash: float
-    final_equity: float
-    total_return_pct: float
-    max_drawdown_pct: float
-    annualized_volatility_pct: float | None
-    sharpe_ratio: float | None
-    closed_trades: int
-    winning_trades: int
-    win_rate_pct: float | None
-    total_fees: float
-    signal_count: int
-    price_count: int
-    skipped_signal_count: int
+    final_equity: float | None = None
+    total_return_pct: float | None = None
+    max_drawdown_pct: float | None = None
+    annualized_volatility_pct: float | None = None
+    sharpe_ratio: float | None = None
+    closed_trades: int | None = None
+    winning_trades: int | None = None
+    win_rate_pct: float | None = None
+    total_fees: float | None = None
+    signal_count: int | None = None
+    price_count: int | None = None
+    skipped_signal_count: int | None = None
     config: dict
     robustness: dict | None = None
+    error: str | None = None
     created_at: datetime
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
 
 
 class BacktestRunDetailOut(BacktestRunSummaryOut):
     points: list[BacktestPointOut]
     trades: list[BacktestTradeOut]
+
+
+class BacktestQuotaOut(BaseModel):
+    daily_limit: int
+    used_today: int
+    active: int
+    max_active: int
+    # Yonetici rolundeki hesaplar sinirsizdir.
+    exempt: bool
+
+
+class BacktestToPaperIn(BaseModel):
+    name: str = Field(min_length=1, max_length=64)
+    initial_cash: float = Field(default=1_000_000, ge=10_000, le=10_000_000)

@@ -11,11 +11,11 @@ import { EmptyState } from "./ui";
 const cursorFor = (item: BacktestTrade) => ({ before_id: item.id });
 const keyFor = (item: BacktestTrade) => item.id;
 
-export function BacktestTrades({ initialItems, runId, ticker, side }: {
-  initialItems: BacktestTrade[]; runId: number; ticker?: string; side?: string;
+export function BacktestTrades({ initialItems, endpoint, ticker, side }: {
+  initialItems: BacktestTrade[]; endpoint: string; ticker?: string; side?: string;
 }) {
   const filters = useMemo(() => ({ ticker, side }), [ticker, side]);
-  const feed = useInfiniteFeed({ initialItems, pageSize: 25, endpoint: `/api/backtest-trades/${runId}`, filters, cursorFor, keyFor });
+  const feed = useInfiniteFeed({ initialItems, pageSize: 25, endpoint, filters, cursorFor, keyFor });
   if (!feed.items.length) return <div className="panel-flat"><EmptyState compact title="İşlem bulunamadı" description={ticker || side ? "Bu filtrelere uyan işlem yok. Filtreleri temizleyerek tekrar deneyin." : "Bu koşuda işlem oluşmadı. Sinyal ve fiyat kapsamını kontrol edin."}/></div>;
   return <div aria-busy={feed.loading}>
     <p className="mb-3 text-xs text-[var(--text-muted)]">{feed.items.length} işlem gösteriliyor · En yeni işlemler önce</p>

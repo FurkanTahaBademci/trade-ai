@@ -2,8 +2,8 @@
 
 Herkese açık ekranlar (piyasalar, sinyaller, haberler, KAP, model portföy…)
 giriş istemez. Ziyaretçiler isterse hesap açar; hesapla izleme listesi hesapta
-saklanır ve kişisel paper portföyler (`/portfoylerim`) kurulur. Kişisel backtest
-sonraki sürümde gelir (bkz. [Kullanıcı hesapları](#kullanıcı-hesapları)).
+saklanır, kişisel paper portföyler (`/portfoylerim`) kurulur ve kişisel backtest
+koşulur (`/backtest`) (bkz. [Kullanıcı hesapları](#kullanıcı-hesapları)).
 
 Yönetici iki yoldan olunur:
 
@@ -16,7 +16,7 @@ Sistemi değiştirebilen kısımlar iki katmanla korunur:
 
 | Katman | Neyi korur | Nasıl çalışır | Ayar |
 |---|---|---|---|
-| **Web yönetim girişi** | `/sistem` ve `/backtest` sayfaları ile bu sayfalardaki tüm form gönderimleri | `/giris` sayfası. Yerleşik yönetici 12 saatlik imzalı çerez alır; yönetici hesabı normal kullanıcı oturumuyla girer, rolü her istekte API'den doğrulanır | `WEB_ADMIN_USERNAME`, `WEB_ADMIN_PASSWORD`, kullanıcı rolü |
+| **Web yönetim girişi** | `/sistem` sayfası ile oradaki tüm form gönderimleri (`/backtest` her hesaba açıktır; yerleşik yönetici orada sistem koşularını görür) | `/giris` sayfası. Yerleşik yönetici 12 saatlik imzalı çerez alır; yönetici hesabı normal kullanıcı oturumuyla girer, rolü her istekte API'den doğrulanır | `WEB_ADMIN_USERNAME`, `WEB_ADMIN_PASSWORD`, kullanıcı rolü |
 | **Backend yönetim anahtarı** | API'nin veri değiştiren tüm uçları | `X-Admin-Token` HTTP başlığı | `ADMIN_API_TOKEN` |
 
 Web sunucusu, yönetim ekranındaki bir işlemi backend'e iletirken
@@ -80,8 +80,8 @@ kullanılamaz. `@`, `/` ve `#` ise `DATABASE_URL` içinde kaçış gerektirir.
    oturumu 12 saat, hesap oturumu 30 gün geçerlidir.
 4. Çıkmak için `/sistem` başlığındaki ya da sağ üstteki hesap menüsündeki
    **Çıkış yap** düğmesine basın.
-5. Girişli ama yönetici olmayan bir kullanıcı `/sistem` veya `/backtest`
-   açarsa "Bu sayfa yöneticilere açık" sayfası (HTTP 403) görür.
+5. Girişli ama yönetici olmayan bir kullanıcı `/sistem` açarsa "Bu sayfa
+   yöneticilere açık" sayfası (HTTP 403) görür. `/backtest` her hesaba açıktır.
 
 Oturum ayrıntıları:
 
@@ -172,7 +172,7 @@ kalmaz.
 | Davet kodu oluştur / iptal et | `XXXX-XXXX-XXXX` biçiminde kod; kullanım hakkı dolunca, süresi geçince ya da iptal edilince kayıtta reddedilir. |
 | Doğrula | E-postayı doğrulanmış sayar (SMTP yokken ya da e-posta ulaşmadığında). |
 | Devre dışı bırak / etkinleştir | Devre dışı hesap giriş yapamaz; açık oturumları anında kapanır. |
-| Yönetici yap / yöneticiliği al | Rolü `admin` olan hesap `/sistem` ve `/backtest`'e girer. |
+| Yönetici yap / yöneticiliği al | Rolü `admin` olan hesap `/sistem`'e girer ve backtest kotasından muaftır. |
 
 Süresi dolmuş oturum ve token kayıtları worker tarafından her gece 04:20'de
 silinir.
@@ -199,6 +199,29 @@ silinir.
 - Herkese açık `/api/paper/*` uçları ve `/portfoy` yalnız model portföyü
   gösterir. Telegram/webhook bildirimleri ve günlük özet de yalnız model
   portföyü izler.
+
+### Kişisel backtest
+
+- `/backtest` her hesaba açıktır. Hesapla girenler kendi koşularını, yerleşik
+  (ortam değişkenli) yönetici sistem koşularını görür ve başlatır. Kullanıcı
+  koşuları yalnız sahibine görünür; herkese açık `/api/backtests` uçları
+  yalnız sistem koşularını döner.
+- Koşu artık API isteğinde değil worker'da hesaplanır: önce **Sırada**, sonra
+  **Hesaplanıyor**, sonunda **Tamamlandı / Yetersiz veri / Hata**. Sayfa
+  sonuç gelene kadar birkaç saniyede bir kendini yeniler.
+- Worker'da aynı anda tek backtest çalışır (Redis kilidi); diğerleri sırada
+  bekler, collector'lar için iş slotu kalır. Bir saatten uzun sırada kalan
+  koşu hatayla kapanır. Worker yeniden başlatıldığı için 2 saatten uzun
+  "Sırada/Hesaplanıyor" kalan koşu, bir sonraki koşu ya da kota sorgusunda
+  hatayla kapatılır ve kullanıcıyı kilitlemez.
+- Kota (yönetici rolü muaf): kullanıcı başına günde
+  `BACKTEST_DAILY_LIMIT_PER_USER` (varsayılan 10) koşu ve aynı anda
+  `BACKTEST_MAX_ACTIVE_PER_USER` (varsayılan 1) sıradaki ya da çalışan koşu.
+- **Bu ayarlarla paper portföy başlat:** tamamlanmış, eşik stratejili ve
+  ağırlık simülasyonsuz koşunun eşikleri (giriş/çıkış skoru, güven, kaynak,
+  pozisyon sayısı ve ağırlığı, günlük alım, zarar-kes) yeni bir strateji
+  portföyüne aktarılır. Komisyon, kayma, tavan/taban ve hacim kuralları paper'da
+  herkes için sabittir; kâr-al, takip eden stop ve sektör tavanı kapalı başlar.
 
 ## Hangi durumda ne olur?
 
@@ -262,7 +285,7 @@ Korunan uçlar:
 | `DELETE /api/settings/{key}` | Ayarı `.env` varsayılanına döndürme |
 | `POST /api/settings/gemini/test` | Ücretli küçük bir Gemini test isteği |
 | `POST /api/settings/alerts/test` | Test bildirimi gönderme |
-| `POST /api/backtests` | Backtest başlatma |
+| `POST /api/backtests` | Sistem (yönetici) backtest'ini kuyruğa ekleme |
 | `POST /api/system/storage/vacuum` | Veritabanı bakım işlemi |
 | `/api/auth/*` | Kayıt, giriş, e-posta doğrulama, parola sıfırlama (yalnız web sunucusu çağırır; okuma uçları dahil anahtar ister) |
 | `/api/admin/*` | Kullanıcı listesi, kullanıcı durumu/rolü, davet kodları (okuma uçları dahil) |

@@ -31,8 +31,8 @@ işletir.
   Stratejinin geçmiş veride BIST100'e karşı testi.
 - **Kullanıcı hesapları:** Davetle (kapalı beta) ya da açık kayıt, e-posta
   doğrulama. Hesap açanlar kendi strateji portföylerini (eşikleri ve risk
-  kurallarını kendileri seçer) ve gün sonu fiyatından işleyen manuel emirli
-  portföylerini kurar.
+  kurallarını kendileri seçer), gün sonu fiyatından işleyen manuel emirli
+  portföylerini ve kotalı, kuyrukta çalışan kişisel backtest'lerini kurar.
 - **Dashboard:** Piyasalar, hisse tarayıcı, sinyaller, haberler, KAP, AI
   analizleri, kurumsal görüş, makro/faiz, piyasa takvimi, hisse karşılaştırma,
   izleme listesi, portföy ve CSV dışa aktarma. Açık/koyu tema ve mobil uyumlu

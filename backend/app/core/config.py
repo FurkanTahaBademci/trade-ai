@@ -56,6 +56,9 @@ class Settings(BaseSettings):
     # Kullanici portfoyleri: kisi basina portfoy ve portfoy basina bekleyen emir siniri.
     paper_max_portfolios_per_user: int = Field(default=5, ge=1, le=100)
     paper_max_pending_orders: int = Field(default=20, ge=1, le=500)
+    # Kullanici backtest'i: gunluk kosu ve ayni anda kuyrukta/calisan kosu siniri.
+    backtest_daily_limit_per_user: int = Field(default=10, ge=1, le=1000)
+    backtest_max_active_per_user: int = Field(default=1, ge=1, le=10)
 
     n8n_webhook_url: str = ""
     monitoring_alert_cooldown_seconds: int = 3600

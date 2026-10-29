@@ -5,8 +5,8 @@ export type NavItem = {
   label: string;
   href: string;
   icon: IconName;
-  /** Yönetici girişi gerektiren sayfa. */
-  locked?: boolean;
+  /** Giriş gerektiren sayfa: "admin" yalnız yönetici, "account" her hesap. */
+  locked?: "admin" | "account";
   /** Global aramada sayfayı bulduran ek kelimeler. */
   keywords?: string;
 };
@@ -20,14 +20,14 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Bileşik Sinyaller", href: "/sinyaller", icon: "activity", keywords: "skor sıralama sinyal doğruluk" },
   { label: "Model Portföy", href: "/portfoy", icon: "trend", keywords: "paper portföy pozisyon simülasyon" },
   { label: "Portföylerim", href: "/portfoylerim", icon: "spark", keywords: "kendi portföy paper emir strateji manuel hesap" },
-  { label: "Backtest", href: "/backtest", icon: "activity", locked: true, keywords: "geriye dönük test strateji" },
+  { label: "Backtest", href: "/backtest", icon: "activity", locked: "account", keywords: "geriye dönük test strateji" },
   { label: "Faiz & Makro", href: "/makro", icon: "building", keywords: "tcmb ppk politika faizi enflasyon" },
   { label: "Takvim", href: "/takvim", icon: "calendar", keywords: "temettü genel kurul bilanço ppk olay" },
   { label: "Haber Akışı", href: "/haberler", icon: "news", keywords: "haberler gündem" },
   { label: "KAP Bildirimleri", href: "/kap", icon: "kap", keywords: "bildirim açıklama özel durum" },
   { label: "AI Analizleri", href: "/analizler", icon: "ai", keywords: "yapay zeka değerlendirme etki" },
   { label: "Kurumsal Veriler", href: "/kurumsal", icon: "funds", keywords: "fon tefas akım" },
-  { label: "Sistem Sağlığı", href: "/sistem", icon: "activity", locked: true, keywords: "durum yönetim ayarlar" },
+  { label: "Sistem Sağlığı", href: "/sistem", icon: "activity", locked: "admin", keywords: "durum yönetim ayarlar" },
 ];
 
 export const NAV_GROUPS: { label: string; routes: string[] }[] = [

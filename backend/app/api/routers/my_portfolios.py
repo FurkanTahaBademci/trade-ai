@@ -131,11 +131,13 @@ async def list_my_portfolios(auth: CurrentAuth, db: DB) -> list[MyPortfolioSumma
     return result
 
 
-@router.post("", response_model=MyPortfolioOut, status_code=status.HTTP_201_CREATED)
-async def create_my_portfolio(body: MyPortfolioCreate, auth: CurrentAuth, db: DB) -> MyPortfolioOut:
+async def create_portfolio(
+    db: AsyncSession, user_id: int, body: MyPortfolioCreate
+) -> MyPortfolioOut:
+    """Sinir ve ad tekilligi denetimiyle portfoy acar (backtest koprusu de kullanir)."""
     settings = get_settings()
     count = await db.scalar(
-        select(func.count(PaperPortfolio.id)).where(PaperPortfolio.owner_id == auth.user.id)
+        select(func.count(PaperPortfolio.id)).where(PaperPortfolio.owner_id == user_id)
     )
     if (count or 0) >= settings.paper_max_portfolios_per_user:
         raise _error(
@@ -149,7 +151,7 @@ async def create_my_portfolio(body: MyPortfolioCreate, auth: CurrentAuth, db: DB
         config = body.config or TEMPLATES[body.template or "model"].config
     cash = Decimal(str(body.initial_cash))
     portfolio = PaperPortfolio(
-        owner_id=auth.user.id,
+        owner_id=user_id,
         name=body.name.strip(),
         kind=body.kind,
         config=config.model_dump() if config else None,
@@ -170,6 +172,11 @@ async def create_my_portfolio(body: MyPortfolioCreate, auth: CurrentAuth, db: DB
         raise _error(409, "duplicate_name", "Bu adla bir portföyün zaten var.") from exc
     await db.refresh(portfolio)
     return _portfolio_out(portfolio)
+
+
+@router.post("", response_model=MyPortfolioOut, status_code=status.HTTP_201_CREATED)
+async def create_my_portfolio(body: MyPortfolioCreate, auth: CurrentAuth, db: DB) -> MyPortfolioOut:
+    return await create_portfolio(db, auth.user.id, body)
 
 
 @router.get("/{portfolio_id}", response_model=MyPortfolioOut)

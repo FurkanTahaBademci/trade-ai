@@ -9,6 +9,26 @@ bu bölümü yeni sürüm numarasıyla kapatır.
 
 ## [Unreleased]
 
+### Eklendi
+
+- **Kişisel backtest.** `/backtest` artık her hesaba açık. Kullanıcı kendi
+  ayarlarıyla koşu başlatır, geçmişini ve işlemlerini görür, koşuyu silebilir;
+  koşular yalnız sahibine görünür.
+  - Günde 10 koşu ve aynı anda 1 sıradaki/çalışan koşu sınırı
+    (`BACKTEST_DAILY_LIMIT_PER_USER`, `BACKTEST_MAX_ACTIVE_PER_USER`);
+    yönetici rolü muaf. Kalan hak formun üstünde görünür.
+  - **Bu ayarlarla paper portföy başlat:** tamamlanan eşik stratejili koşunun
+    ayarları tek tıkla yeni bir strateji portföyüne aktarılır.
+
+### Değişti
+
+- Backtest artık API isteği içinde değil, worker kuyruğunda hesaplanır: koşu
+  "Sırada → Hesaplanıyor → Tamamlandı" ilerler ve sayfa sonuç gelene kadar
+  kendini yeniler. Worker'da aynı anda tek backtest çalışır; uzun bir koşu
+  siteyi ve diğer işleri yavaşlatmaz. Takılı kalan koşular hatayla kapanır.
+- Yerleşik yönetici `/backtest`'te sistem koşularını görmeye devam eder;
+  herkese açık backtest uçları kullanıcı koşularını göstermez.
+
 ## [0.11.0] - 2026-10-29
 
 ### Eklendi
